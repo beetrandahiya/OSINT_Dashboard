@@ -294,6 +294,11 @@ All numbers are in the comment at the top of `server/worldwatch/static/app.css`.
 - This cloud sandbox cannot reach the owner's machines (no Tailscale, no Remote Control; his
   Claude runs only in the browser). He runs things on the Macs himself.
 
+- **GDELT lists files before they exist** (2026-11-14). Both series do it: the English file can
+  be listed 15-30 minutes before it downloads, the translated one about an hour. `_gdelt_newest`
+  walks back slot by slot to the newest file that answers 200 and uses that file's own
+  Last-Modified as the data time. A 404 on the listed file is normal, not a failure.
+
 ## Cancelled / ruled out
 
 - Forking God's Eye View, ShadowBroker or worldmonitor (size, licence, wrong map engine). 2026-11-14.

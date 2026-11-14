@@ -183,30 +183,36 @@ def _gdelt_clusters(raw_zip: bytes, langs: tuple[str, ...] | None = None) -> tup
     return articles, out
 
 
+async def _gdelt_newest(feed: Feed, f: Fetcher, listing: str, suffix: str):
+    """GDELT names a file in its listing some time before the file can be downloaded: minutes for the English
+    series, about an hour for the translated one, and its file names are slot labels, not times. So: walk back
+    one 15-minute slot at a time to the newest file that really exists, and take the data time from that file's
+    own Last-Modified header. Returns (stamp, response) or (stamp, None) when we already hold that file."""
+    text = (await f.get(listing)).text
+    url = next(line.split()[2] for line in text.splitlines() if line.endswith(suffix))
+    t = calendar.timegm(time.strptime(url.rsplit("/", 1)[1][:14], "%Y%m%d%H%M%S"))
+    for back in range(0, 13):           # up to three hours back
+        stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(t - back * 900))
+        if feed.memo.get("stamp") == stamp:
+            return stamp, None
+        r = await f.client.get(f"https://data.gdeltproject.org/gdeltv2/{stamp}{suffix}")
+        f.wire_bytes += r.num_bytes_downloaded
+        if r.status_code == 404:
+            continue
+        r.raise_for_status()
+        return stamp, r
+    raise RuntimeError("none of the last 13 files in GDELT's listing could be downloaded")
+
+
 async def news(feed: Feed, f: Fetcher) -> Result:
-    r = await f.get("https://data.gdeltproject.org/gdeltv2/lastupdate.txt")
-    listing = r.text
-    # GDELT names each file after a 15-minute slot, and that name can be minutes ahead of the real
-    # clock. The honest data time is when GDELT published the listing, so that is what we use.
+    stamp, r = await _gdelt_newest(feed, f, "https://data.gdeltproject.org/gdeltv2/lastupdate.txt", ".gkg.csv.zip")
+    if r is None:
+        return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"], note=f"no newer file can be downloaded yet (file {stamp})")
     published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
-    url = next(line.split()[2] for line in listing.splitlines() if line.endswith(".gkg.csv.zip"))
-    stamp = url.rsplit("/", 1)[1][:14]
-    if feed.memo.get("stamp") != stamp:
-        r2 = await f.client.get(url.replace("http://", "https://"))
-        f.wire_bytes += r2.num_bytes_downloaded
-        if r2.status_code == 404 and feed.memo.get("payload"):
-            # GDELT sometimes lists a file a little before it can be downloaded: keep what we have and say so
-            return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["payload"]["published"],
-                          note=f"file {stamp} is listed but cannot be downloaded yet; showing file {feed.memo['stamp']}")
-        r2.raise_for_status()
-        raw = r2.content
-        articles, clusters = await asyncio.to_thread(_gdelt_clusters, raw)
-        feed.memo.update(stamp=stamp, payload={"file": stamp, "articles": articles, "places": clusters}, n=len(clusters))
-        note = f"new 15-minute file, {articles} articles"
-    else:
-        note = "no new file yet"
-    feed.memo["payload"]["published"] = published
-    return Result(feed.memo["n"], feed.memo["payload"], data_time=published, note=f"{note} (file {stamp}); data time is when GDELT published it")
+    articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content)
+    payload = {"file": stamp, "articles": articles, "places": clusters, "published": published}
+    feed.memo.update(stamp=stamp, payload=payload, n=len(clusters), published=published)
+    return Result(len(clusters), payload, data_time=published, note=f"{articles} articles (file {stamp}); data time is when GDELT published the file")
 
 
 NEWS_LANGS = {"deu": "German", "hin": "Hindi"}
@@ -214,22 +220,11 @@ GOOGLE_LANG = {"deu": "de", "hin": "hi"}
 
 
 async def news_translated(feed: Feed, f: Fetcher) -> Result:
-    """German and Hindi articles from GDELT's second file series. GDELT lists each of these files up to an
-    hour before it can actually be downloaded, so we walk back to the newest one that exists. Headlines
-    stay in their own language: GDELT translates for its own analysis but does not publish the translation."""
-    listing = (await f.get("https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt")).text
-    url = next(line.split()[2] for line in listing.splitlines() if line.endswith(".translation.gkg.csv.zip"))
-    t = calendar.timegm(time.strptime(url.rsplit("/", 1)[1][:14], "%Y%m%d%H%M%S"))
-    for back in range(0, 13):           # up to three hours back, one 15-minute slot at a time
-        stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(t - back * 900))
-        if feed.memo.get("stamp") == stamp:
-            return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"],
-                          note=f"no newer file can be downloaded yet (file {stamp})")
-        r = await f.client.get(f"https://data.gdeltproject.org/gdeltv2/{stamp}.translation.gkg.csv.zip")
-        f.wire_bytes += r.num_bytes_downloaded
-        if r.status_code == 404:
-            continue
-        r.raise_for_status()
+    """German and Hindi articles from GDELT's second file series, which runs about an hour behind."""
+    stamp, r = await _gdelt_newest(feed, f, "https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt", ".translation.gkg.csv.zip")
+    if r is None:
+        return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"], note=f"no newer file can be downloaded yet (file {stamp})")
+    if True:
         published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
         articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content, tuple(NEWS_LANGS))
         # Headlines are machine-translated to English (the owner's wish, 14 Nov 2026); the original is kept beside it.
@@ -247,7 +242,6 @@ async def news_translated(feed: Feed, f: Fetcher) -> Result:
                       note=f"{articles} German and Hindi articles (file {stamp}), headlines machine-translated"
                            + (f"; {failed} could not be translated and stay in their language" if failed else "")
                            + "; GDELT releases these about an hour late")
-    raise RuntimeError("none of the last 13 translated files could be downloaded")
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -406,7 +400,7 @@ FEEDS = [
          limit_note="data changes every 2 hours; asking sooner risks a block"),
     Feed("launches", "Rocket launches", "Launch Library 2", "https://thespacedevs.com", 900, launches,
          limit_note="15 requests per hour"),
-    Feed("news", "News places", "GDELT", "https://www.gdeltproject.org", 120, news, stale_after=2400,
+    Feed("news", "News places", "GDELT", "https://www.gdeltproject.org", 120, news, stale_after=3600,
          limit_note="one new file every 15 minutes"),
     Feed("news_translated", "News in German and Hindi", "GDELT", "https://www.gdeltproject.org", 300, news_translated, stale_after=3 * H,
          limit_note="one 8 MB file every 15 minutes, released about an hour late"),
