@@ -53,7 +53,27 @@ No application code exists yet.** Next step after the go: the feed proof (see Pl
 | Setup | One command, no Docker |
 | Look | Follow system light/dark; calm by default, dense on demand; polish means typography, spacing, feel and speed |
 
-Not yet decided: which look (mockups delivered), where it runs, final go on the plan.
+### Decisions (2026-11-14, after the plan)
+
+- **Look: Apple Maps.** Build it from Apple's real Human Interface Guidelines and from
+  measuring Apple's own web apps, not from memory. Read the HIG before slice 1.
+- **Icons:** Apple's SF Symbols where they fit, the same way the music app does it
+  (`music/android/scripts/sf-symbols`: extracted on the owner's Mac from the installed SF
+  fonts; the fonts never go in the repo). Aircraft get type-specific icons (airliner,
+  helicopter, military and so on); the exact set is chosen later with the owner.
+  SF Symbols' licence covers apps for Apple platforms; this is a private personal tool,
+  the owner knows, his call.
+- **Runs on the M1.** The owner accepts about 200 MB of RAM there.
+- **Stack follows the music app** (repo `beetrandahiya/music`, read 2026-11-14): Python 3.13,
+  Starlette + uvicorn, stdlib sqlite3, managed with `uv`; front end is vanilla HTML/CSS/JS
+  with no build step; runs as a launchd LaunchAgent on the M1; deployed with an rsync
+  `push.sh`; private via Tailscale, no login. This replaces the Node proposal.
+  Reuse from it: the frosted-glass CSS recipe and theme-token structure in
+  `server/music/pwa/app.css`, the font stack, `deploy/install-m1.sh` as the template.
+- Music app constraints that also apply here: no Docker, no React, dependency-light,
+  the owner tests by hand, keep automated checks minimal.
+
+Not yet decided: explicit go on the plan with the Python stack.
 
 ## Boundaries on the lookup tool
 
@@ -123,12 +143,15 @@ verify: XposedOrNot, HIBP breach catalogue, Hudson Rock Cavalier. HIBP per-email
 ## Plan (proposed 2026-11-14, awaiting go)
 
 - **Approach:** build our own; borrow MIT pieces from God's Eye View; ideas only from AGPL projects.
-- **Stack:** one Node.js process (collector + local API + SQLite via built-in `node:sqlite`)
-  and a browser front end with MapLibre GL JS v5 (flat map and globe from one engine),
-  satellite.js for orbits, OpenFreeMap basemap. No framework, no Docker, no build step
-  unless it proves necessary.
+- **Stack:** one Python process (collector + local API + SQLite), Starlette + uvicorn via
+  `uv`, matching the music app. Browser front end in vanilla JS with MapLibre GL JS v5
+  (flat map and globe from one engine), satellite.js for orbits, OpenFreeMap basemap.
+  No framework, no Docker, no build step.
 - **Where:** collector on the always-on M1 (needed for 24-48 h history); view from any browser.
-  Weight figures for the app are estimates until the proof measures them.
+  Weight: parsing one full round of the three biggest feeds (GDELT file, world aircraft,
+  nearby aircraft) took 0.09 s and 32 MB peak in Python on a cloud Xeon (measured
+  2026-11-14). Everything else about weight on the M1 is an estimate until the proof
+  measures it there.
 - **Order:** 0 feed proof (24 h run, honest timestamps, status page) -> 1 map shell, quakes,
   feed-status panel -> 2 aircraft -> 3 news clusters and feed column -> 4 satellites, ISS,
   launches -> 5 markets strip, outages -> 6 48 h history -> 7 around-me Munich -> lookup milestone.
@@ -150,8 +173,7 @@ verify: XposedOrNot, HIBP breach catalogue, Hudson Rock Cavalier. HIBP per-email
 
 Five looks (Apple Maps, Flightradar24, Ops room, Financial Times, Linear) drawn with a
 frozen real capture: https://claude.ai/artifact/LDCXQkPUjfRagb61zxtQxL
-Recommendation given: Apple Maps first, Flightradar24 as donor for aircraft conventions,
-ops room advised against as the main look. Owner has not chosen yet.
+Owner chose Apple Maps (2026-11-14).
 
 ## How to run
 
