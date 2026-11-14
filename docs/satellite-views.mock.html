@@ -1,0 +1,178 @@
+<title>Satellite View Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one satellite picker on top, then four ways to draw the same real snapshot. The drawings are
+   night-sky dark in both themes on purpose (space is dark); only the page around them follows the theme. */
+:root { --pg: #f4f4f2; --ink: #1d1d1f; --sub: #62625f; --line: #d8d8d3; --card: #ffffff; --accent: #0a5bd3;
+  --sky: #06080d; --sky-ink: #e9edf3; --sky-sub: #8c96a6; --leo: #5ee0a0; --meo: #ffc857; --geo: #7db7ff; --heo: #ff7ab6;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Inter", system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pg: #131314; --ink: #ededee; --sub: #a0a0a4; --line: #303033; --card: #1c1c1e; --accent: #8ab4f8; color-scheme: dark; } }
+:root[data-theme="dark"] { --pg: #131314; --ink: #ededee; --sub: #a0a0a4; --line: #303033; --card: #1c1c1e; --accent: #8ab4f8; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--pg); color: var(--ink); font: 14px/1.45 var(--ui); padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.01em; text-wrap: balance; }
+.lead { margin: 0; color: var(--sub); max-width: 74ch; }
+.pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--pg); padding-block: 10px; }
+.pick span { color: var(--sub); margin-right: 6px; }
+.pick button { font: 500 13px var(--ui); padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.pick button[aria-pressed="true"] { background: var(--ink); color: var(--pg); border-color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+section { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 860px) { section { grid-template-columns: minmax(0, 1fr); } }
+.view { background: var(--sky); border-radius: 14px; overflow: hidden; position: relative; }
+canvas { display: block; width: 100%; height: 520px; touch-action: none; cursor: grab; }
+canvas.still { cursor: default; }
+.tag { position: absolute; left: 14px; top: 12px; color: var(--sky-sub); font-size: 12px; pointer-events: none; }
+.notes h2 { font-size: 18px; margin: 4px 0 6px; }
+.notes p { margin: 0 0 10px; }
+.notes h3 { margin: 12px 0 2px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--sub); }
+.key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Four ways to draw the satellites</h1>
+    <p class="lead">All four use the same real snapshot: 283 satellites from CelesTrak's orbit data, placed where they were at the moment noted in each drawing. Nothing moves here; in the app they would. Drag the first two to turn the Earth, scroll to zoom. Pick a satellite to see each idea at a low, a medium and a high orbit.</p>
+  </header>
+  <div class="pick" role="group" aria-label="Satellite"><span>Selected:</span>
+    <button data-s="iss" aria-pressed="true">Space station (low orbit)</button>
+    <button data-s="gps" aria-pressed="false">A GPS satellite (medium)</button>
+    <button data-s="geo" aria-pressed="false">A geostationary satellite (high)</button>
+    <div class="key" style="margin-left:auto"><span><i style="background:var(--leo)"></i>Low Earth orbit</span><span><i style="background:var(--meo)"></i>Medium</span><span><i style="background:var(--geo)"></i>Geostationary</span></div>
+  </div>
+
+  <section><div class="view"><canvas id="a" aria-label="Orrery view"></canvas><span class="tag" id="ta"></span></div>
+    <div class="notes"><h2>1. Orrery</h2><p>The whole system to true scale. Every orbit is a ring in space, coloured by its type, with the satellite sitting on its own ring. The three families are obvious at a glance: a green haze hugging the Earth, amber navigation rings, the blue geostationary belt.</p>
+      <h3>Good for</h3><p>Understanding what is up there and which orbit a satellite is in.</p>
+      <h3>Costs</h3><p>The Earth becomes small, so the ground is unreadable. It would be its own "Space" view, separate from the map, built in real 3D.</p></div></section>
+
+  <section><div class="view"><canvas id="b" aria-label="Spotlight view"></canvas><span class="tag" id="tb"></span></div>
+    <div class="notes"><h2>2. Spotlight</h2><p>Close in on the Earth. The selected satellite hangs above the surface on its ring and throws a cone of light down: the glowing patch is exactly the area it can see. Other satellites fade back. For a geostationary satellite the cone covers almost half the planet.</p>
+      <h3>Good for</h3><p>"What is this one looking over right now?" The view you described.</p>
+      <h3>Costs</h3><p>Needs the same real-3D view as the orrery. High orbits leave the frame unless you zoom out.</p></div></section>
+
+  <section><div class="view"><canvas id="c" class="still" aria-label="Look-down view"></canvas><span class="tag" id="tc"></span></div>
+    <div class="notes"><h2>3. Look down</h2><p>You are at the satellite's own position, looking straight down. The curved edge is its real horizon. Low satellites see a region; a geostationary one sees a whole face of the Earth. Readouts give height, speed and orbit type.</p>
+      <h3>Good for</h3><p>The "put me at that point" view. Works with the satellite photo layer as ground.</p>
+      <h3>Costs</h3><p>It is geometry, not a camera feed: what an on-board camera points at is not published. The ground would be our map or yesterday's photo.</p></div></section>
+
+  <section><div class="view"><canvas id="d" class="still" style="height:300px" aria-label="Height ladder"></canvas><span class="tag" id="td"></span></div>
+    <div class="notes"><h2>4. Height ladder</h2><p>A strip for the satellite's card: every satellite as a tick at its height, on a scale that gives the crowded low orbits room. The selected one is marked, and the bands name the orbit type.</p>
+      <h3>Good for</h3><p>Showing orbit type visually inside the card or along the edge of the map. Cheap; works with the map we have today.</p>
+      <h3>Costs</h3><p>It says how high, not where.</p></div></section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+const COL = {LEO: '#5ee0a0', MEO: '#ffc857', GEO: '#7db7ff', HEO: '#ff7ab6'}, NAME = {LEO: 'Low Earth orbit', MEO: 'Medium Earth orbit', GEO: 'Geostationary orbit', HEO: 'Highly elliptical orbit'};
+const RAD = Math.PI / 180, RE = 6371, FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+let D, land, sel, views = {a: {lon: 10, lat: 22, zoom: 1}, b: {lon: 10, lat: 22, zoom: 1}};
+const $ = id => document.getElementById(id);
+
+function prep(cv) { const dpr = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth, h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h); return [x, w, h]; }
+// a point given in Earth radii (x toward 0°E on the equator, z toward the north pole) as seen from above (lon0, lat0)
+function see(p, v) {
+  const r = Math.hypot(p[0], p[1], p[2]), lat = Math.asin(p[2] / r), dl = Math.atan2(p[1], p[0]) - v.lon * RAD, f0 = v.lat * RAD;
+  return [r * Math.cos(lat) * Math.sin(dl), r * (Math.cos(f0) * Math.sin(lat) - Math.sin(f0) * Math.cos(lat) * Math.cos(dl)), r * (Math.sin(f0) * Math.sin(lat) + Math.cos(f0) * Math.cos(lat) * Math.cos(dl))];
+}
+const hidden = q => q[2] < 0 && q[0] * q[0] + q[1] * q[1] < 1;   // behind the Earth
+function earth(x, cx, cy, R, v, glow) {
+  const g = x.createRadialGradient(cx - R * .35, cy - R * .35, R * .1, cx, cy, R); g.addColorStop(0, '#1d3554'); g.addColorStop(1, '#0b1626');
+  x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fillStyle = g; x.fill();
+  const proj = d3.geoOrthographic().rotate([-v.lon, -v.lat]).scale(R).translate([cx, cy]).clipAngle(90), path = d3.geoPath(proj, x);
+  x.beginPath(); path(land); x.fillStyle = '#2c3f55'; x.fill();
+  x.beginPath(); path(d3.geoGraticule().step([30, 30])()); x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = 1; x.stroke();
+  if (glow) glow(proj, path);
+  x.beginPath(); x.arc(cx, cy, R + 1.5, 0, 7); x.strokeStyle = 'rgba(125,183,255,.35)'; x.lineWidth = 2; x.stroke();
+}
+function ring(x, s, cx, cy, R, v, front, alpha, width) {
+  x.strokeStyle = COL[s.c]; x.lineWidth = width; x.globalAlpha = alpha; x.beginPath();
+  let pen = false;
+  for (const p of s.ring) { const q = see(p, v), show = front ? q[2] >= 0 : q[2] < 0; if (!show) { pen = false; continue; }
+    const X = cx + q[0] * R, Y = cy - q[1] * R; if (pen) x.lineTo(X, Y); else x.moveTo(X, Y); pen = true; }
+  x.stroke(); x.globalAlpha = 1;
+}
+function label(x, text, X, Y, color, size = 12, weight = 600) { x.font = `${weight} ${size}px ${FONT}`; x.fillStyle = color; x.fillText(text, X, Y); }
+
+function drawSystem(id, close) {
+  const cv = $(id), [x, w, h] = prep(cv), v = views[id], cx = w / 2, cy = h / 2;
+  const R = (close ? h * 0.3 : Math.min(w, h) / 2 / 7.3) * v.zoom;
+  const list = D.sats, others = close ? 0.16 : 0.5;
+  for (const s of list) if (s !== sel) ring(x, s, cx, cy, R, v, false, close ? 0.05 : (s.c === 'LEO' ? 0.1 : 0.22), 0.7);
+  ring(x, sel, cx, cy, R, v, false, 0.55, 1.6);
+  earth(x, cx, cy, R, v, close && ((proj, path) => {   // the patch of ground the selected satellite can see
+    const ang = Math.acos(1 / (1 + sel.km / RE)) / RAD, circle = d3.geoCircle().center([sel.lon, sel.lat]).radius(ang)();
+    x.save(); x.beginPath(); path(circle); x.clip();
+    const c = proj([sel.lon, sel.lat]) || [cx, cy], g = x.createRadialGradient(c[0], c[1], 0, c[0], c[1], R * Math.sin(ang * RAD) * 1.15);
+    g.addColorStop(0, COL[sel.c] + 'aa'); g.addColorStop(1, COL[sel.c] + '22'); x.fillStyle = g; x.fillRect(0, 0, w, h); x.restore();
+    x.beginPath(); path(circle); x.strokeStyle = COL[sel.c]; x.lineWidth = 1.5; x.stroke();
+  }));
+  for (const s of list) if (s !== sel) ring(x, s, cx, cy, R, v, true, close ? 0.07 : (s.c === 'LEO' ? 0.16 : 0.35), 0.7);
+  for (const s of list) { if (s === sel) continue; const q = see(s.p, v); if (hidden(q)) continue; x.globalAlpha = others; x.fillStyle = COL[s.c]; x.beginPath(); x.arc(cx + q[0] * R, cy - q[1] * R, close ? 1.6 : 1.4, 0, 7); x.fill(); }
+  x.globalAlpha = 1;
+  const q = see(sel.p, v), X = cx + q[0] * R, Y = cy - q[1] * R, g0 = see([sel.p[0] / Math.hypot(...sel.p), sel.p[1] / Math.hypot(...sel.p), sel.p[2] / Math.hypot(...sel.p)], v);
+  if (close && !hidden(q)) {   // the cone of light from the satellite down to its horizon circle
+    const gx = cx + g0[0] * R, gy = cy - g0[1] * R, spread = R * Math.sin(Math.acos(1 / (1 + sel.km / RE))), ang = Math.atan2(gy - Y, gx - X) + Math.PI / 2;
+    const grad = x.createLinearGradient(X, Y, gx, gy); grad.addColorStop(0, COL[sel.c] + '66'); grad.addColorStop(1, COL[sel.c] + '08');
+    x.beginPath(); x.moveTo(X, Y); x.lineTo(gx + Math.cos(ang) * spread, gy + Math.sin(ang) * spread); x.lineTo(gx - Math.cos(ang) * spread, gy - Math.sin(ang) * spread); x.closePath(); x.fillStyle = grad; x.fill();
+  }
+  ring(x, sel, cx, cy, R, v, true, 1, 1.8);
+  if (!hidden(q)) { x.shadowColor = COL[sel.c]; x.shadowBlur = 14; x.fillStyle = '#fff'; x.beginPath(); x.arc(X, Y, 4, 0, 7); x.fill(); x.shadowBlur = 0;
+    label(x, sel.n, X + 10, Y - 6, '#fff'); label(x, `${NAME[sel.c]} · ${sel.km.toLocaleString('en-GB')} km`, X + 10, Y + 10, COL[sel.c], 11, 500); }
+  $('t' + id).textContent = `Snapshot ${D.t.slice(0, 16).replace('T', ' ')} UTC · drag to turn, scroll to zoom`;
+}
+
+function drawDown() {
+  const cv = $('c'), [x, w, h] = prep(cv), d = 1 + sel.km / RE, disc = Math.sqrt((d - 1) / (d + 1)), cx = w / 2, cy = h / 2, R = h * 0.44;
+  // the view from a point d Earth radii from the centre, looking straight down (vertical perspective projection)
+  const raw = (lam, phi) => { const c = Math.cos(phi) * Math.cos(lam), k = (d - 1) / (d - c); return [k * Math.cos(phi) * Math.sin(lam), k * Math.sin(phi)]; };
+  const proj = d3.geoProjection(raw).rotate([-sel.lon, -sel.lat, 0]).scale(R / disc).translate([cx, cy]).clipAngle(Math.acos(1 / d) / RAD - 1e-4), path = d3.geoPath(proj, x);
+  const g = x.createRadialGradient(cx, cy, R * .2, cx, cy, R); g.addColorStop(0, '#1d3554'); g.addColorStop(1, '#0a1422');
+  x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fillStyle = g; x.fill();
+  x.beginPath(); path(land); x.fillStyle = '#31475f'; x.fill(); x.strokeStyle = 'rgba(255,255,255,.18)'; x.lineWidth = .6; x.stroke();
+  x.beginPath(); path(d3.geoGraticule().step([10, 10])()); x.strokeStyle = 'rgba(255,255,255,.07)'; x.lineWidth = 1; x.stroke();
+  x.beginPath(); x.arc(cx, cy, R, 0, 7); x.strokeStyle = COL[sel.c]; x.lineWidth = 2; x.shadowColor = COL[sel.c]; x.shadowBlur = 22; x.stroke(); x.shadowBlur = 0;
+  x.strokeStyle = 'rgba(255,255,255,.7)'; x.lineWidth = 1; x.beginPath(); x.moveTo(cx - 12, cy); x.lineTo(cx + 12, cy); x.moveTo(cx, cy - 12); x.lineTo(cx, cy + 12); x.stroke();
+  for (const s of D.sats) { if (s === sel || s.km >= sel.km) continue; const p = proj([s.lon, s.lat]); if (!p || d3.geoDistance([s.lon, s.lat], [sel.lon, sel.lat]) > Math.acos(1 / d)) continue; x.fillStyle = COL[s.c]; x.globalAlpha = .7; x.beginPath(); x.arc(p[0], p[1], 2, 0, 7); x.fill(); }
+  x.globalAlpha = 1;
+  const wide = 2 * Math.acos(1 / d) * RE, kms = Math.sqrt(398600.4418 / (RE + sel.km));
+  label(x, sel.n, 16, h - 78, '#fff', 15); label(x, NAME[sel.c], 16, h - 58, COL[sel.c], 12);
+  label(x, `Height ${sel.km.toLocaleString('en-GB')} km   ·   speed ${Math.round(kms * 3600).toLocaleString('en-GB')} km/h   ·   one orbit ${sel.per < 180 ? sel.per + ' min' : (sel.per / 60).toFixed(1) + ' h'}`, 16, h - 38, '#c8d0dc', 12, 400);
+  label(x, `Sees a circle ${(Math.round(wide / 100) * 100).toLocaleString('en-GB')} km across, ${(100 * (1 - 1 / d) / 2).toFixed(1)} % of the Earth. Dots: satellites flying beneath it.`, 16, h - 18, '#8c96a6', 12, 400);
+  $('tc').textContent = `Looking straight down from ${Math.abs(sel.lat).toFixed(1)}° ${sel.lat >= 0 ? 'N' : 'S'}, ${Math.abs(sel.lon).toFixed(1)}° ${sel.lon >= 0 ? 'E' : 'W'}`;
+}
+
+function drawLadder() {
+  const cv = $('d'), [x, w, h] = prep(cv), L = 70, Rr = w - 24, top = 54, bot = h - 46;
+  const X = km => L + (Rr - L) * (Math.log10(km) - 2) / (Math.log10(60000) - 2);
+  for (const [a, b, c, n] of [[160, 2000, 'LEO', 'Low Earth orbit'], [2000, 35586, 'MEO', 'Medium Earth orbit'], [35586, 35986, 'GEO', 'Geostationary']]) {
+    x.fillStyle = COL[c] + '1c'; x.fillRect(X(a), top, X(b) - X(a), bot - top); label(x, n, Math.max(X(a) + 6, c === 'GEO' ? X(a) - 84 : 0), top - 10, COL[c], 11, 600); }
+  for (const s of D.sats) { x.strokeStyle = COL[s.c]; x.globalAlpha = s === sel ? 1 : .45; x.lineWidth = s === sel ? 2.5 : 1; x.beginPath(); x.moveTo(X(Math.max(110, s.km)), s === sel ? top - 4 : top + 10); x.lineTo(X(Math.max(110, s.km)), s === sel ? bot + 4 : bot - 10); x.stroke(); }
+  x.globalAlpha = 1;
+  for (const km of [200, 400, 1000, 2000, 5000, 10000, 20000, 35786]) { label(x, km.toLocaleString('en-GB'), X(km) - 14, bot + 18, '#8c96a6', 11, 400); x.fillStyle = '#8c96a6'; x.fillRect(X(km), bot, 1, 5); }
+  label(x, 'km up', 16, bot + 18, '#8c96a6', 11, 400);
+  const sx = X(Math.max(110, sel.km)); x.fillStyle = '#fff'; x.beginPath(); x.arc(sx, top - 8, 4, 0, 7); x.fill();
+  label(x, `${sel.n}, ${sel.km.toLocaleString('en-GB')} km`, Math.min(sx + 8, w - 250), top - 22, '#fff', 12);
+  $('td').textContent = '';
+}
+function drawAll() { if (!D) return; drawSystem('a', false); drawSystem('b', true); drawDown(); drawLadder(); }
+
+Promise.all([fetch('sats.json').then(r => r.json()), fetch('world.json').then(r => r.json())]).then(([d, w]) => {
+  D = d; land = topojson.feature(w, w.objects.land || w.objects.countries);
+  const find = {iss: s => s.id === 25544, gps: s => s.c === 'MEO', geo: s => s.c === 'GEO' && Math.abs(s.lon - 20) < 40};
+  const choose = k => { sel = D.sats.find(find[k]) || D.sats[0]; views.a.lon = views.b.lon = sel.lon - 25; views.a.lat = views.b.lat = Math.max(-50, Math.min(50, sel.lat + 12)); views.b.zoom = sel.c === 'LEO' ? 1 : sel.c === 'MEO' ? 0.42 : 0.3;
+    document.querySelectorAll('.pick button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === k)); drawAll(); };
+  document.querySelectorAll('.pick button').forEach(b => b.onclick = () => choose(b.dataset.s));
+  choose('iss');
+}).catch(() => { $('ta').textContent = 'The snapshot did not load. Reload the page.'; });
+
+for (const id of ['a', 'b']) { const cv = $(id); let drag = null;
+  cv.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY, lon: views[id].lon, lat: views[id].lat}; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => { if (!drag) return; views[id].lon = drag.lon - (e.clientX - drag.x) * .3; views[id].lat = Math.max(-89, Math.min(89, drag.lat + (e.clientY - drag.y) * .3)); drawSystem(id, id === 'b'); });
+  cv.addEventListener('pointerup', () => { drag = null; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); views[id].zoom = Math.max(.15, Math.min(6, views[id].zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); drawSystem(id, id === 'b'); }, {passive: false}); }
+addEventListener('resize', drawAll);
+</script>

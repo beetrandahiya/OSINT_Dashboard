@@ -325,6 +325,28 @@ smaller dots. Built in `space.js`:
 - Not built: GHunt (needs his Google session cookies), PhoneInfoga (a Go program, not on PyPI),
   SpiderFoot (dormant since 2023), Amass/subfinder (Go), other subjects with consent records.
 
+### 2026-11-14, his review of satellites and lookup (decisions pending his answers)
+
+His points:
+- Satellites: at full zoom-out the height drawing collapsed into one clump (my camera estimate
+  from two close points breaks when the globe is small; widened to 20 and 60 degrees as a
+  stopgap). He wants real 3D positions, the orbit path through the satellite and not along
+  the ground, "look down" from the satellite's actual point in space, orbit types (LEO, GEO,
+  others) shown with visual cues on the map and not only as text, a glow on the area a
+  satellite looks over, and generally "more stylized systems", it is "bland".
+  Mock-ups of four styles (orrery, spotlight, look down, height ladder) on a real snapshot:
+  https://claude.ai/artifact/2hMjiJ2kLYCYip8Xt8tX8x (source `docs/satellite-views.mock.html`).
+  Orbit classes there: LEO green, MEO amber, GEO blue. Real 3D means a separate space view
+  (three.js or own WebGL), because MapLibre only draws on the surface. Waiting for his pick.
+- Lookup: dragging the graph selected text (fixed). His own results are "names and links, some
+  of which do not open": wants enrichment and depth. He wants lookup as part of the map for
+  public figures (heads of state: events, travel history, offices held, companies).
+- He referred to the "God's Eye" of the film Furious 7. Told him plainly: that is live tracking
+  of a person through cameras and phones; no public data does it and I will not build tracking
+  of people's whereabouts. What is possible: deep profiles from public records.
+- Asked how hard cameras on the globe are: moderate. Windy's webcam API (free key) and public
+  traffic cameras are fine; unsecured private cameras (Insecam-style) are not.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
