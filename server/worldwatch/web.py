@@ -13,7 +13,7 @@ import httpx
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -216,9 +216,23 @@ async def trail(request):
     return JSONResponse({"hex": hex_, "points": collector.trails.get(hex_, []), "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
+# Browsers, Safari above all, keep script files and reuse them without asking, and then mix old and new
+# files after an update (which once left the map blank). So every start of the server gets its own address
+# for the files: the pages point at /s/<start time>/..., and an old copy can never be picked up again.
+VERSION = format(int(time.time()), "x")
+
+
+class Forever(StaticFiles):
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return r
+
+
 def page(name):
     async def serve(request):
-        return FileResponse(STATIC / name, headers={"Cache-Control": "no-cache"})
+        html = (STATIC / name).read_text().replace("/static/", f"/s/{VERSION}/")
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
     return serve
 
 
@@ -241,5 +255,6 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
     Route("/api/aircraft/area", area),
+    Mount(f"/s/{VERSION}", Forever(directory=STATIC)),
     Mount("/static", StaticFiles(directory=STATIC)),
 ])

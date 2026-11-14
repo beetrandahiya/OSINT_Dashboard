@@ -2,9 +2,9 @@
 // Satellite positions are calculated in the browser from CelesTrak's published orbit data with the standard
 // SGP4 model (the same maths every tracker uses). The card shows how old the orbit data is.
 // Launches come from Launch Library 2 and are drawn at their pads. No flight paths: none are published.
-import {json2satrec} from '/static/vendor/satellite/io.js';
-import {propagate, gstime} from '/static/vendor/satellite/propagation.js';
-import {eciToGeodetic, degreesLat, degreesLong} from '/static/vendor/satellite/transforms.js';
+import {json2satrec} from '../vendor/satellite/io.js';
+import {propagate, gstime} from '../vendor/satellite/propagation.js';
+import {eciToGeodetic, degreesLat, degreesLong} from '../vendor/satellite/transforms.js';
 import {ago, esc, local, now, utc} from './util.js';
 
 const ISS = 25544, EARTH_KM = 6371;
