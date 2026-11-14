@@ -6,8 +6,11 @@ single source of truth for any future session. Read it fully before doing anythi
 
 ## Status
 
-**2026-11-14: interview and research done, plan proposed, waiting for the owner's go.
-No application code exists yet.** Next step after the go: the feed proof (see Plan).
+- **2026-11-14: slice 0 (feed proof) built and running.** `server/` holds the collector, the
+  SQLite log and a live status page. All 11 feeds answered on the first run from a cloud
+  sandbox. Not yet run on the owner's Macs. The owner did not want a 24-hour proof run;
+  he watches it live instead. Next: slice 1 (map shell in the Apple Maps look, quakes,
+  feed-status panel). Read Apple's HIG first.
 
 ## Hard rules (from the owner, not negotiable)
 
@@ -177,7 +180,29 @@ Owner chose Apple Maps (2026-11-14).
 
 ## How to run
 
-Nothing to run yet.
+`cd server && uv run python -m worldwatch serve`, then open http://127.0.0.1:8710/ .
+Needs only `uv`. No keys. Data in `data/` (git-ignored). Settings via `WW_*` environment
+variables, see `server/worldwatch/config.py`.
+
+## Code map
+
+- `server/worldwatch/feeds.py`: one function per feed plus the `FEEDS` table (interval, limits).
+- `collector.py`: timers, back-off, the four states (waiting / ok / late / failing), clock check.
+- `db.py`: `fetches` log (7 days) and `latest` good payload per feed.
+- `web.py`: `/api/status`, `/api/data/{feed}`, the page in `static/index.html`.
+
+## Lessons
+
+- **GDELT file names are not times** (2026-11-14). The file "20261114101500" was published at
+  10:04:42 UTC, eleven minutes before its own name. We use the listing's Last-Modified header
+  as the data time. Never derive a time from a file name.
+- OpenSky does not compress its answer: 0.8 MB per world snapshot, about 77 MB a day at 15 min.
+- The collector compares its clock with the feeds' HTTP Date headers and shows the difference,
+  because every "x seconds ago" depends on the local clock being right.
+- Measured in the sandbox (Linux, cloud Xeon), first minute: 82 MB peak memory, about 1 % of
+  one core. Not measured on the M1 yet.
+- This cloud sandbox cannot reach the owner's machines (no Tailscale, no Remote Control; his
+  Claude runs only in the browser). He runs things on the Macs himself.
 
 ## Cancelled / ruled out
 
