@@ -41,3 +41,11 @@ body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
 #graph g.dim { opacity: .3; }
 #graph circle.sel { stroke: var(--text); stroke-width: 2.5; }
 .detail .not-me { margin-top: 12px; }
+
+.pick { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; font-size: 13px; line-height: 16px; }
+.pick + .pick { border-top: 0.5px solid var(--sep); }
+.pick input { margin: 2px 0 0; accent-color: var(--accent); }
+.pick strong { font-weight: 600; font-size: 15px; } .pick em { font-style: normal; color: var(--text-2); }
+.pick.opt { color: var(--text-2); }
+.face { display: block; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; background: var(--fill); }
+.detail dd { overflow-wrap: anywhere; }

@@ -293,6 +293,38 @@ smaller dots. Built in `space.js`:
 - New optional layer hooks used by `main.js`: `select(id)`, `hit(point)`, `act(name, map)`
   (for `data-act` buttons in a card), `shape(map)` (called after a flat/globe switch).
 
+### 2026-11-14, after his first real lookup run
+
+- **Blank map after a pull (his Safari):** the server sent script files with no cache rule, so
+  Safari reused an old `space.js` beside a new `main.js` and the import failed. Not reproducible
+  in Chromium; diagnosis by reasoning, fix by design: pages now point at `/s/<server start
+  time>/...` (see `VERSION`, `Forever`, `page()` in `web.py`), pages are `no-store`, and module
+  imports are relative. Never import with an absolute `/static/...` path again.
+- **Owner on the lookup:** "looks alright, but can be done much deeper and better, and why aren't
+  we using good Kali toolkits?" His first run (448 of 690 sites passed the checker test on his
+  network) found 10 profiles for his username. He offered to build it himself; not needed.
+- **Kali tools wired in** (`lookup/tools.py`): Maigret, Sherlock, Holehe and theHarvester run
+  unchanged as separate programs via `uvx` (downloaded on first use into uv's tool cache; GPL
+  tools are executed, never copied). Plus built-in checks: RDAP and crt.sh for domains,
+  `phonenumbers` (new dependency, offline) for phones, GitHub's public API for an account
+  (profile, emails in recent public commits), a DuckDuckGo search for a full name.
+  theHarvester comes from its GitHub repo (`uvx --from git+https://github.com/laramies/theHarvester`):
+  the PyPI package of that name has no program in it. Only key-less sources are passed with `-b`.
+- The scan sheet now has a checkbox per check and two options: Maigret all 3,000 sites, and
+  Holehe password-reset probing (off by default: can send reset emails).
+- The graph joins findings of the same page from several tools into one dot (larger = found by
+  more tools) and the card lists "Found by". Maigret's extracted profile details (name, picture,
+  links, dates) show in the card; usernames it discovers and follows are marked as such.
+- Tested from the sandbox with public test identifiers only: Maigret 106 profiles, Sherlock 84,
+  built-in 93, crt.sh 77 hosts, RDAP, phone and name search worked. **Not verified here:**
+  theHarvester results (all its sources fail without direct internet in the sandbox), Holehe in
+  the full scan (116 of 117 sites rate-limited the sandbox on the second run; the first run
+  found accounts), GitHub account (hourly limit of the shared address used up).
+- Known weakness: with several hundred findings the graph labels are too small to read without
+  zooming. A list beside the graph is the likely next step; ask him.
+- Not built: GHunt (needs his Google session cookies), PhoneInfoga (a Go program, not on PyPI),
+  SpiderFoot (dormant since 2023), Amass/subfinder (Go), other subjects with consent records.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

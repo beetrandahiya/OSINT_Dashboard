@@ -8,7 +8,7 @@ import time
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import emails, store, usernames
+from . import emails, store, tools, usernames
 
 job = {"running": None, "step": "", "done": 0, "total": 0, "problems": [], "finished": None}
 
@@ -25,19 +25,29 @@ def guarded(fn):
     return wrapped
 
 
+# Every check a scan can run: id -> (kind of identifier it works on, name, what is sent where, note)
+CHECKS = {
+    "wmn":       ("username", "Built-in checker (WhatsMyName list)", "the username to the websites that passed the test on this computer", ""),
+    "maigret":   ("username", "Maigret", tools.TOOLS["maigret"]["sends"], tools.TOOLS["maigret"]["first"]),
+    "sherlock":  ("username", "Sherlock", tools.TOOLS["sherlock"]["sends"], tools.TOOLS["sherlock"]["first"]),
+    "services":  ("email", "Breach and profile services", "the address to XposedOrNot, Hudson Rock, the OpenPGP key server and GitHub; Gravatar gets only a scrambled form", ""),
+    "holehe":    ("email", "Holehe", tools.TOOLS["holehe"]["sends"], tools.TOOLS["holehe"]["first"]),
+    "records":   ("domain", "Registry and certificate records", "the domain name to rdap.org and crt.sh", ""),
+    "harvester": ("domain", "theHarvester", tools.TOOLS["theharvester"]["sends"], tools.TOOLS["theharvester"]["first"]),
+    "github":    ("github", "GitHub account", "the account name to GitHub's public API", ""),
+    "phone":     ("phone", "Number plan", "nothing: the number is analysed on this computer", ""),
+    "name":      ("name", "Web search", "the exact name to DuckDuckGo", ""),
+}
+OPTIONS = {"maigret_deep": "Maigret: all 3,000 sites instead of the 500 best known (takes 10 to 20 minutes)",
+           "holehe_reset": "Holehe: also use password-reset forms (finds more, but can send reset emails to your inbox)"}
+
+
 def _plan():
     ids, test = store.identifiers(), usernames.last_self_test()
-    names = [i for i in ids if i["kind"] == "username"]
-    mails = [i for i in ids if i["kind"] == "email"]
-    other = [i for i in ids if i["kind"] not in ("username", "email")]
-    steps = []
-    if names:
-        steps.append({"what": f"{len(names)} username{'s' if len(names) > 1 else ''} ({', '.join(i['value'] for i in names)})",
-                      "to": f"{test['trusted']} websites, one page request each per username" if test else "nothing yet: the checker must be tested first",
-                      "sends": "the username, as part of a profile address"})
-    for name, host, sends in emails.SERVICES if mails else []:
-        steps.append({"what": f"{len(mails)} email address{'es' if len(mails) > 1 else ''}", "to": f"{name} ({host})", "sends": sends})
-    return {"steps": steps, "not_yet": [f"{store.KINDS[i['kind']]} “{i['value']}”" for i in other], "needs_test": bool(names) and not test}
+    kinds = {i["kind"] for i in ids}
+    return {"checks": [{"id": k, "for": v[0], "name": v[1], "sends": v[2], "note": v[3], "count": sum(1 for i in ids if i["kind"] == v[0])}
+                       for k, v in CHECKS.items() if v[0] in kinds],
+            "options": OPTIONS, "trusted_sites": test and test["trusted"], "needs_test": not test}
 
 
 @guarded
@@ -98,35 +108,60 @@ async def _selftest():
     job.update(running=None, finished=time.time())
 
 
-async def _scan():
-    scan_id, now, summary = store.scan_started(), time.time(), {"usernames": 0, "emails": 0}
-    try:
-        ids = store.identifiers()
-        names = [i for i in ids if i["kind"] == "username"]
-        if names and usernames.last_self_test():
-            job["step"] = "Checking usernames"
-            by_value = {i["value"]: i for i in names}
-            job["total"] = len(names) * usernames.last_self_test()["trusted"]
-            res = await usernames.search(list(by_value), lambda r: job.__setitem__("done", job["done"] + 1))
-            for value, ident in by_value.items():
-                hits = [{"tool": "Username sweep", "kind": "account", "key": r["site"], "title": f"{r['site']} profile", "url": r["url"],
-                         "detail": {"category": r["category"], "what": "A public profile page exists under this username. It may belong to someone else with the same name."}}
-                        for r in res["results"] if r["username"] == value and r["state"] == "found"]
-                store.save_findings(ident["id"], ["Username sweep"], hits, now)
-                summary["usernames"] += len(hits)
-            unclear = sum(1 for r in res["results"] if r["state"] == "unclear")
-            if unclear:
-                job["problems"].append(f"{unclear} site answers were unclear (blocked, slow or changed) and are not counted as hits.")
-        for ident in [i for i in ids if i["kind"] == "email"]:
-            job["step"] = f"Checking {ident['value']}"
-            found, problems = await emails.search(ident["value"])
-            ran = [n for n, _ in emails.CHECKS if not any(p.startswith(n + ":") for p in problems)]
+async def _scan(want: set):
+    scan_id, now, summary = store.scan_started(), time.time(), {"findings": 0, "checks": []}
+    ids = store.identifiers()
+
+    async def step(check, ident, label, tool_names, work):
+        """Run one check for one identifier; whatever happens, say so."""
+        if check not in want:
+            return
+        job["step"] = f"{label}: {ident['value']}"
+        try:
+            res = await work()
+            found, problems = res if isinstance(res, tuple) else (res, [])
+            ran = [t for t in tool_names if not any(p.startswith(t + ":") for p in problems)]
             store.save_findings(ident["id"], ran, found, now)
             job["problems"] += problems
-            summary["emails"] += len(found)
+            summary["findings"] += len(found)
+        except Exception as e:
+            job["problems"].append(f"{label} for {ident['value']}: {e if isinstance(e, (tools.ToolProblem, RuntimeError)) else type(e).__name__ + ': ' + str(e)[:120]}")
+        job["done"] += 1
+
+    try:
+        todo = [(c, i) for i in ids for c, v in CHECKS.items() if v[0] == i["kind"] and c in want]
+        job["total"] = len(todo)
+        for i in ids:
+            v, k = i["value"], i["kind"]
+            if k == "username":
+                async def wmn(v=v):
+                    if not usernames.last_self_test():
+                        raise RuntimeError("skipped, the checker has not been tested on this computer yet")
+                    res = await usernames.search([v])
+                    unclear = sum(1 for r in res["results"] if r["state"] == "unclear")
+                    hits = [{"tool": "Built-in checker", "kind": "account", "key": r["site"], "title": f"{r['site']} profile", "url": r["url"],
+                             "detail": {"topics": r["category"], "what": "A public profile page exists under this username. It may belong to someone else with the same name."}}
+                            for r in res["results"] if r["state"] == "found"]
+                    return hits, ([f"Built-in checker note: {unclear} site answers were unclear and are not counted as hits."] if unclear else [])
+                await step("wmn", i, "Built-in checker", ["Built-in checker"], wmn)
+                await step("maigret", i, "Maigret", ["Maigret"], lambda v=v: tools.maigret(v, "maigret_deep" in want))
+                await step("sherlock", i, "Sherlock", ["Sherlock"], lambda v=v: tools.sherlock(v))
+            elif k == "email":
+                await step("services", i, "Breach and profile services", [n for n, _ in emails.CHECKS], lambda v=v: emails.search(v))
+                await step("holehe", i, "Holehe", ["Holehe"], lambda v=v: tools.holehe(v, "holehe_reset" in want))
+            elif k == "domain":
+                await step("records", i, "Registry and certificate records", ["Domain registry (RDAP)", "Certificate logs (crt.sh)"], lambda v=v: tools.domain_records(v))
+                await step("harvester", i, "theHarvester", ["theHarvester"], lambda v=v: tools.theharvester(v))
+            elif k == "github":
+                await step("github", i, "GitHub account", ["GitHub"], lambda v=v: tools.github_account(v))
+            elif k == "phone":
+                await step("phone", i, "Number plan", ["Number plan (offline)"], lambda v=v: asyncio.to_thread(tools.phone, v))
+            elif k == "name":
+                await step("name", i, "Web search", ["Web search (DuckDuckGo)"], lambda v=v: tools.name_mentions(v))
     except Exception as e:
         job["problems"].append(f"Scan stopped: {type(e).__name__}: {e}")
     summary["problems"] = list(job["problems"])
+    summary["checks"] = sorted(want & set(CHECKS))
     store.scan_finished(scan_id, summary)
     job.update(running=None, finished=time.time())
 
@@ -140,10 +175,15 @@ async def start(request):
         _begin("selftest", 0)
         asyncio.create_task(_selftest())
     elif which == "scan":
-        if _plan()["needs_test"]:
-            return JSONResponse({"error": "Test the checker first."}, status_code=409)
+        try:
+            want = set((await request.json()).get("run") or [])
+        except ValueError:
+            want = set()
+        want &= set(CHECKS) | set(OPTIONS)
+        if not want & set(CHECKS):
+            return JSONResponse({"error": "Nothing was chosen to run."}, status_code=400)
         _begin("scan", 0)
-        asyncio.create_task(_scan())
+        asyncio.create_task(_scan(want))
     else:
         return JSONResponse({"error": "unknown"}, status_code=404)
     return JSONResponse({"ok": True})
