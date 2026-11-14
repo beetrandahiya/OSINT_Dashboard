@@ -7,13 +7,16 @@ single source of truth for any future session. Read it fully before doing anythi
 ## Status
 
 - **2026-11-14: slice 0 (feed proof) done.** Collector, SQLite log, live feed report at `/feeds`.
-  All 11 feeds answered from the cloud sandbox. The owner skipped the 24-hour run.
-- **2026-11-14: slice 1 built, waiting for the owner's review.** The app at `/`: Apple Maps look,
-  flat map and globe, earthquakes on the map and in the list, detail card, feeds card.
-- **Everything is built and tested in the cloud session; the move to the M1 happens at the very
-  end** (owner's decision 2026-11-14). Consequence: numbers measured here are from Linux on a
-  datacenter network; CelesTrak often times out from here.
-- Next: slice 2, aircraft (near Munich live, world every 15 min, military toggle, type icons).
+- **2026-11-14: slice 1 done and approved** ("app feel in general is good"). The owner runs it on
+  his Mac from the branch (`git pull`, restart); all 11 feeds were green from his network,
+  CelesTrak included. The cloud session's port preview does not show up for him.
+- **2026-11-14: slices 2-5 built in one go, waiting for review:** aircraft (near / military /
+  world), news places, satellites with ISS track, launches, country-level outages, markets
+  strip, layer chips with counts, one mixed list ("Coming up" then "Latest").
+- **Building and testing happen in the cloud session; the owner pulls and tries each slice on
+  his Mac; the M1 install comes at the very end** (owner's decision 2026-11-14).
+- Not built yet: aircraft photos, type-specific aircraft icons beyond plane / helicopter, SF
+  Symbols, 48 h history, around-me Munich view, search, conflicts layer, the lookup tool.
 
 ## Hard rules (from the owner, not negotiable)
 
@@ -209,6 +212,20 @@ All numbers are in the comment at the top of `server/worldwatch/static/app.css`.
 - SF Symbols can only be produced on the owner's Mac (see the music repo's script). Until
   then the UI uses CSS-drawn shapes, no icon font.
 - Our choices that are not Apple's: left panel 380px (Apple's card is 420px) to leave more map.
+- Layer colours (Apple system colours): news red, quakes orange, aircraft indigo, military
+  purple, satellites green, launches teal, outages grey. One shared black/white ring marks
+  the selected item on any layer.
+- Every layer is one module in `static/js/` with the same shape: `id, title, color, feeds
+  {name: seconds}, layers [map layer ids], addTo, paint, onData, render, count, rows, locate,
+  ring, detail` (optional `owns`, `moving`, `visible`). `main.js` knows nothing layer-specific.
+- Aircraft are drawn where they last reported; never moved forward between reports. The 15-min
+  world view is drawn smaller and grey, and is hidden wherever a fresher feed has the aircraft.
+- Routes come from adsbdb via our `/api/route/{callsign}`, looked up only when a card opens,
+  cached a day in the `lookups` table, labelled crowd-sourced.
+- Satellites: positions computed in the browser with satellite.js (vendored, MIT) from
+  CelesTrak OMM data; the card states the age of the orbit data. ISS track is +-45 min.
+- Outages: IODA country-level events only (`entityType=country`); marker at the country's
+  centre from `countries.json` (generated from the `world-countries` npm package, ODbL).
 - Front end files: `static/index.html`, `app.css`, `js/main.js` (wiring), `js/map.js` (base map,
   recoloured OpenFreeMap "positron" style for both themes, globe), `js/quakes.js` (one module
   per layer: addTo, paint, setData, rows, detail), `js/util.js`. MapLibre 5.24.1 is vendored.

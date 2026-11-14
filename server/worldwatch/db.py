@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS fetches (
     error      TEXT
 );
 CREATE INDEX IF NOT EXISTS fetches_feed ON fetches (feed, started);
+CREATE TABLE IF NOT EXISTS lookups (     -- answers to one-off questions (a flight's route), kept so we ask once
+    key        TEXT PRIMARY KEY,
+    fetched    REAL NOT NULL,
+    body       TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS latest (
     feed       TEXT PRIMARY KEY,
     fetched    REAL NOT NULL,
@@ -65,3 +70,19 @@ def load_latest(feed):
     if not row:
         return None
     return {"fetched": row[0], "data_time": row[1], "items": row[2], "payload": json.loads(row[3])}
+
+
+def lookup_get(key, max_age):
+    import time
+    with _lock:
+        row = conn().execute("SELECT fetched, body FROM lookups WHERE key = ?", (key,)).fetchone()
+    if row and time.time() - row[0] < max_age:
+        return {"fetched": row[0], "body": json.loads(row[1])}
+    return None
+
+
+def lookup_put(key, fetched, body):
+    with _lock:
+        c = conn()
+        c.execute("INSERT OR REPLACE INTO lookups (key, fetched, body) VALUES (?,?,?)", (key, fetched, json.dumps(body)))
+        c.commit()

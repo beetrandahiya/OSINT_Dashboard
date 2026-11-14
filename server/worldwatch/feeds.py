@@ -15,6 +15,7 @@ import re
 import time
 import zipfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from email.utils import parsedate_to_datetime
 from typing import Any, Awaitable, Callable
 
@@ -168,7 +169,7 @@ def _gdelt_clusters(raw_zip: bytes) -> tuple[int, list[dict]]:
         c = places.setdefault(name, {"place": name, "lat": lat, "lon": lon, "outlets": {}, })
         c["outlets"].setdefault(r[3], {"outlet": r[3], "title": html.unescape(m.group(1)), "url": r[4]})
     out = [{"place": c["place"], "lat": c["lat"], "lon": c["lon"], "outlets": len(c["outlets"]),
-            "articles": list(c["outlets"].values())[:12]} for c in places.values()]
+            "articles": list(c["outlets"].values())[:30]} for c in places.values()]
     out.sort(key=lambda c: -c["outlets"])
     return articles, out
 
@@ -202,11 +203,22 @@ async def quakes(feed: Feed, f: Fetcher) -> Result:
     return Result(len(out), {"quakes": out}, data_time=d["metadata"]["generated"] / 1000)
 
 
+_COUNTRIES = json.loads((Path(__file__).parent / "countries.json").read_text())   # ISO code -> [lon, lat, name]
+
+
 async def outages(feed: Feed, f: Fetcher) -> Result:
+    """Country-level outage signals of the last 24 hours. IODA also reports single networks; those are
+    far too many and too local for a world view, so only whole countries are asked for."""
     now = int(time.time())
-    d = (await f.get(f"https://api.ioda.inetintel.cc.gatech.edu/v2/outages/events?from={now - 86400}&until={now}&limit=200")).json()
-    out = [{"where": e["location_name"], "location": e["location"], "start": e["start"], "duration_s": e["duration"],
-            "signal": e["datasource"], "score": e["score"]} for e in d.get("data") or []]
+    d = (await f.get(f"https://api.ioda.inetintel.cc.gatech.edu/v2/outages/events?from={now - 86400}&until={now}&limit=200&entityType=country")).json()
+    out = []
+    for e in d.get("data") or []:
+        code = e["location"].split("/")[-1]
+        place = _COUNTRIES.get(code)
+        out.append({"id": f"{code}-{e['start']}-{e['datasource']}", "code": code, "where": e["location_name"],
+                    "start": e["start"], "duration_s": e["duration"], "signal": e["datasource"], "score": e["score"],
+                    # a country has no single point: the marker sits at the country's geographic centre
+                    "lon": place[0] if place else None, "lat": place[1] if place else None})
     return Result(len(out), {"events": out}, note="IODA gives no timestamp for the data set as a whole")
 
 
@@ -259,7 +271,7 @@ FEEDS = [
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,
-         limit_note="no published limit"),
+         limit_note="no published limit; country-level signals only"),
     Feed("markets", "Markets", "Yahoo Finance (unofficial)", "https://finance.yahoo.com", 300, markets,
          limit_note="unofficial endpoint, delayed quotes, can break without notice"),
     Feed("crypto", "Bitcoin", "CoinGecko", "https://www.coingecko.com", 120, crypto, stale_after=900,
