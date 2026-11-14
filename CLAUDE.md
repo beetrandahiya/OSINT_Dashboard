@@ -347,6 +347,35 @@ His points:
 - Asked how hard cameras on the globe are: moderate. Windy's webcam API (free key) and public
   traffic cameras are fine; unsecured private cameras (Insecam-style) are not.
 
+### 2026-11-14, his decisions after the mock-ups, and what was built
+
+His answers:
+- Satellites: **spotlight and look-down**, built **into the existing globe**, keeping its look
+  ("the globe right now is beautiful"; do not restyle it like the mock-ups). **Flat map: dots
+  only.** Orbit types must be visible on the map, not only in the card.
+- Public figures: **all three groups, deep and clear** (heads of state and government,
+  politicians in office, business leaders) **plus anyone he searches for**, and the search
+  must not lower the quality of the first three.
+- His own footprint: verify and read every hit, a timeline, more tools, and "a full god's eye
+  like FF7 profile, in the whole spy feel, not the design but the content": a dossier.
+
+Built (satellites, `space.js`):
+- **Exact 3D on the globe.** An invisible MapLibre custom layer (`ww-sat-3d`) hands us
+  `args.defaultProjectionData.mainMatrix` every frame; `map.transform.getMatrixForModel(lngLat,
+  metres)` places a point at a height. Checked against `map.project`: 0 px difference at zoom
+  0.8, 1.9 and 4. Occlusion by the Earth is plain geometry, with the camera distance taken
+  from the engine's depth value at the ground and one radius up (`camera()`). This replaced
+  the two-point estimate that clumped when zoomed out. Do not go back to estimating.
+- Orbit ring in space through the satellite (ISS always, plus the selected one), no ground
+  tracks any more; spotlight = lit horizon patch plus a cone (cone only when seen from the
+  side); colours by orbit class (LEO green, MEO amber, GEO blue, HEO pink) with a legend on
+  the map; `orbit()` gives the standard names for the card.
+- **Look down from it** puts the map camera at the satellite's point (zoom solved from the
+  camera height), follows it, and restores the previous view on leaving. `minZoom` is 0.3
+  normally and -2 while riding a satellite.
+- Satellite families fetched: visual, stations, gps-ops, galileo, geo (802 in total), one
+  CelesTrak request each, 2.5 s apart, every 2 h; a family that fails keeps its last data.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

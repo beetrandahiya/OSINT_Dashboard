@@ -15,7 +15,7 @@ const PALETTE = {
 
 export function createMap(container, leftPadding) {
   const map = new maplibregl.Map({
-    container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.8, maxZoom: 16,
+    container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.3, maxZoom: 16,
     attributionControl: false, dragRotate: false, pitchWithRotate: false, renderWorldCopies: true,
   });
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');

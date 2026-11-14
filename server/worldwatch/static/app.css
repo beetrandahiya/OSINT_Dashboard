@@ -139,6 +139,7 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .detail .eyebrow { margin: 0 0 2px; color: var(--text-2); font-size: 13px; font-weight: 600; }
 .detail h2 { margin: 0; font: 700 22px/26px var(--font); padding-right: 34px; }
 .detail .where { margin: 2px 0 14px; color: var(--text-2); font-size: 15px; line-height: 20px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; }
 .detail .where .sub { display: block; font-size: 11px; line-height: 14px; margin-top: 2px; }
 .links { list-style: none; margin: 0 0 12px; padding: 0; }
 .links li { padding: 9px 0; }

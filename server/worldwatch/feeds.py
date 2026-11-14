@@ -135,10 +135,31 @@ async def aircraft_world(feed: Feed, f: Fetcher) -> Result:
     return Result(len(ac), {"aircraft": ac}, data_time=float(d["time"]))
 
 
+SAT_GROUPS = {"visual": "the brightest", "stations": "space stations", "gps-ops": "GPS", "galileo": "Galileo", "geo": "geostationary"}
+
+
 async def satellites(feed: Feed, f: Fetcher) -> Result:
-    recs = (await f.get("https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=json")).json()
+    """Orbit data for a few families of satellites from CelesTrak, so that low, medium and geostationary orbits
+    are all on the map. One request per family, spaced out; a family that fails keeps its last good data."""
+    have, problems = feed.memo.setdefault("groups", {}), []
+    for i, group in enumerate(SAT_GROUPS):
+        if i:
+            await asyncio.sleep(2.5)
+        try:
+            have[group] = (await f.get(f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=json")).json()
+        except Exception as e:
+            problems.append(f"{SAT_GROUPS[group]} ({type(e).__name__})")
+    if not have:
+        raise RuntimeError("CelesTrak answered for none of the satellite families: " + ", ".join(problems))
+    seen, recs = set(), []
+    for group, rows in have.items():
+        for r in rows:
+            if r["NORAD_CAT_ID"] not in seen:
+                seen.add(r["NORAD_CAT_ID"])
+                recs.append(r)
     newest = max(_iso(r["EPOCH"]) for r in recs)
-    return Result(len(recs), {"omm": recs}, data_time=newest, note="data time is the newest orbit epoch")
+    return Result(len(recs), {"omm": recs, "families": {g: len(v) for g, v in have.items()}}, data_time=newest,
+                  note="data time is the newest orbit epoch" + (f"; not refreshed this time: {', '.join(problems)}" if problems else ""))
 
 
 async def launches(feed: Feed, f: Fetcher) -> Result:
