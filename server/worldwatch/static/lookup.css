@@ -49,3 +49,7 @@ body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
 .pick.opt { color: var(--text-2); }
 .face { display: block; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; background: var(--fill); }
 .detail dd { overflow-wrap: anywhere; }
+
+/* dragging the graph must not select the page's text */
+body.lookup { -webkit-user-select: none; user-select: none; }
+body.lookup .detail, body.lookup input, body.lookup .ids span { -webkit-user-select: text; user-select: text; }

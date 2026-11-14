@@ -19,6 +19,15 @@ function where(rec, t) {
 const epoch = s => Date.parse(s.omm.EPOCH + 'Z') / 1000;
 const period = s => 1440 / s.omm.MEAN_MOTION;                      // minutes for one orbit
 const byId = id => sats.find(x => 'sat:' + x.id === id);
+// The usual names for orbits, by the standard definitions: height, the time for one orbit, and how stretched it is.
+function orbit(s) {
+  const P = period(s), e = s.omm.ECCENTRICITY, inc = s.omm.INCLINATION, a = Math.cbrt(398600.4418 * (P * 60 / (2 * Math.PI)) ** 2), mean = a - EARTH_KM;
+  if (e > 0.25) return ['Highly elliptical orbit', `swings between ${Math.round(a * (1 - e) - EARTH_KM).toLocaleString('en-GB')} and ${Math.round(a * (1 + e) - EARTH_KM).toLocaleString('en-GB')} km`];
+  if (Math.abs(P - 1436.1) < 30) return inc < 3 ? ['Geostationary orbit', 'stays over one spot on the equator, 35,786 km up'] : ['Geosynchronous orbit', 'one orbit per day, but tilted, so it drifts north and south'];
+  if (mean < 2000) return ['Low Earth orbit', inc > 96 && inc < 100 ? 'sun-synchronous: passes each place at the same local time' : inc > 80 ? 'polar: passes near both poles' : 'below 2,000 km'];
+  if (mean < 35786) return ['Medium Earth orbit', 'between 2,000 and 35,786 km, where navigation satellites fly'];
+  return ['High Earth orbit', 'above the geostationary belt'];
+}
 
 function lines(points) {   // a path as map lines, split where it crosses the date line
   const out = [[]]; let last = null;
@@ -52,10 +61,10 @@ let cam = null, drawn = [];
 function camera() {
   const m = theMap, c = m.getCenter(), o = m.project(c), r = Math.PI / 180;
   const off = deg => { const p = m.project([c.lng + deg / Math.max(0.2, Math.cos(c.lat * r)), c.lat]); return Math.hypot(p.x - o.x, p.y - o.y); };
-  const t1 = 4 * r, t2 = 24 * r, s1 = off(4), s2 = off(24);
+  const t1 = 20 * r, t2 = 60 * r, s1 = off(20), s2 = off(60);   // wide angles: with small ones the sums go wrong when the globe is small on screen
   if (!(s1 > 0 && s2 > 0)) return null;
   const rho = s2 * Math.sin(t1) / (s1 * Math.sin(t2)), d = (Math.cos(t1) - rho * Math.cos(t2)) / (1 - rho);
-  if (!isFinite(d) || d <= 1) return null;
+  if (!isFinite(d) || d <= 1.05 || d > 60) return null;   // no believable camera: draw nothing rather than something wrong
   return {o, d, k: s1 * (d - Math.cos(t1)) / Math.sin(t1), lat0: c.lat * r, lon0: c.lng * r};
 }
 function place(lon, lat, km) {   // screen position of a point at a height, or null when the Earth hides it
@@ -179,6 +188,7 @@ export const satellites = {
         <dt>Over</dt><dd>${Math.abs(p.lat).toFixed(2)}° ${p.lat >= 0 ? 'N' : 'S'}, ${Math.abs(p.lon).toFixed(2)}° ${p.lon >= 0 ? 'E' : 'W'}</dd>
         <dt>Height</dt><dd>${Math.round(p.km).toLocaleString('en-GB')} km</dd>
         <dt>Speed</dt><dd>${p.kms ? (p.kms * 3600).toLocaleString('en-GB', {maximumFractionDigits: 0}) + ' km/h' : 'not available'}</dd>
+        <dt>Orbit</dt><dd>${orbit(s)[0]} <span class="soft">(${orbit(s)[1]}; tilted ${s.omm.INCLINATION.toFixed(1)}° to the equator)</span></dd>
         <dt>One orbit takes</dt><dd>${period(s) < 180 ? period(s).toFixed(1) + ' min' : (period(s) / 60).toFixed(1) + ' h'}</dd>
         <dt>Can see from up there</dt><dd>a circle ${Math.round(wide / 10) * 10 > 999 ? (Math.round(wide / 100) * 100).toLocaleString('en-GB') : Math.round(wide / 10) * 10} km across <span class="soft">(${(100 * (1 - Math.cos(rad)) / 2).toFixed(1)} % of the Earth)</span></dd>
         <dt>Orbit data from</dt><dd>${local(e)} <span class="soft">(${ago(e)})</span></dd>
