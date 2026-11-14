@@ -186,6 +186,16 @@ Owner's picks from researched options:
   the big moments.
 - Not built: search, 48 h history, SF Symbols, conflicts layer, the lookup tool, M1 install.
 
+### 2026-11-14, after the fourth round
+
+- Owner: icons by type, GPS layer and the Munich view all work.
+- **No move to the M1 yet** (owner: "there's still lots to do"). Do not raise the move again
+  until he does.
+- **Design sheet** for judging icons and tokens: https://claude.ai/artifact/5wHPZPnid3bhtgTiKiq9iG
+  Source template in `docs/design-sheet.tpl.html` (the `__DATA__` placeholder takes the
+  `SHAPES` and `KINDS` from `aircraft.js`). Republish it when icons, colours or components
+  change, so he always judges the current state. Waiting for his notes on it.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
