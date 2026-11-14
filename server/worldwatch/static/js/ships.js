@@ -1,5 +1,5 @@
-// Ships. For now only the area Finland's open maritime service covers (northern Baltic); world coverage
-// needs a free aisstream.io key. A ship is drawn where it last reported; nothing is moved forward.
+// Ships: Finland's open feed (northern Baltic, no key) plus aisstream.io worldwide once its free key is set.
+// A ship is drawn where it last reported; nothing is moved forward.
 import {ago, esc, local} from './util.js';
 
 const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 10-26z';
@@ -36,7 +36,7 @@ export default {
   locate(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat]; },
   ring: () => 13,
   owns: id => String(id).startsWith('ship:'),
-  about: () => 'Ships in Finnish waters and the northern Baltic, from Finland\'s open data. The rest of the world needs a free aisstream.io key, not set up yet.',
+  about: () => info?.payload?.world?.key ? `Ships worldwide from aisstream.io (volunteer receivers: dense near coasts, thin mid-ocean) plus Finland's open feed.` : 'Ships in the northern Baltic only, from Finland\'s open data. For the rest of the world, register a free key at aisstream.io and put it in data/aisstream-key.txt.',
   detail(id) {
     const s = list.find(x => 'ship:' + x.mmsi === id);
     if (!s) return null;
@@ -45,10 +45,11 @@ export default {
       <dl><dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
       <dt>Speed</dt><dd>${s.speed_kn == null ? 'not reported' : s.speed_kn.toFixed(1) + ' kn <span class="soft">(' + Math.round(s.speed_kn * 1.852) + ' km/h)</span>'}</dd>
       <dt>Course</dt><dd>${s.course == null ? 'not reported' : Math.round(s.course) + '°'}</dd>
-      ${s.draught_m ? `<dt>Draught</dt><dd>${s.draught_m.toFixed(1)} m</dd>` : ''}
+      ${s.length_m ? `<dt>Length</dt><dd>${s.length_m} m</dd>` : ''}
+      ${s.draught_m ? `<dt>Draught</dt><dd>${(+s.draught_m).toFixed(1)} m</dd>` : ''}
       <dt>Position reported</dt><dd>${local(s.time)} <span class="soft">(${ago(s.time)})</span></dd>
       <dt>Identifiers</dt><dd>MMSI ${s.mmsi}${s.imo ? ' · IMO ' + s.imo : ''}${s.callsign ? ' · ' + esc(s.callsign) : ''}</dd></dl>
       <a class="link" href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${s.mmsi}" target="_blank" rel="noopener">Look this ship up on MarineTraffic</a>
-      <p class="source">Source: Digitraffic (Fintraffic, Finland's open maritime data, CC BY 4.0), fetched ${ago(info.fetched)}. Ships broadcast these values themselves; name, type and destination are typed in by the crew and can be out of date. Drawn where it last reported.</p>`;
+      ${s.length_m ? '' : ''}<p class="source">Source: ${s.source === 'aisstream.io' ? 'aisstream.io (AIS relayed by volunteer receivers)' : "Digitraffic (Fintraffic, Finland's open maritime data, CC BY 4.0)"}, fetched ${ago(info.fetched)}. Ships broadcast these values themselves; name, type and destination are typed in by the crew and can be out of date. Drawn where it last reported.</p>`;
   },
 };

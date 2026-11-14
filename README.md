@@ -19,6 +19,22 @@ Then open http://127.0.0.1:8710/
 The first start downloads Python packages (three small ones) and takes a few seconds longer.
 Stop it with Ctrl-C. Collected data is kept in `data/` and survives restarts.
 
+### Free keys (optional, each switches on one extra)
+
+Each key goes in its own one-line file in `data/` (created on first start; git ignores it). Nothing else
+needs a key.
+
+| File | Register at | Switches on |
+|---|---|---|
+| `data/aisstream-key.txt` | aisstream.io (sign in with GitHub, "API Keys") | ships worldwide, not only the northern Baltic |
+| `data/opensanctions-key.txt` | opensanctions.org/api (free for non-commercial use) | sanctions and politically-exposed-person lists in people profiles |
+
+```bash
+echo "YOUR-KEY" > data/aisstream-key.txt
+```
+
+Restart the server after adding a key.
+
 ### Aircraft photos (optional)
 
 Photos in the aircraft card come from planespotters.net, which asks every client to send a contact

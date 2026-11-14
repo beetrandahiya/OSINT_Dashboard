@@ -19,6 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import config, db
 from .collector import Collector
+from .ais import stream as ais_stream
 from .feeds import _readsb_aircraft, adsbfi_area
 from .lookup import api as lookup_api
 
@@ -32,8 +33,25 @@ def _process() -> dict:
     return {"peak_memory_mb": round(peak, 1), "cpu_seconds": round(ru.ru_utime + ru.ru_stime, 2)}
 
 
+def _ships_world_state(f):
+    """The live ship stream is not a timed fetch; describe it from the stream itself."""
+    a = ais_stream.status()
+    f.update(items=a["ships"], fetched=a["last_message"], data_time=a["last_message"], tried=a["last_message"], error=None, note=None)
+    if not a["key"]:
+        f.update(state="waiting", note="not set up: register a free key at aisstream.io and put it in data/aisstream-key.txt")
+    elif a["state"] == "failing":
+        f.update(state="failing", error=a["error"])
+    elif a["state"] == "connecting" or not a["last_message"]:
+        f.update(state="waiting", note="connecting to aisstream.io")
+    else:
+        f.update(state="ok" if time.time() - a["last_message"] < 120 else "late",
+                 note=f"{a['ships']:,} ships heard in the last 30 minutes; {a['messages']:,} messages since the stream opened")
+    return f
+
+
 async def status(request):
     s = collector.status()
+    s["feeds"] = [_ships_world_state(f) if f["name"] == "ships_world" else f for f in s["feeds"]]
     s["process"] = _process()
     s["home"] = {"lat": config.HOME_LAT, "lon": config.HOME_LON}
     return JSONResponse(s, headers={"Cache-Control": "no-store"})
@@ -44,7 +62,15 @@ async def data(request):
     if not st:
         return JSONResponse({"error": "no such feed"}, status_code=404)
     now = time.time()
-    return JSONResponse({**st.public(now), "now": now, "payload": st.payload}, headers={"Cache-Control": "no-store"})
+    payload = st.payload
+    if request.path_params["name"] == "ships":
+        # Finland's feed (stored) plus the worldwide stream (in memory only, merged here); the newer report wins
+        merged = {s["mmsi"]: {**s, "source": "Digitraffic"} for s in (payload or {}).get("ships", [])}
+        for s in ais_stream.ships():
+            if s["mmsi"] not in merged or s["time"] > merged[s["mmsi"]]["time"]:
+                merged[s["mmsi"]] = s
+        payload = {"ships": list(merged.values()), "world": ais_stream.status()}
+    return JSONResponse({**st.public(now), "now": now, "payload": payload}, headers={"Cache-Control": "no-store"})
 
 
 async def route(request):
@@ -239,7 +265,9 @@ def page(name):
 @contextlib.asynccontextmanager
 async def lifespan(app):
     await collector.start()
+    ais_stream.start()
     yield
+    await ais_stream.stop()
     await collector.stop()
 
 

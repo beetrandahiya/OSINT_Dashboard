@@ -600,6 +600,8 @@ FEEDS = [
          limit_note="the feed behind mvg.de; not an official service, can break"),
     Feed("fires", "Fire detections", "NASA FIRMS", "https://firms.modaps.eosdis.nasa.gov", 1800, fires, stale_after=6 * H,
          limit_note="NASA rebuilds the 24-hour file several times an hour"),
+    Feed("ships_world", "Ships worldwide", "aisstream.io", "https://aisstream.io", 60, None,
+         limit_note="live stream from volunteer receivers; needs a free key in data/aisstream-key.txt"),
     Feed("ships", "Ships (northern Baltic)", "Digitraffic, Finland", "https://www.digitraffic.fi/en/marine-traffic/", 60, ships, stale_after=900,
          limit_note="open data, no key; Finnish coverage area only"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,
