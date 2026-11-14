@@ -135,7 +135,7 @@ const LAYERS = [['News','#ff3b30','#ff453a','circle, number of outlets'],['Earth
   ['Launches','#00a3b4','#40c8e0','circle, launches at the site'],['GPS','#d49a00','#ffd60a','hexagons, red and yellow'],['Cables','#8e8e93','#98989d','thin lines'],['Rain','#0a84ff','#409cff','radar picture'],
   ['Night','#1c1c1e','#8e8e93','soft shading'],['Aurora','#00a878','#63e6be','soft glow']];
 const col = (name, dark) => LAYERS.find(l => l[0] === name)[dark ? 2 : 1];
-const plane = (shape, fill, px, rot = 0) => `<svg width="${px}" height="${px}" viewBox="-4 -4 72 72" style="transform:rotate(${rot}deg);overflow:visible" aria-hidden="true"><path d="${D.shapes[shape]}" fill="${fill}" stroke="var(--edge)" stroke-width="5" stroke-linejoin="round" paint-order="stroke" fill-rule="evenodd"/></svg>`;
+const plane = (shape, fill, px, rot = 0) => `<svg width="${px}" height="${px}" viewBox="-4 -4 72 72" style="transform:rotate(${rot}deg);overflow:visible" aria-hidden="true">${D.shapes[shape].split(/(?=M)/).map(d => `<path d="${d}" fill="none" stroke="var(--edge)" stroke-width="5" stroke-linejoin="round"/>`).join('')}${D.shapes[shape].split(/(?=M)/).map(d => `<path d="${d}" fill="${fill}"/>`).join('')}</svg>`;
 const dot = (c, px, label = '', extra = '') => `<span class="dotm" style="width:${px}px;height:${px}px;background:${c};${extra}">${label}</span>`;
 
 const FILL = {

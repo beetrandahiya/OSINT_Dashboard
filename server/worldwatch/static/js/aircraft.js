@@ -50,13 +50,13 @@ function split(points) {   // a flown path as map lines, split at the date line
 // category, so aircraft known only from it get the plain airliner shape.
 const SHAPES = {
   jet:     'M32 3c2.6 0 3.8 5 3.8 10.5V25l22.7 14.2v5.3L35.8 37.6v14.2l6.7 5.4v4L32 58.2 21.5 61.2v-4l6.7-5.4V37.6L5.5 44.5v-5.3L28.2 25V13.5C28.2 8 29.4 3 32 3z',
-  heavy:   'M32 2c3.2 0 4.6 5 4.6 11v9.5L62 42v6l-25.4-8V51l8.4 6.2v4.3L32 58 19 61.5v-4.3l8.4-6.2V40L2 48v-6l25.4-19.500V13c0-6 1.400-11 4.600-11zM14.500 33.500l5-3.800v5.800l-5 1.600zM49.500 33.500l-5-3.800v5.800l5 1.600z',
+  heavy:   'M32 2c3.2 0 4.6 5 4.6 11v9.5L62 42v6l-25.4-8V51l8.4 6.2v4.3L32 58 19 61.5v-4.3l8.4-6.2V40L2 48v-6l25.4-19.5V13c0-6 1.4-11 4.6-11zM44 24.5h4v8h-4zM52 30.5h4v8h-4zM16 24.5h4v8h-4zM8 30.5h4v8h-4z',
   prop:    'M32 7c1.900 0 2.900 3 2.900 7v6.500h22.600v7l-22.600 3v14.500l7.500 3.500v4L32 51l-10.400 1.500v-4l7.500-3.500V30.500l-22.600-3v-7h22.600V14c0-4 1-7 2.900-7zM27 4.500h10v2.500H27z',
   fighter: 'M32 3c1.600 0 2.600 4.500 3.200 10l1.300 12L55 46.500v5l-17-3.500.4 6.500 6.100 4v3.500L32 58.500 19.500 62v-3.500l6.100-4 .4-6.500-17 3.500v-5L27.500 25l1.300-12C29.400 7.500 30.400 3 32 3z',
-  heli:    'M32 14c4.200 0 7 3.600 7 9v9.500l2 13.500h7v4H16v-4h7l2-13.500V23c0-5.400 2.800-9 7-9zM30.500 46h3v12h-3zM4 20.500h56v3.500H4z',
+  heli:    'M32 12c5 0 8 5 8 11 0 6-3 10-5.5 12L33.5 54h-3L29.5 35C27 33 24 29 24 23c0-6 3-11 8-11zM25 50h14v3.5H25zM11.9 5.1L14.1 2.9 52.1 40.9 49.9 43.1zM49.9 2.9L52.1 5.1 14.1 43.1 11.9 40.9z',
   glider:  'M32 9c1.300 0 2 3 2 6v8.500h28v4.200l-28 2.300v17l6.500 2.500v3.200L32 51l-8.500 1.700v-3.200L30 47V30L2 27.700v-4.200h28V15c0-3 .7-6 2-6z',
   balloon: 'M32 5a20 20 0 0 1 20 20c0 9.500-7.500 15.500-12.500 21h-15C19.500 40.500 12 34.500 12 25A20 20 0 0 1 32 5zM27 49h10v9H27z',
-  drone:   'M32 12c2 0 3.200 2.500 3.200 6v8l20 9.500v5L35.200 37v11l5.800 4.500v3.500H23v-3.500l5.800-4.500V37L8.800 40.500v-5l20-9.500v-8c0-3.500 1.200-6 3.200-6z',
+  drone:   'M32 4c3.6 0 5.2 3.200 5.2 7 0 3.200-1.400 5.600-3 7.200L33.8 54h-3.600L29.800 18.200c-1.600-1.600-3-4-3-7.200 0-3.800 1.600-7 5.200-7zM3 28h58v3.600L34 34.500h-4L3 31.600zM32 46l10 8v3.400L32 53l-10 4.400V54z',
   ground:  'M22 20h20a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H22a3 3 0 0 1-3-3V23a3 3 0 0 1 3-3z',
 };
 // category -> [shape, relative size, plain name]
@@ -68,10 +68,14 @@ const kind = a => KINDS[a.category] || ['jet', 1, 'Aircraft'];
 const STILL = new Set(['balloon', 'ground']);   // shapes that have no nose, so they are not turned to the heading
 function icon(path, fill, edge, px) {
   const c = document.createElement('canvas'); c.width = c.height = px;
-  const x = c.getContext('2d'), p = new Path2D(path);
+  // A shape can be several pieces (body, rotor, engines). Each piece is drawn on its own, outlines first, so
+  // pieces that overlap join into one silhouette instead of cutting holes in each other.
+  const x = c.getContext('2d'), parts = path.split(/(?=M)/).map(d => new Path2D(d));
   x.scale(px / 64, px / 64);
-  x.lineJoin = 'round'; x.lineWidth = 5; x.strokeStyle = edge; x.stroke(p);
-  x.fillStyle = fill; x.fill(p, 'evenodd');
+  x.lineJoin = 'round'; x.lineWidth = 5; x.strokeStyle = edge;
+  for (const p of parts) x.stroke(p);
+  x.fillStyle = fill;
+  for (const p of parts) x.fill(p);
   return x.getImageData(0, 0, px, px);
 }
 function icons(map, dark) {
