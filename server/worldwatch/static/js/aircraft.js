@@ -45,32 +45,47 @@ function split(points) {   // a flown path as map lines, split at the date line
   return lines.filter(l => l.length > 1);
 }
 
-// ---- icons, drawn here so no image files or icon fonts are needed (pointing north) ----
-const PLANE = 'M32 3c2.6 0 3.8 5 3.8 10.5V25l22.7 14.2v5.3L35.8 37.6v14.2l6.7 5.4v4L32 58.2 21.5 61.2v-4l6.7-5.4V37.6L5.5 44.5v-5.3L28.2 25V13.5C28.2 8 29.4 3 32 3z';
-const HELI = 'M32 14c4.2 0 7 3.6 7 9v9.5l2 13.5h7v4H16v-4h7l2-13.5V23c0-5.4 2.8-9 7-9zM30.5 46h3v12h-3zM4 20.5h56v3.5H4z';
+// ---- icons, drawn here so no image files or icon fonts are needed (all pointing north) ----
+// The shape follows the category the aircraft itself broadcasts. The 20-minute world feed carries no
+// category, so aircraft known only from it get the plain airliner shape.
+const SHAPES = {
+  jet:     'M32 3c2.6 0 3.8 5 3.8 10.5V25l22.7 14.2v5.3L35.8 37.6v14.2l6.7 5.4v4L32 58.2 21.5 61.2v-4l6.7-5.4V37.6L5.5 44.5v-5.3L28.2 25V13.5C28.2 8 29.4 3 32 3z',
+  heavy:   'M32 2c3.2 0 4.6 5 4.6 11v9.5L62 42v6l-25.4-8V51l8.4 6.2v4.3L32 58 19 61.5v-4.3l8.4-6.2V40L2 48v-6l25.4-19.500V13c0-6 1.400-11 4.600-11zM14.500 33.500l5-3.800v5.800l-5 1.600zM49.500 33.500l-5-3.800v5.800l5 1.600z',
+  prop:    'M32 7c1.900 0 2.900 3 2.900 7v6.500h22.600v7l-22.600 3v14.500l7.500 3.500v4L32 51l-10.400 1.500v-4l7.500-3.500V30.500l-22.600-3v-7h22.600V14c0-4 1-7 2.900-7zM27 4.500h10v2.500H27z',
+  fighter: 'M32 3c1.600 0 2.600 4.500 3.200 10l1.300 12L55 46.500v5l-17-3.500.4 6.500 6.100 4v3.500L32 58.500 19.500 62v-3.500l6.100-4 .4-6.500-17 3.500v-5L27.500 25l1.300-12C29.400 7.500 30.400 3 32 3z',
+  heli:    'M32 14c4.200 0 7 3.600 7 9v9.500l2 13.500h7v4H16v-4h7l2-13.500V23c0-5.400 2.800-9 7-9zM30.500 46h3v12h-3zM4 20.500h56v3.500H4z',
+  glider:  'M32 9c1.300 0 2 3 2 6v8.500h28v4.200l-28 2.300v17l6.500 2.500v3.200L32 51l-8.500 1.700v-3.200L30 47V30L2 27.700v-4.200h28V15c0-3 .7-6 2-6z',
+  balloon: 'M32 5a20 20 0 0 1 20 20c0 9.500-7.500 15.500-12.500 21h-15C19.500 40.500 12 34.500 12 25A20 20 0 0 1 32 5zM27 49h10v9H27z',
+  drone:   'M32 12c2 0 3.200 2.500 3.200 6v8l20 9.500v5L35.200 37v11l5.800 4.500v3.500H23v-3.500l5.800-4.500V37L8.800 40.500v-5l20-9.500v-8c0-3.500 1.200-6 3.200-6z',
+  ground:  'M22 20h20a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H22a3 3 0 0 1-3-3V23a3 3 0 0 1 3-3z',
+};
+// category -> [shape, relative size, plain name]
+const KINDS = {A1: ['prop', 0.8, 'Light aircraft'], A2: ['jet', 0.8, 'Small aircraft'], A3: ['jet', 1, 'Airliner'], A4: ['jet', 1.1, 'Large airliner'],
+  A5: ['heavy', 1.25, 'Heavy jet'], A6: ['fighter', 0.95, 'High-performance jet'], A7: ['heli', 0.95, 'Helicopter'],
+  B1: ['glider', 0.9, 'Glider'], B2: ['balloon', 0.9, 'Balloon or airship'], B4: ['prop', 0.7, 'Ultralight'], B6: ['drone', 0.8, 'Drone'],
+  C1: ['ground', 0.6, 'Ground vehicle'], C2: ['ground', 0.6, 'Ground vehicle'], C3: ['ground', 0.6, 'Ground obstacle']};
+const kind = a => KINDS[a.category] || ['jet', 1, 'Aircraft'];
+const STILL = new Set(['balloon', 'ground']);   // shapes that have no nose, so they are not turned to the heading
 function icon(path, fill, edge, px) {
   const c = document.createElement('canvas'); c.width = c.height = px;
   const x = c.getContext('2d'), p = new Path2D(path);
   x.scale(px / 64, px / 64);
   x.lineJoin = 'round'; x.lineWidth = 5; x.strokeStyle = edge; x.stroke(p);
-  x.fillStyle = fill; x.fill(p);
+  x.fillStyle = fill; x.fill(p, 'evenodd');
   return x.getImageData(0, 0, px, px);
 }
 function icons(map, dark) {
   const edge = dark ? '#1c1c1e' : '#ffffff';
-  const set = {'ww-plane': [PLANE, civil.color[+dark]], 'ww-heli': [HELI, civil.color[+dark]],
-               'ww-plane-mil': [PLANE, military.color[+dark]], 'ww-heli-mil': [HELI, military.color[+dark]]};
-  for (const [name, [path, fill]] of Object.entries(set)) {
-    const img = icon(path, fill, edge, 64);
+  for (const [shape, path] of Object.entries(SHAPES)) for (const [suffix, fill] of [['', civil.color[+dark]], ['-mil', military.color[+dark]]]) {
+    const name = 'ww-' + shape + suffix, img = icon(path, fill, edge, 64);
     if (map.hasImage(name)) map.updateImage(name, img); else map.addImage(name, img, {pixelRatio: 2});
   }
 }
 
-const heli = a => a.category === 'A7';
-const feature = (a, kind, at) => ({type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
-  properties: {id: a.hex, track: a.track ?? 0, label: a.flight || a.reg || '', icon: (heli(a) ? 'ww-heli' : 'ww-plane') + (kind === 'mil' ? '-mil' : '')}});
+const feature = (a, cls, at) => { const [shape, size] = kind(a); return {type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
+  properties: {id: a.hex, track: STILL.has(shape) ? 0 : a.track ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : '')}}; };
 const empty = {type: 'FeatureCollection', features: []};
-const SIZE = ['interpolate', ['linear'], ['zoom'], 1, 0.22, 5, 0.46, 9, 0.8];
+const SIZE = ['interpolate', ['linear'], ['zoom'], 1, ['*', 0.22, ['get', 's']], 5, ['*', 0.46, ['get', 's']], 9, ['*', 0.8, ['get', 's']]];
 const label = {'text-field': ['step', ['zoom'], '', 6.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5,
   'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-optional': true, 'text-allow-overlap': false};
 const symbol = (id, source) => ({id, type: 'symbol', source, layout: {'icon-image': ['get', 'icon'], 'icon-size': SIZE, 'icon-rotate': ['get', 'track'],
@@ -146,6 +161,7 @@ export function select(id) {
 // ---- the card ----
 const ft = v => v == null ? 'not reported' : v === 'ground' ? 'on the ground' : `${Number(v).toLocaleString('en-GB')} ft <span class="soft">(${(v * 0.3048 / 1000).toFixed(1)} km)</span>`;
 const kt = v => v == null ? 'not reported' : `${Math.round(v)} kt <span class="soft">(${Math.round(v * 1.852)} km/h)</span>`;
+const ACCURACY = {11: 'within 3 m', 10: 'within 10 m', 9: 'within 30 m', 8: 'within 93 m', 7: 'within 185 m', 6: 'within 556 m', 5: 'within 926 m', 4: 'within 1.9 km', 3: 'within 3.7 km', 2: 'within 7.4 km', 1: 'within 18.5 km', 0: 'not stated'};
 const SOURCE = {view: 'adsb.fi', military: 'adsb.lol', world: 'OpenSky Network'};
 
 function detail(id) {
@@ -166,14 +182,15 @@ function detail(id) {
       <dt>Ground speed</dt><dd>${kt(a.gs_kt)}</dd>
       <dt>Heading</dt><dd>${a.track == null ? 'not reported' : Math.round(a.track) + '°'}</dd>
       ${a.squawk ? `<dt>Transponder code</dt><dd>${esc(a.squawk)}${{7500: ' (hijack)', 7600: ' (radio failure)', 7700: ' (emergency)'}[a.squawk] || ''}</dd>` : ''}
-      <dt>Position reported</dt><dd>${local(at)} <span class="soft">(${ago(at)})</span></dd>`;
+      <dt>Position reported</dt><dd>${local(at)} <span class="soft">(${ago(at)})</span></dd>
+      ${a.nac_p != null ? `<dt>Position accuracy it reports</dt><dd>${ACCURACY[a.nac_p] || 'unknown'} <span class="soft">(NACp ${a.nac_p})</span></dd>` : ''}`;
   }
   const flags = [isMil && 'Military', a.ladd && 'On the FAA\'s limited-display list', a.pia && 'Privacy address'].filter(Boolean).join(' · ');
   const fresh = from === 'view' ? `Between reports it is drawn moving on along its last heading and speed, at most ${GLIDE_MAX} seconds ahead; that part is an estimate.`
     : from === 'military' ? 'This feed refreshes every 5 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.'
     : 'The world view refreshes every 20 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.';
   return `<div class="photo" id="photo" data-hex="${esc(a.hex)}"></div>
-    <p class="eyebrow">${isMil ? 'Military aircraft' : heli(a) ? 'Helicopter' : 'Aircraft'}</p>
+    <p class="eyebrow">${isMil ? 'Military ' + kind(a)[2].toLowerCase() : kind(a)[2]}</p>
     <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}</h2>
     <p class="where" id="route" data-callsign="${esc(a.flight || '')}">${a.flight ? 'Looking up the route' : 'No callsign reported'}</p>
     <dl>${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>

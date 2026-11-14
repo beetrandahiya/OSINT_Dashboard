@@ -163,8 +163,28 @@ Owner's picks from researched options:
   Cached 24 h, photographer credited, image links back, per their terms.
 - Route / trail / airport layers are not tied to the Aircraft chip any more (they were hidden
   when only Military was on, which is why military routes never drew).
-- Still to build from his picks: icons by aircraft type, GPS interference view, Munich panel
-  (overhead, weather, DWD warnings, MVG).
+- Owner tested this round: paths, gliding, photos and the route check work ("go on").
+
+### Built 2026-11-14, fourth round (waiting for review)
+
+- **Aircraft icons by category** (`SHAPES` / `KINDS` in `aircraft.js`): jet, heavy jet, propeller,
+  fighter, helicopter, glider, balloon, drone, ground vehicle, drawn as paths in code, sized by
+  class. The category is what the aircraft broadcasts (adsb.fi / adsb.lol). OpenSky's
+  `extended=1` category came back 0 for every aircraft, so world-feed aircraft stay generic.
+  The card also shows the position accuracy the aircraft reports (NACp, in metres).
+- **GPS interference layer** (`gps.js`, feed `gps`): GPSJAM's daily file
+  (`gpsjam.org/data/<day>-h3_4.csv`, newest day from `manifest.csv`), hexagons turned into
+  polygons with the `h3` Python package (new dependency). GPSJAM's own bands: red > 10 % of
+  aircraft with poor accuracy, yellow 2-10 %; hexagons under 5 aircraft dropped. It is their
+  analysis of a past day, labelled as such. GPSJAM states no licence; private use with credit.
+- **Munich view** (`munich.js`, World / Munich switch in the sidebar): weather now and DWD
+  warnings (Bright Sky, feed `munich_weather`), the 8 nearest airborne aircraft (feed
+  `aircraft_near`), MVG messages in force (feed `mvg`, unofficial; incidents first, then rail,
+  first 30 headlines machine-translated). Switching flies to Munich and back.
+- Peak memory in the sandbox is now about 180 MB (was 82 MB with 11 feeds); the owner's limit
+  for the M1 is about 200 MB. Watch this; the GPS file and the 8 MB translated news file are
+  the big moments.
+- Not built: search, 48 h history, SF Symbols, conflicts layer, the lookup tool, M1 install.
 
 ## Boundaries on the lookup tool
 

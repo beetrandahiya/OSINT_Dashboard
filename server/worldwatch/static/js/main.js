@@ -8,11 +8,13 @@ import {satellites, launches} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
 import {rain, night, aurora} from './sky.js';
+import gps from './gps.js';
+import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [night, aurora, cables, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
-const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, cables, rain, night, aurora];
+const LAYERS = [night, aurora, gps, cables, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
+const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, gps, cables, rain, night, aurora];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -61,7 +63,7 @@ map.on('load', () => {
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
-      .filter(x => x.properties.id != null).sort((a, b) => (a.layer.id === 'ww-cables-hit') - (b.layer.id === 'ww-cables-hit'))[0];   // markers win over cables
+      .filter(x => x.properties.id != null).sort((a, b) => ['ww-cables-hit', 'ww-gps'].includes(a.layer.id) - ['ww-cables-hit', 'ww-gps'].includes(b.layer.id))[0];   // markers win over cables
     if (!f) return pick(null);
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     pick({layer: layer.id, id: f.properties.id});
@@ -192,6 +194,21 @@ $('#feeds-toggle').onclick = () => {
   renderFeeds();
 };
 window.ww = {map, pick, layers: byId};   // handy in the browser console when something looks wrong
+// ---- World / Munich ----
+const munich = munichView.start(hex => pick({layer: military.owns(hex) ? 'military' : 'aircraft', id: hex}));
+let worldView = null;
+function place(where) {
+  const m = where === 'munich';
+  $('#world').setAttribute('aria-pressed', !m); $('#home').setAttribute('aria-pressed', m);
+  $('#list').hidden = m; $('#munich').hidden = !m;
+  munich.show(m);
+  const ease = {duration: calm.matches ? 0 : 1200};
+  if (m) { worldView = {center: map.getCenter(), zoom: map.getZoom()}; const h = munich.home(); map.easeTo({center: [h.lon, h.lat], zoom: 8.3, ...ease}); }
+  else if (worldView) map.easeTo({...worldView, ...ease});
+}
+$('#world').onclick = () => place('world');
+$('#home').onclick = () => place('munich');
+
 renderChips();
 loadStatus();
 markets.start();

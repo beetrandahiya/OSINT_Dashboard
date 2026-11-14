@@ -90,6 +90,7 @@ def _readsb_aircraft(d: dict) -> list[dict]:
             "track": a.get("track"), "squawk": a.get("squawk"),
             "seen_pos_s": a.get("seen_pos"),          # seconds since the last position, per the source
             "military": bool(flags & 1), "pia": bool(flags & 4), "ladd": bool(flags & 8),
+            "nac_p": a.get("nac_p"), "nic": a.get("nic"),   # the aircraft's own statement of how exact its position is
         })
     return out
 
@@ -407,6 +408,85 @@ async def cables(feed: Feed, f: Fetcher) -> Result:
                   note="a map that changes rarely; the source gives no timestamp")
 
 
+async def gps_interference(feed: Feed, f: Fetcher) -> Result:
+    """GPSJAM's daily map: for each hexagon of the world, how many aircraft passing through reported good and
+    how many reported poor navigation accuracy. We keep GPSJAM's own two bands: more than 10 % poor (high)
+    and 2 to 10 % poor (some). Hexagons with fewer than 5 aircraft that day are left out as too thin to judge."""
+    import csv
+    import h3
+    manifest = (await f.get("https://gpsjam.org/data/manifest.csv")).text.strip().splitlines()
+    day = manifest[-1].split(",")[0]
+    if feed.memo.get("day") != day:
+        text = (await f.get(f"https://gpsjam.org/data/{day}-h3_4.csv")).text
+
+        def build():
+            feats = []
+            for row in csv.DictReader(io.StringIO(text)):
+                good, bad = int(row["count_good_aircraft"]), int(row["count_bad_aircraft"])
+                total = good + bad
+                if total < 5 or bad / total <= 0.02:
+                    continue
+                ring = [[lon, lat] for lat, lon in h3.cell_to_boundary(row["hex"])]
+                lons = [p[0] for p in ring]
+                if max(lons) - min(lons) > 180:          # a hexagon across the date line: keep it on one side
+                    ring = [[lon + 360 if lon < 0 else lon, lat] for lon, lat in ring]
+                ring.append(ring[0])
+                feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]},
+                              "properties": {"id": "gps:" + row["hex"], "good": good, "bad": bad, "level": "high" if bad / total > 0.10 else "some"}})
+            return feats
+
+        feats = await asyncio.to_thread(build)
+        feed.memo.update(day=day, payload={"day": day, "type": "FeatureCollection", "features": feats}, n=len(feats))
+    end_of_day = calendar.timegm(time.strptime(day, "%Y-%m-%d")) + 86400
+    return Result(feed.memo["n"], feed.memo["payload"], data_time=float(end_of_day), data_label=f"the whole day of {day} (UTC)",
+                  note="one map per day, published the day after")
+
+
+async def munich_weather(feed: Feed, f: Fetcher) -> Result:
+    """Current weather and official warnings for Munich from the German Weather Service (DWD), through Bright Sky."""
+    w = (await f.get(f"https://api.brightsky.dev/current_weather?lat={config.HOME_LAT}&lon={config.HOME_LON}")).json()
+    a = (await f.get(f"https://api.brightsky.dev/alerts?lat={config.HOME_LAT}&lon={config.HOME_LON}")).json()
+    cur, station = w["weather"], (w.get("sources") or [{}])[0]
+    alerts = [{"id": x["id"], "event": x.get("event_en"), "headline": x.get("headline_en") or x.get("headline_de"),
+               "description": x.get("description_en") or x.get("description_de"), "severity": x.get("severity"),
+               "onset": _iso(x["onset"][:19]) if x.get("onset") else None, "expires": _iso(x["expires"][:19]) if x.get("expires") else None}
+              for x in a.get("alerts") or []]
+    return Result(len(alerts), {"now": {k: cur.get(k) for k in ("temperature", "condition", "icon", "wind_speed_10", "wind_direction_10", "wind_gust_speed_10",
+                                                                 "relative_humidity", "pressure_msl", "cloud_cover", "precipitation_60", "visibility")},
+                               "observed": _iso(cur["timestamp"][:19]), "station": station.get("station_name"), "alerts": alerts},
+                  data_time=_iso(cur["timestamp"][:19]), note="items = official warnings in force or announced")
+
+
+_TAG = re.compile(r"<[^>]+>")
+
+
+async def mvg(feed: Feed, f: Fetcher) -> Result:
+    """Disruption messages for Munich's U-Bahn, S-Bahn, tram and bus, from the feed behind mvg.de. That feed
+    is not an official public service, so it can change or vanish without notice."""
+    d = (await f.get("https://www.mvg.de/api/bgw-pt/v3/messages")).json()
+    now, out = time.time() * 1000, []
+    for m in d:
+        start, end = float(m.get("validFrom") or 0), float(m.get("validTo") or 0)
+        if not (start <= now and (not end or now <= end)):
+            continue
+        lines = list(dict.fromkeys(x["label"] for x in m.get("lines") or [] if x.get("label")))
+        out.append({"id": str(m.get("publication")) + ":" + (m.get("title") or "")[:40], "title": m.get("title"), "kind": m.get("type"),
+                    "text": html.unescape(_TAG.sub(" ", m.get("description") or "")).strip()[:600],
+                    "lines": lines, "transport": sorted({x.get("transportType") for x in m.get("lines") or [] if x.get("transportType")}),
+                    "from": start / 1000, "to": end / 1000 if end else None, "published": float(m.get("publication") or 0) / 1000})
+    rail = {"SBAHN", "UBAHN", "TRAM"}
+    out.sort(key=lambda m: (m["kind"] != "INCIDENT", not (rail & set(m["transport"])), -m["published"]))
+    incidents = sum(1 for m in out if m["kind"] == "INCIDENT")
+    # The first screenful gets an English headline by machine translation; the German stays beside it.
+    english, _ = await translate.to_english(f, [m["title"] for m in out[:30] if m["title"]], "de")
+    for m in out[:30]:
+        if english.get(m["title"], m["title"]) != m["title"]:
+            m["title_original"], m["title"] = m["title"], english[m["title"]]
+    newest = max((m["published"] for m in out), default=None)
+    return Result(incidents, {"messages": out, "incidents": incidents}, data_time=newest,
+                  note=f"{incidents} incidents and {len(out) - incidents} planned changes in force; data time is the newest message")
+
+
 H = 3600
 FEEDS = [
     Feed("aircraft_near", "Aircraft near Munich", "adsb.fi", "https://adsb.fi", 20, aircraft_near, stale_after=90,
@@ -437,6 +517,12 @@ FEEDS = [
          limit_note="aurora forecast updates about every 5 minutes"),
     Feed("cables", "Undersea cables", "TeleGeography", "https://www.submarinecablemap.com", 7 * 86400, cables, min_retry=600,
          limit_note="fetched once a week; licence CC BY-NC-SA, private use only"),
+    Feed("gps", "GPS interference", "GPSJAM", "https://gpsjam.org", 6 * H, gps_interference, min_retry=600,
+         limit_note="one file per day; worked out by GPSJAM from aircraft reports"),
+    Feed("munich_weather", "Munich weather and warnings", "DWD via Bright Sky", "https://brightsky.dev", 600, munich_weather, stale_after=2 * H,
+         limit_note="no published limit"),
+    Feed("mvg", "Munich transport disruptions", "MVG (unofficial feed)", "https://www.mvg.de", 300, mvg,
+         limit_note="the feed behind mvg.de; not an official service, can break"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,
          limit_note="no published limit; country-level signals only"),
     Feed("markets", "Markets", "Yahoo Finance (unofficial)", "https://finance.yahoo.com", 300, markets,

@@ -34,6 +34,7 @@ def _process() -> dict:
 async def status(request):
     s = collector.status()
     s["process"] = _process()
+    s["home"] = {"lat": config.HOME_LAT, "lon": config.HOME_LON}
     return JSONResponse(s, headers={"Cache-Control": "no-store"})
 
 

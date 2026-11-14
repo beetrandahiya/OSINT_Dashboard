@@ -82,6 +82,26 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .seg { display: flex; padding: 2px; border-radius: 10px; background: var(--fill); }
 .seg button { border: 0; background: none; padding: 4px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: default; transition: background-color var(--move); }
 .seg button[aria-pressed="true"] { background: var(--knob); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.05); }
+.seg.wide { margin: 0 20px 12px; }
+.seg.wide button { flex: 1; padding: 5px 14px; }
+.munich { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 20px; scrollbar-width: thin; }
+.munich h3 { margin: 18px 0 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.m-now { display: flex; align-items: baseline; gap: 10px; }
+.m-now b { font-size: 26px; line-height: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.m-now span { font-size: 17px; }
+.m-line { margin: 4px 0 0; font-size: 15px; line-height: 20px; }
+.m-src { margin: 6px 0 0; color: var(--text-2); font-size: 11px; line-height: 14px; }
+.m-item { padding: 9px 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.m-item + .m-item { border-top: 0.5px solid var(--sep); }
+.m-item b { font-size: 15px; line-height: 20px; font-weight: 500; }
+.m-item.incident b { color: var(--bad); }
+.m-air { list-style: none; margin: 0 -10px; padding: 0; }
+.m-air li { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border-radius: 10px; font-size: 15px; cursor: default; }
+.m-air li:hover { background: var(--hover); }
+.m-air b { font-weight: 500; min-width: 76px; }
+.m-air span { color: var(--text-2); font-size: 13px; }
+.m-air .r { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.munich .link { display: inline-block; margin-top: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 16px 14px; border-bottom: 0.5px solid var(--sep); }
 .chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px 0 7px; border: 0; border-radius: 14px; background: var(--fill); font-size: 13px; font-weight: 500; cursor: default; transition: background-color var(--move), opacity var(--move); }
 .chip .swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
