@@ -5,11 +5,14 @@ import quakes from './quakes.js';
 import outages from './outages.js';
 import {civil, military, fillRoute, select as selectAircraft} from './aircraft.js';
 import {satellites, launches} from './space.js';
+import hazards from './hazards.js';
+import cables from './cables.js';
+import {rain, night, aurora} from './sky.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [civil, military, satellites, outages, launches, quakes, news];
-const CHIPS = [news, quakes, civil, military, satellites, launches, outages];
+const LAYERS = [night, aurora, cables, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
+const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, cables, rain, night, aurora];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -19,7 +22,7 @@ const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
 
 let on = Object.fromEntries(LAYERS.map(l => [l.id, true]));
 try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); } catch (e) { /* private window */ }
-let ready = false, picked = null, status = null, lastAnswer = 0, got = new Set();
+let ready = false, picked = null, status = null, lastAnswer = 0, got = new Set(LAYERS.filter(l => l.local).map(l => l.id));
 
 function repaint() {
   paintBase(map, dark.matches);
@@ -54,15 +57,16 @@ map.on('load', () => {
     show(l);
     for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
   }
-  const hit = LAYERS.flatMap(l => l.layers).filter(id => map.getLayer(id)?.type !== 'line');
+  const NO_CLICK = ['ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track'];
+  const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
-      .find(x => x.properties.id != null);
+      .filter(x => x.properties.id != null).sort((a, b) => (a.layer.id === 'ww-cables-hit') - (b.layer.id === 'ww-cables-hit'))[0];   // markers win over cables
     if (!f) return pick(null);
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     pick({layer: layer.id, id: f.properties.id});
   });
-  map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit}).some(x => x.properties.id != null) ? 'pointer' : ''; });
+  map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null) ? 'pointer' : ''; });
   setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
 });
@@ -70,8 +74,8 @@ dark.addEventListener('change', () => ready && repaint());
 
 // ---- layer chips: each one shows and hides a layer, and says how many items it holds ----
 function renderChips() {
-  $('#chips').innerHTML = CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}">
-    <span class="swatch"></span>${l.title}<span class="n">${got.has(l.id) ? l.count().toLocaleString('en-GB') : ''}</span></button>`).join('');
+  $('#chips').innerHTML = CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
+    <span class="swatch"></span>${l.title}<span class="n">${l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : ''}</span></button>`).join('');
 }
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;

@@ -292,6 +292,89 @@ async def fx(feed: Feed, f: Fetcher) -> Result:
     return Result(len(d["rates"]), d, data_label=f"reference rates of {d['date']}", note="the ECB publishes once per working day")
 
 
+GDACS_TYPES = {"TC": "Tropical cyclone", "FL": "Flood", "VO": "Volcano", "DR": "Drought", "WF": "Wildfire"}
+
+
+async def gdacs(feed: Feed, f: Fetcher) -> Result:
+    """Alerts from GDACS, the UN and EU disaster alert system. Orange and red alerts (the serious ones) are kept
+    for a week after their end date, green ones for cyclones, floods and volcanoes for three days. Green
+    wildfire alerts are left out (about a hundred at any time). Earthquakes are left out too: USGS has them."""
+    now, out, seen = time.time(), [], set()
+    day = lambda back: time.strftime("%Y-%m-%d", time.gmtime(now - back * 86400))
+    for levels, types, since, keep_days in (("orange;red", "TC;FL;VO;DR;WF", day(45), 7), ("green", "TC;FL;VO", day(14), 3)):
+        d = (await f.get(f"https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist={types}&alertlevel={levels}&fromdate={since}")).json()
+        for x in d.get("features") or []:
+            p, g = x["properties"], x.get("geometry") or {}
+            key = (p["eventtype"], p["eventid"])
+            if p["eventtype"] not in GDACS_TYPES or g.get("type") != "Point" or key in seen:
+                continue
+            end = _iso(p["todate"])
+            if end < now - keep_days * 86400:
+                continue
+            seen.add(key)
+            sev = p.get("severitydata") or {}
+            out.append({"id": f"gdacs-{p['eventtype']}-{p['eventid']}", "kind": GDACS_TYPES[p["eventtype"]], "code": p["eventtype"],
+                        "level": p["alertlevel"], "name": p.get("eventname") or p["name"], "title": p["name"], "countries": p.get("country"),
+                        "from": _iso(p["fromdate"]), "to": end, "modified": _iso(p["datemodified"]), "severity": sev.get("severitytext"),
+                        "url": (p.get("url") or {}).get("report"), "lon": g["coordinates"][0], "lat": g["coordinates"][1], "source": "GDACS"})
+        await asyncio.sleep(0.5)
+    newest = max((e["modified"] for e in out), default=None)
+    return Result(len(out), {"events": out}, data_time=newest, note="data time is the newest edit to an alert")
+
+
+EONET_KINDS = {"wildfires": ("Wildfire", "WF"), "volcanoes": ("Volcano", "VO"), "severeStorms": ("Storm", "TC"), "seaLakeIce": ("Iceberg", "IC"),
+               "floods": ("Flood", "FL"), "landslides": ("Landslide", "LS"), "dustHaze": ("Dust or haze", "DH")}
+
+
+async def eonet(feed: Feed, f: Fetcher) -> Result:
+    """Open natural events tracked by NASA's Earth Observatory (EONET), each at its latest reported position."""
+    d = (await f.get("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=14")).json()
+    out = []
+    for e in d.get("events") or []:
+        cat = (e.get("categories") or [{}])[0].get("id")
+        pts = [g for g in e.get("geometry") or [] if g.get("type") == "Point"]
+        if cat not in EONET_KINDS or not pts:
+            continue
+        last = pts[-1]
+        mag = f"{last['magnitudeValue']:g} {last['magnitudeUnit']}" if last.get("magnitudeValue") is not None else None
+        out.append({"id": "eonet-" + e["id"], "kind": EONET_KINDS[cat][0], "code": EONET_KINDS[cat][1], "level": None, "name": e["title"], "title": e["title"],
+                    "countries": None, "from": _iso(pts[0]["date"]), "to": None, "modified": _iso(last["date"]), "severity": mag,
+                    "url": (e.get("sources") or [{}])[0].get("url"), "lon": last["coordinates"][0], "lat": last["coordinates"][1], "source": "NASA EONET",
+                    "track": [g["coordinates"] for g in pts] if len(pts) > 1 else None})
+    newest = max((e["modified"] for e in out), default=None)
+    return Result(len(out), {"events": out}, data_time=newest, note="data time is the newest position report of an event")
+
+
+async def radar(feed: Feed, f: Fetcher) -> Result:
+    """Which rain radar picture is the newest. The pictures themselves are map tiles the browser loads from RainViewer."""
+    d = (await f.get("https://api.rainviewer.com/public/weather-maps.json")).json()
+    frames = d["radar"]["past"]
+    last = frames[-1]
+    return Result(len(frames), {"host": d["host"], "path": last["path"], "time": last["time"]}, data_time=float(last["time"]))
+
+
+async def space_weather(feed: Feed, f: Fetcher) -> Result:
+    """NOAA's planetary K index (how disturbed Earth's magnetic field is, 0 to 9) and the aurora forecast grid,
+    cut down to the cells where NOAA gives aurora a 10 % chance or more."""
+    kp = (await f.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")).json()
+    rows = [r for r in kp if isinstance(r, dict)] or [dict(zip(kp[0], r)) for r in kp[1:]]     # NOAA has used both shapes
+    last = rows[-1]
+    a = (await f.get("https://services.swpc.noaa.gov/json/ovation_aurora_latest.json")).json()
+    cells = [[lon - 360 if lon > 180 else lon, lat, p] for lon, lat, p in a["coordinates"] if p >= 10]
+    obs = _iso(a["Observation Time"])
+    return Result(len(cells), {"kp": float(last["Kp"]), "kp_time": _iso(last["time_tag"]), "kp_history": [[_iso(r["time_tag"]), float(r["Kp"])] for r in rows[-16:]],
+                               "aurora": cells, "aurora_observed": obs, "aurora_valid": _iso(a["Forecast Time"])},
+                  data_time=obs, note="data time is the aurora observation; the K index is a 3-hour value")
+
+
+async def cables(feed: Feed, f: Fetcher) -> Result:
+    d = (await f.get("https://www.submarinecablemap.com/api/v3/cable/cable-geo.json")).json()
+    feats = [{"type": "Feature", "geometry": x["geometry"], "properties": {"id": "cable:" + x["properties"]["id"], "name": x["properties"]["name"]}}
+             for x in d["features"] if x.get("geometry")]
+    return Result(len({x["properties"]["id"] for x in feats}), {"type": "FeatureCollection", "features": feats},
+                  note="a map that changes rarely; the source gives no timestamp")
+
+
 H = 3600
 FEEDS = [
     Feed("aircraft_near", "Aircraft near Munich", "adsb.fi", "https://adsb.fi", 10, aircraft_near, stale_after=60,
@@ -310,6 +393,16 @@ FEEDS = [
          limit_note="one 8 MB file every 15 minutes, released about an hour late"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
+    Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,
+         limit_note="no published limit"),
+    Feed("eonet", "Natural events", "NASA EONET", "https://eonet.gsfc.nasa.gov", 1800, eonet,
+         limit_note="no published limit"),
+    Feed("radar", "Rain radar", "RainViewer", "https://www.rainviewer.com", 300, radar, stale_after=1800,
+         limit_note="a new picture every 10 minutes"),
+    Feed("space_weather", "Space weather and aurora", "NOAA SWPC", "https://www.swpc.noaa.gov", 600, space_weather, stale_after=3 * H,
+         limit_note="aurora forecast updates about every 5 minutes"),
+    Feed("cables", "Undersea cables", "TeleGeography", "https://www.submarinecablemap.com", 7 * 86400, cables, min_retry=600,
+         limit_note="fetched once a week; licence CC BY-NC-SA, private use only"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,
          limit_note="no published limit; country-level signals only"),
     Feed("markets", "Markets", "Yahoo Finance (unofficial)", "https://finance.yahoo.com", 300, markets,

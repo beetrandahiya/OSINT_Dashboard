@@ -34,6 +34,11 @@ To reach it from another device (for example over Tailscale), start it with `WW_
 | News in German and Hindi | GDELT | checks every 5 min, about an hour behind |
 | Earthquakes | USGS | 60 s |
 | Internet outages | IODA (Georgia Tech) | 5 min |
+| Disaster alerts | GDACS (UN and EU) | 10 min |
+| Natural events | NASA EONET | 30 min |
+| Rain radar | RainViewer | 5 min (new picture every 10) |
+| Space weather and aurora | NOAA SWPC | 10 min |
+| Undersea cables | TeleGeography (CC BY-NC-SA, private use only) | weekly |
 | Markets | Yahoo Finance (unofficial, delayed) | 5 min |
 | Bitcoin | CoinGecko | 2 min |
 | Exchange rates | ECB via Frankfurter | 60 min |

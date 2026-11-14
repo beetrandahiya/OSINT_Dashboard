@@ -99,6 +99,24 @@ Not yet decided: explicit go on the plan with the Python stack.
   so the feed walks back to the newest one that exists. Cost: about 8 MB every 15 minutes
   (roughly 0.8 GB a day).
 
+### Decisions (2026-11-14, second round of additions)
+
+Owner's picks from researched options:
+- **World layers (built):** disaster alerts (GDACS + NASA EONET), rain radar (RainViewer tiles),
+  night shading (computed), aurora zone and Kp (NOAA SWPC), undersea cables (TeleGeography).
+- **Aircraft extras (to build):** photos in the card (planespotters.net; needs a contact email or
+  URL of the owner's in our User-Agent, not yet given), icons by aircraft type, GPS interference
+  view (derived from ADS-B accuracy fields, must be labelled as derived). He did NOT pick
+  emergency-squawk alerts.
+- **Munich view (to build):** "overhead now" panel (nearest aircraft, current weather, DWD
+  warnings via Bright Sky) and MVG / S-Bahn disruptions (unofficial MVG feed). Not picked:
+  satellite passes, air quality.
+- **Order:** new layers first, then aircraft extras and Munich; search and 48 h history later.
+- GDACS detail: orange/red alerts kept a week past their end date, green cyclone/flood/volcano
+  three days, green wildfires dropped (about 100 at any time), earthquakes dropped (USGS has them).
+  I first told the owner there were "82 orange and red alerts right now"; that count included
+  ended alerts. The real number of current ones was about a dozen. Corrected to him.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
@@ -227,8 +245,8 @@ All numbers are in the comment at the top of `server/worldwatch/static/app.css`.
 - SF Symbols can only be produced on the owner's Mac (see the music repo's script). Until
   then the UI uses CSS-drawn shapes, no icon font.
 - Our choices that are not Apple's: left panel 380px (Apple's card is 420px) to leave more map.
-- Layer colours (Apple system colours): news red, quakes orange, aircraft indigo, military
-  purple, satellites green, launches teal, outages grey. One shared black/white ring marks
+- Layer colours (Apple system colours): news red, quakes orange, disasters pink, aircraft indigo,
+  military purple, satellites green, launches teal, outages and cables grey, rain blue, aurora mint. One shared black/white ring marks
   the selected item on any layer.
 - Every layer is one module in `static/js/` with the same shape: `id, title, color, feeds
   {name: seconds}, layers [map layer ids], addTo, paint, onData, render, count, rows, locate,
