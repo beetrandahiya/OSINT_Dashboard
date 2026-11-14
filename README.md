@@ -19,15 +19,27 @@ Then open http://127.0.0.1:8710/
 The first start downloads Python packages (three small ones) and takes a few seconds longer.
 Stop it with Ctrl-C. Collected data is kept in `data/` and survives restarts.
 
+### Aircraft photos (optional)
+
+Photos in the aircraft card come from planespotters.net, which asks every client to send a contact
+email or web address. Put yours in a one-line file; it stays on your machine and out of git:
+
+```bash
+mkdir -p data && echo "you@example.com" > data/contact.txt
+```
+
+Without that file the app works the same, just without photos.
+
 To reach it from another device (for example over Tailscale), start it with `WW_HOST=0.0.0.0`.
 
 ## What it fetches
 
 | Feed | Source | How often |
 |---|---|---|
-| Aircraft near Munich | adsb.fi | 10 s |
+| Aircraft where you are looking | adsb.fi | about every 10 s, only while zoomed in |
+| Aircraft near Munich | adsb.fi | 20 s |
 | Military aircraft | adsb.lol | 5 min |
-| Aircraft worldwide | OpenSky Network | 15 min |
+| Aircraft worldwide, and flown paths on request | OpenSky Network | 20 min |
 | Satellites and ISS | CelesTrak | 2 h |
 | Rocket launches | Launch Library 2 | 15 min |
 | News places | GDELT | checks every 2 min, new file every 15 min |

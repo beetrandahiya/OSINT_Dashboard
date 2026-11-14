@@ -129,9 +129,9 @@ function renderDetail() {
   el.hidden = !picked;
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
-  const route = key === detailKey ? $('#route')?.innerHTML : null, done = key === detailKey && $('#route')?.dataset.done;
+  const keep = key === detailKey ? ['#route', '#photo', '#tracknote'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button>' + html;
-  if (route != null && done) { $('#route').innerHTML = route; $('#route').dataset.done = '1'; }
+  for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
   el.scrollTop = key === detailKey ? scroll : 0;
   detailKey = key;
   fillRoute();

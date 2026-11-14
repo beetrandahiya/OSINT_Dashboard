@@ -135,6 +135,37 @@ Owner's picks from researched options:
 - Bug fixed: a layer whose feed the server had not fetched yet was asked again only after its
   normal interval (an hour for cables). `main.js` now retries after 5 s.
 
+### Decisions (2026-11-14, third round: aircraft)
+
+- **"All planes are planes"** (owner): no special look for aircraft around Munich. One colour and
+  size for every civil aircraft. Live 10-second positions now follow the map: when zoomed in
+  (zoom >= 5.2) the page asks `/api/aircraft/area` for the circle on screen (adsb.fi, up to 250 NM,
+  reused 8 s, all adsb.fi calls spaced 1.2 s by `adsbfi_area`). Zoomed out, positions come from
+  the 20-minute OpenSky snapshot. The fixed Munich feed stays in the collector (20 s) for the
+  coming "overhead now" panel but the map no longer treats it specially.
+- **Route lines must be right or absent** (owner: "it should be correct"). Three changes:
+  1. The solid line is the path really flown, from OpenSky's `/api/tracks/all` via our
+     `/api/track/{hex}` (cached 60 s; falls back to the positions this server received).
+     Works for military aircraft too.
+  2. adsbdb's crowd-sourced route is tested against the aircraft (`route_fits` in `web.py`:
+     detour via the aircraft <= 1.25 x direct + 150 km, and heading within 100 degrees of the
+     bearing to the destination). If it fails, the card says the listed route does not match
+     and nothing is drawn. Example that prompted it: a flight over Turkey listed as Los
+     Angeles to Shanghai.
+  3. When it fits, the dashed line runs from the aircraft to the destination only, labelled
+     "straight to the destination, not the planned path". No free source of filed flight
+     plans exists; airways are not drawn.
+- OpenSky's anonymous allowance (400 credits a day) is shared between world snapshots (4 each)
+  and path lookups, so the snapshot moved from 15 to 20 minutes. A free OpenSky account gives
+  ten times more; suggest it if the owner hits the limit.
+- **Photos on:** planespotters.net, contact address in `data/contact.txt` (git-ignored) or
+  `WW_CONTACT`; the owner supplied an alias address for this, which must stay out of the repo.
+  Cached 24 h, photographer credited, image links back, per their terms.
+- Route / trail / airport layers are not tied to the Aircraft chip any more (they were hidden
+  when only Military was on, which is why military routes never drew).
+- Still to build from his picks: icons by aircraft type, GPS interference view, Munich panel
+  (overhead, weather, DWD warnings, MVG).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

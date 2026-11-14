@@ -61,7 +61,7 @@ class Feed:
     source: str
     home: str                      # the source's website, for credit and for checking by hand
     interval: int                  # seconds between fetches
-    fetch: Callable[["Feed", Fetcher], Awaitable[Result]]
+    fetch: Callable[["Feed", Fetcher], Awaitable[Result]] | None   # None: fetched on request, not on a timer
     stale_after: int | None = None  # data older than this (by the source's own time) is flagged late
     min_retry: int = 20            # shortest wait after a failure
     limit_note: str = ""
@@ -94,9 +94,28 @@ def _readsb_aircraft(d: dict) -> list[dict]:
     return out
 
 
+_adsbfi_lock, _adsbfi_last = asyncio.Lock(), 0.0
+
+
+async def adsbfi_area(client: httpx.AsyncClient, lat: float, lon: float, radius_nm: int) -> tuple[dict, int]:
+    """One adsb.fi request for a circle on the map. adsb.fi allows one request per second, so every caller
+    goes through this gate, which keeps at least 1.2 seconds between requests."""
+    global _adsbfi_last
+    async with _adsbfi_lock:
+        wait = 1.2 - (time.monotonic() - _adsbfi_last)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            r = await client.get(f"https://opendata.adsb.fi/api/v3/lat/{lat:.4f}/lon/{lon:.4f}/dist/{radius_nm}")
+        finally:
+            _adsbfi_last = time.monotonic()
+    r.raise_for_status()
+    return r.json(), r.num_bytes_downloaded
+
+
 async def aircraft_near(feed: Feed, f: Fetcher) -> Result:
-    url = f"https://opendata.adsb.fi/api/v3/lat/{config.HOME_LAT}/lon/{config.HOME_LON}/dist/{config.HOME_RADIUS_NM}"
-    d = (await f.get(url)).json()
+    d, n = await adsbfi_area(f.client, config.HOME_LAT, config.HOME_LON, config.HOME_RADIUS_NM)
+    f.wire_bytes += n
     ac = _readsb_aircraft(d)
     return Result(len(ac), {"aircraft": ac}, data_time=d["now"] / 1000)
 
@@ -390,12 +409,14 @@ async def cables(feed: Feed, f: Fetcher) -> Result:
 
 H = 3600
 FEEDS = [
-    Feed("aircraft_near", "Aircraft near Munich", "adsb.fi", "https://adsb.fi", 10, aircraft_near, stale_after=60,
-         limit_note="limit 1 request per second; personal use"),
+    Feed("aircraft_near", "Aircraft near Munich", "adsb.fi", "https://adsb.fi", 20, aircraft_near, stale_after=90,
+         limit_note="limit 1 request per second, shared with the area you are looking at"),
+    Feed("aircraft_view", "Aircraft where you are looking", "adsb.fi", "https://adsb.fi", 10, None,
+         limit_note="fetched on request, at most every 8 seconds, only while a page is zoomed in"),
     Feed("aircraft_military", "Military aircraft", "adsb.lol", "https://adsb.lol", 300, aircraft_military, stale_after=900,
          limit_note="500 requests per day without a key"),
-    Feed("aircraft_world", "Aircraft worldwide", "OpenSky Network", "https://opensky-network.org", 900, aircraft_world, stale_after=2700,
-         limit_note="anonymous: about 100 world snapshots per day"),
+    Feed("aircraft_world", "Aircraft worldwide", "OpenSky Network", "https://opensky-network.org", 1200, aircraft_world, stale_after=3600,
+         limit_note="every 20 minutes: the free daily allowance is shared with flight-path lookups"),
     Feed("satellites", "Satellites and ISS", "CelesTrak", "https://celestrak.org", 2 * H, satellites, stale_after=3 * 86400, min_retry=1800,
          limit_note="data changes every 2 hours; asking sooner risks a block"),
     Feed("launches", "Rocket launches", "Launch Library 2", "https://thespacedevs.com", 900, launches,

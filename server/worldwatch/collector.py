@@ -37,6 +37,8 @@ class FeedState:
         self.next_at: float | None = None
 
     def state(self, now: float) -> str:
+        if self.feed.fetch is None and self.error is None:
+            return "ok"                      # on-request feeds are fine while nobody asks
         if self.tried is None:
             return "waiting"
         if self.error:
@@ -68,12 +70,12 @@ class Collector:
 
     async def start(self):
         for st in self.states.values():      # show what an earlier run saved, clearly marked
-            saved = db.load_latest(st.feed.name)
+            saved = db.load_latest(st.feed.name) if st.feed.fetch else None
             if saved:
                 st.payload, st.fetched, st.data_time, st.items, st.from_disk = saved["payload"], saved["fetched"], saved["data_time"], saved["items"], True
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10), follow_redirects=True,
                                          headers={"User-Agent": config.USER_AGENT, "Accept-Encoding": "gzip"})
-        for i, st in enumerate(self.states.values()):
+        for i, st in enumerate(s for s in self.states.values() if s.feed.fetch):
             self._tasks.append(asyncio.create_task(self._run(st, first_delay=i * 0.6)))
 
     async def stop(self):
