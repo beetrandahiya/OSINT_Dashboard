@@ -3,7 +3,7 @@ import {createMap, paintBase, paintSky, setGlobe} from './map.js';
 import news from './news.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
-import {civil, military, fillRoute} from './aircraft.js';
+import {civil, military, fillRoute, select as selectAircraft} from './aircraft.js';
 import {satellites, launches} from './space.js';
 import * as markets from './markets.js';
 
@@ -63,7 +63,7 @@ map.on('load', () => {
     pick({layer: layer.id, id: f.properties.id});
   });
   map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit}).some(x => x.properties.id != null) ? 'pointer' : ''; });
-  setInterval(() => { if (picked && byId[picked.layer].moving) ring(); }, 2000);
+  setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
 });
 dark.addEventListener('change', () => ready && repaint());
@@ -106,6 +106,7 @@ function ring() {
 
 function pick(p, fly = false) {
   picked = p;
+  selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military') ? p.id : null);
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
   const at = ring();

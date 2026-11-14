@@ -3,7 +3,7 @@
 A personal live view of the world from free public feeds. Real data only: every feed shows its
 source, when it was fetched, and the source's own timestamp.
 
-Right now this is the first step: the feed collector and a live status page. The map comes next.
+The app is the map at `/`; a full report on every feed is at `/feeds`.
 
 ## Run it
 
@@ -31,6 +31,7 @@ To reach it from another device (for example over Tailscale), start it with `WW_
 | Satellites and ISS | CelesTrak | 2 h |
 | Rocket launches | Launch Library 2 | 15 min |
 | News places | GDELT | checks every 2 min, new file every 15 min |
+| News in German and Hindi | GDELT | checks every 5 min, about an hour behind |
 | Earthquakes | USGS | 60 s |
 | Internet outages | IODA (Georgia Tech) | 5 min |
 | Markets | Yahoo Finance (unofficial, delayed) | 5 min |

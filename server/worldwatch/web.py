@@ -49,7 +49,7 @@ async def route(request):
     callsign = request.path_params["callsign"].upper()
     if not re.fullmatch(r"[A-Z0-9]{3,8}", callsign):
         return JSONResponse({"error": "not a callsign"}, status_code=400)
-    key = "route:" + callsign
+    key = "route2:" + callsign
     hit = await asyncio.to_thread(db.lookup_get, key, 86400)
     if not hit:
         try:
@@ -58,7 +58,8 @@ async def route(request):
             fr = r.json().get("response", {}).get("flightroute") if r.status_code == 200 else None
             body = None
             if isinstance(fr, dict):
-                port = lambda a: {"iata": a.get("iata_code"), "name": a.get("name"), "city": a.get("municipality"), "country": a.get("country_name")}
+                port = lambda a: {"iata": a.get("iata_code"), "name": a.get("name"), "city": a.get("municipality"), "country": a.get("country_name"),
+                                  "lat": a.get("latitude"), "lon": a.get("longitude")}
                 body = {"airline": (fr.get("airline") or {}).get("name"), "origin": port(fr["origin"]), "destination": port(fr["destination"])}
             elif r.status_code not in (200, 404):
                 return JSONResponse({"error": f"adsbdb answered {r.status_code}"}, status_code=502)

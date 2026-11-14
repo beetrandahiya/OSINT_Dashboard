@@ -140,7 +140,10 @@ async def launches(feed: Feed, f: Fetcher) -> Result:
 _TITLE = re.compile(r"<PAGE_TITLE>(.*?)</PAGE_TITLE>")
 
 
-def _gdelt_clusters(raw_zip: bytes) -> tuple[int, list[dict]]:
+_LANG = re.compile(r"srclc:(\w+)")
+
+
+def _gdelt_clusters(raw_zip: bytes, langs: tuple[str, ...] | None = None) -> tuple[int, list[dict]]:
     """Group one 15-minute GDELT file by the first city-level place each article mentions.
     The count per place is the number of distinct outlets, nothing more."""
     z = zipfile.ZipFile(io.BytesIO(raw_zip))
@@ -151,6 +154,12 @@ def _gdelt_clusters(raw_zip: bytes) -> tuple[int, list[dict]]:
         r = line.split("\t")
         if len(r) < 27:
             continue
+        lang = "eng"
+        if langs is not None:      # the translated file covers 65 languages; keep only the ones asked for
+            m = _LANG.search(r[25])
+            lang = m.group(1) if m else ""
+            if lang not in langs:
+                continue
         articles += 1
         locs = []
         for part in r[10].split(";"):
@@ -167,7 +176,7 @@ def _gdelt_clusters(raw_zip: bytes) -> tuple[int, list[dict]]:
             continue
         _, name, lat, lon = min(locs)
         c = places.setdefault(name, {"place": name, "lat": lat, "lon": lon, "outlets": {}, })
-        c["outlets"].setdefault(r[3], {"outlet": r[3], "title": html.unescape(m.group(1)), "url": r[4]})
+        c["outlets"].setdefault(r[3], {"outlet": r[3], "title": html.unescape(m.group(1)), "url": r[4], "lang": lang})
     out = [{"place": c["place"], "lat": c["lat"], "lon": c["lon"], "outlets": len(c["outlets"]),
             "articles": list(c["outlets"].values())[:30]} for c in places.values()]
     out.sort(key=lambda c: -c["outlets"])
@@ -191,6 +200,35 @@ async def news(feed: Feed, f: Fetcher) -> Result:
         note = "no new file yet"
     feed.memo["payload"]["published"] = published
     return Result(feed.memo["n"], feed.memo["payload"], data_time=published, note=f"{note} (file {stamp}); data time is when GDELT published it")
+
+
+NEWS_LANGS = {"deu": "German", "hin": "Hindi"}
+
+
+async def news_translated(feed: Feed, f: Fetcher) -> Result:
+    """German and Hindi articles from GDELT's second file series. GDELT lists each of these files up to an
+    hour before it can actually be downloaded, so we walk back to the newest one that exists. Headlines
+    stay in their own language: GDELT translates for its own analysis but does not publish the translation."""
+    listing = (await f.get("https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt")).text
+    url = next(line.split()[2] for line in listing.splitlines() if line.endswith(".translation.gkg.csv.zip"))
+    t = calendar.timegm(time.strptime(url.rsplit("/", 1)[1][:14], "%Y%m%d%H%M%S"))
+    for back in range(0, 13):           # up to three hours back, one 15-minute slot at a time
+        stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(t - back * 900))
+        if feed.memo.get("stamp") == stamp:
+            return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"],
+                          note=f"no newer file can be downloaded yet (file {stamp})")
+        r = await f.client.get(f"https://data.gdeltproject.org/gdeltv2/{stamp}.translation.gkg.csv.zip")
+        f.wire_bytes += r.num_bytes_downloaded
+        if r.status_code == 404:
+            continue
+        r.raise_for_status()
+        published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
+        articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content, tuple(NEWS_LANGS))
+        payload = {"file": stamp, "articles": articles, "places": clusters, "published": published, "languages": NEWS_LANGS}
+        feed.memo.update(stamp=stamp, payload=payload, n=len(clusters), published=published)
+        return Result(len(clusters), payload, data_time=published,
+                      note=f"{articles} German and Hindi articles (file {stamp}); GDELT releases these about an hour late")
+    raise RuntimeError("none of the last 13 translated files could be downloaded")
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -268,6 +306,8 @@ FEEDS = [
          limit_note="15 requests per hour"),
     Feed("news", "News places", "GDELT", "https://www.gdeltproject.org", 120, news, stale_after=2400,
          limit_note="one new file every 15 minutes"),
+    Feed("news_translated", "News in German and Hindi", "GDELT", "https://www.gdeltproject.org", 300, news_translated, stale_after=3 * H,
+         limit_note="one 8 MB file every 15 minutes, released about an hour late"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,

@@ -84,6 +84,21 @@ single source of truth for any future session. Read it fully before doing anythi
 
 Not yet decided: explicit go on the plan with the Python stack.
 
+### Decisions (2026-11-14, after trying slices 1-5 on his Mac)
+
+- The app feel, the mixed list, the chips and the default of all layers on are approved.
+- **Gliding allowed, as the one stated exception to "never guess":** nearby aircraft (10 s feed)
+  are drawn moving on along their last reported heading and speed between reports, at most
+  30 s ahead (`GLIDE_MAX` in `aircraft.js`). The card says it is an estimate. Do not extend
+  this to other layers or to the 15-minute world aircraft without asking.
+- **Route on the map:** a dashed great-circle line between the usual route's two airports
+  (labelled "not its actual path") plus a solid trail of the positions we ourselves received
+  since the page opened.
+- **German and Hindi news added** as a second GDELT feed (`news_translated`). Headlines stay
+  in their own language. GDELT lists these files about an hour before they can be downloaded,
+  so the feed walks back to the newest one that exists. Cost: about 8 MB every 15 minutes
+  (roughly 0.8 GB a day).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
