@@ -96,27 +96,48 @@ function stroke(x, pts, color, width, alpha) {   // a 3D line: drawn where it is
   for (const p of pts) { const q = place(p[0], p[1], p[2]); if (!q) { pen = false; continue; } if (pen) x.lineTo(q[0], q[1]); else x.moveTo(q[0], q[1]); pen = true; }
   x.stroke(); x.globalAlpha = 1;
 }
-function spotlight(x, s) {   // the area the selected satellite can see, lit on the ground, and the cone down to it
-  const d = horizon(s.pos.km), la = s.pos.lat * Math.PI / 180, lo = s.pos.lon * Math.PI / 180, edge = [], col = tint(s);
-  for (let b = 0; b < 360; b += 4) {
-    const th = b * Math.PI / 180, la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(th));
-    const lo2 = lo + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
-    const q = place(lo2 * 180 / Math.PI, la2 * 180 / Math.PI, 0); if (q) edge.push(q);
+// Points as 3D vectors in Earth radii (x toward 0°E on the equator, z toward the north pole), and back.
+const R2D = 180 / Math.PI;
+const vec = (lon, lat, km) => { const r = 1 + km / EARTH_KM, la = lat / R2D, lo = lon / R2D; return [r * Math.cos(la) * Math.cos(lo), r * Math.cos(la) * Math.sin(lo), r * Math.sin(la)]; };
+const geo = v => { const r = Math.hypot(v[0], v[1], v[2]); return [Math.atan2(v[1], v[0]) * R2D, Math.asin(v[2] / r) * R2D, (r - 1) * EARTH_KM]; };
+const mix = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+// A point on the ground at angular distance `ang` and bearing `brg` from (lo, la), in radians.
+function around(lo, la, ang, brg) {
+  const la2 = Math.asin(Math.sin(la) * Math.cos(ang) + Math.cos(la) * Math.sin(ang) * Math.cos(brg));
+  return [(lo + Math.atan2(Math.sin(brg) * Math.sin(ang) * Math.cos(la), Math.cos(ang) - Math.sin(la) * Math.sin(la2))) * R2D, la2 * R2D];
+}
+// Fill a grid of 3D points as small quads, each only where all its corners are in view. That way the Earth
+// hides whatever is behind it, the same way it hides the satellites themselves.
+function mesh(x, grid, alphaOf, col) {
+  x.fillStyle = col;
+  for (let i = 0; i < grid.length - 1; i++) for (let j = 0; j < grid[i].length; j++) {
+    const k = (j + 1) % grid[i].length, a = grid[i][j], b = grid[i][k], c = grid[i + 1][k], d = grid[i + 1][j];
+    if (!a || !b || !c || !d) continue;
+    x.globalAlpha = alphaOf(i);
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.lineTo(c[0], c[1]); x.lineTo(d[0], d[1]); x.closePath(); x.fill();
   }
-  const up = place(s.pos.lon, s.pos.lat, s.pos.km), down = place(s.pos.lon, s.pos.lat, 0);
-  if (edge.length > 8) {
-    const cx = down ? down[0] : edge.reduce((a, q) => a + q[0], 0) / edge.length, cy = down ? down[1] : edge.reduce((a, q) => a + q[1], 0) / edge.length;
-    const rad = Math.max(...edge.map(q => Math.hypot(q[0] - cx, q[1] - cy)));
-    const g = x.createRadialGradient(cx, cy, 0, cx, cy, rad); g.addColorStop(0, col + '66'); g.addColorStop(0.75, col + '2e'); g.addColorStop(1, col + '14');
-    x.beginPath(); edge.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])); x.closePath(); x.fillStyle = g; x.fill();
-    x.strokeStyle = col; x.lineWidth = 1.5; x.globalAlpha = 0.9; x.stroke(); x.globalAlpha = 1;
-    if (up && Math.hypot(up[0] - cx, up[1] - cy) > rad * 0.95) {   // the cone, when seen from the side: from the satellite to the two edge points furthest apart as seen from it
-      let lo3 = null, hi3 = null, base = Math.atan2(cy - up[1], cx - up[0]);
-      for (const q of edge) { let a = Math.atan2(q[1] - up[1], q[0] - up[0]) - base; a = Math.atan2(Math.sin(a), Math.cos(a)); if (!lo3 || a < lo3[0]) lo3 = [a, q]; if (!hi3 || a > hi3[0]) hi3 = [a, q]; }
-      const cg = x.createLinearGradient(up[0], up[1], cx, cy); cg.addColorStop(0, col + '55'); cg.addColorStop(1, col + '05');
-      x.beginPath(); x.moveTo(up[0], up[1]); x.lineTo(lo3[1][0], lo3[1][1]); x.lineTo(hi3[1][0], hi3[1][1]); x.closePath(); x.fillStyle = cg; x.fill();
-    }
+  x.globalAlpha = 1;
+}
+const SPOKES = 48, RINGS = 6, STEPS = 9;
+function spotlight(x, s) {   // the beam from the selected satellite and the patch of ground it can see
+  const ang = horizon(s.pos.km), lo = s.pos.lon / R2D, la = s.pos.lat / R2D, col = tint(s), top = vec(s.pos.lon, s.pos.lat, s.pos.km);
+  const rim = Array.from({length: SPOKES}, (_, j) => around(lo, la, ang, j / SPOKES * 2 * Math.PI));
+  // the lit patch: rings from the point beneath the satellite out to its horizon, brighter in the middle
+  const patch = [];
+  for (let i = 0; i <= RINGS; i++) {
+    const f = i / RINGS;
+    patch.push(i === 0 ? Array(SPOKES).fill(place(s.pos.lon, s.pos.lat, 0)) : rim.map((_, j) => { const g = around(lo, la, ang * f, j / SPOKES * 2 * Math.PI); return place(g[0], g[1], 0); }));
   }
+  mesh(x, patch, i => 0.34 - i * 0.04, col);
+  // the beam: straight lines from the satellite to every point of the horizon, sampled along their length
+  const beam = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const f = i / STEPS;
+    beam.push(rim.map(g => { const p = geo(mix(top, vec(g[0], g[1], 0), f)); return place(p[0], p[1], p[2]); }));
+  }
+  mesh(x, beam, i => 0.11 - i * 0.008, col);
+  // the horizon line, broken where it goes round the back of the Earth
+  stroke(x, [...rim, rim[0]].map(g => [g[0], g[1], 0]), col, 1.5, 0.9);
 }
 function drawHeights() {
   if (!cv || !theMap) return;
@@ -136,7 +157,7 @@ function drawHeights() {
     if (!s.pos) continue;
     const up = place(s.pos.lon, s.pos.lat, s.pos.km); if (!up) continue;
     const big = s.id === ISS || s === picked, col = tint(s);
-    if (big) { const down = place(s.pos.lon, s.pos.lat, 0); if (down) { x.strokeStyle = col; x.globalAlpha = 0.6; x.lineWidth = 1; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(down[0], down[1]); x.lineTo(up[0], up[1]); x.stroke(); x.setLineDash([]); x.globalAlpha = 1; } }
+    if (big) { x.setLineDash([2, 3]); stroke(x, Array.from({length: 13}, (_, i) => [s.pos.lon, s.pos.lat, s.pos.km * i / 12]), col, 1, 0.6); x.setLineDash([]); }
     x.fillStyle = col; x.strokeStyle = edge; x.lineWidth = big ? 1.2 : 0.6;
     x.beginPath(); x.arc(up[0], up[1], big ? 4.5 : 2, 0, 7); x.fill(); x.stroke();
     if (s === picked) { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(up[0], up[1], 9, 0, 7); x.stroke(); }
@@ -214,7 +235,6 @@ export const satellites = {
       if (following) return stopFollowing();
       if (!isGlobe()) document.getElementById('globe')?.click();          // the view from a point in space needs the globe
       following = true; restore = {center: map.getCenter(), zoom: map.getZoom()};
-      map.setMinZoom(-2);
       setTimeout(() => { if (following) { map.triggerRepaint(); setTimeout(() => following && sitAt(s, true), 120); } }, isGlobe() ? 0 : 400);
     }
   },
@@ -250,7 +270,6 @@ export const satellites = {
 let restore = null;
 function stopFollowing() {
   following = false;
-  theMap.setMinZoom(0.3);
   if (restore) theMap.easeTo({...restore, duration: 700});
   restore = null; refresh?.();
 }

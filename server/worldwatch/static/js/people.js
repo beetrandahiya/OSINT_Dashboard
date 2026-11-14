@@ -19,7 +19,7 @@ export default {
     try {
       const r = await fetch('/api/people/leaders', {cache: 'no-store'});
       const d = await r.json();
-      if (!d.leaders) return;
+      if (!d.leaders) { setTimeout(() => this.load(map), 30000); return; }   // Wikidata busy: ask again in half a minute
       info = d; leaders = d.leaders;
       // several leaders share a country point (a monarch and a prime minister); nudge the second onto a ring
       const at = {};
@@ -30,7 +30,7 @@ export default {
           properties: {qid: l.qid, name: l.name, role: l.role}};
       });
       map.getSource('ww-people').setData({type: 'FeatureCollection', features: feats});
-    } catch (e) { /* the chip simply shows nothing */ }
+    } catch (e) { setTimeout(() => this.load(map), 30000); }
   },
   paint(map, dark) {
     map.setPaintProperty('ww-people', 'circle-color', this.color[+dark]);
@@ -44,7 +44,7 @@ export default {
   locate(id) { const l = leaders.find(x => 'person:' + x.qid === id); return l && [l.lon, l.lat]; },
   ring: () => 11,
   owns: id => String(id).startsWith('person:'),
-  about: () => 'Current heads of state and government at their countries, from Wikidata. Click one for a full public-records profile.',
+  about: () => 'Current heads of state and government at their countries, from Wikidata' + (info?.note ? ' (' + info.note + ')' : '') + '. Click one for a full public-records profile.',
   pick(featureProps) { openProfile(featureProps.qid); return false; },   // handled by the profile overlay, not the normal card
   detail: () => null,
 };

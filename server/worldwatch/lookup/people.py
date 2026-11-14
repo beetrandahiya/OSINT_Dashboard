@@ -266,23 +266,26 @@ async def _noop(v):
 
 # ---- the People map layer: current heads of state and government at their countries ----
 async def leaders() -> list[dict]:
-    """Current heads of state and of government of sovereign states, each at the country's point."""
-    q = """SELECT ?person ?personLabel ?role ?country ?countryLabel ?coord WHERE {
-      { ?country p:P35 ?st. BIND("Head of state" AS ?role) } UNION { ?country p:P6 ?st. BIND("Head of government" AS ?role) }
-      ?st ?ps ?person. FILTER(STRSTARTS(STR(?ps),"http://www.wikidata.org/prop/statement/P"))
-      FILTER NOT EXISTS { ?st pq:P582 ?end } ?person wdt:P31 wd:Q5.
-      ?country wdt:P31 wd:Q3624078; wdt:P625 ?coord.
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } }"""
-    async with httpx.AsyncClient() as client:
-        rows = await _sparql(client, q)
+    """Current heads of state and of government of sovereign states, each at the country's point.
+    Two small queries, one per role: the combined query timed out on Wikidata's side."""
     out = {}
-    for x in rows:
-        try:
-            lon, lat = map(float, x["coord"]["value"].removeprefix("Point(").removesuffix(")").split())
-        except (KeyError, ValueError):
-            continue
-        qid = _qid(x["person"]["value"])
-        key = (qid, x["country"]["value"])
-        out[key] = {"qid": qid, "name": x["personLabel"]["value"], "role": x["role"]["value"],
-                    "country": x["countryLabel"]["value"], "lon": lon, "lat": lat}
+    async with httpx.AsyncClient() as client:
+        for pid, role in (("P35", "Head of state"), ("P6", "Head of government")):
+            q = f"""SELECT ?person ?personLabel ?country ?countryLabel ?coord WHERE {{
+              ?country wdt:P31 wd:Q3624078; p:{pid} ?st; wdt:P625 ?coord. ?st ps:{pid} ?person.
+              FILTER NOT EXISTS {{ ?st pq:P582 ?e }}. ?person wdt:P31 wd:Q5.
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }}"""
+            for x in await _sparql(client, q):
+                try:
+                    lon, lat = map(float, x["coord"]["value"].removeprefix("Point(").removesuffix(")").split())
+                except (KeyError, ValueError):
+                    continue
+                qid = _qid(x["person"]["value"])
+                key = (qid, x["country"]["value"])
+                if key in out:
+                    out[key]["role"] = "Head of state and government"
+                    continue
+                out[key] = {"qid": qid, "name": x["personLabel"]["value"], "role": role,
+                            "country": x["countryLabel"]["value"], "lon": lon, "lat": lat}
+            await asyncio.sleep(1)
     return list(out.values())

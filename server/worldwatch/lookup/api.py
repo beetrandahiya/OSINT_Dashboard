@@ -232,15 +232,20 @@ async def people_profile(request):
 
 
 async def people_leaders(request):
-    hit = store.cache_get("leaders", 12 * 3600)
+    hit, note = store.cache_get("leaders", 12 * 3600), None
     if not hit:
         try:
             body = await _people.leaders()
+            if not body:
+                raise RuntimeError("empty answer")
+            store.cache_put("leaders", body)
+            hit = {"fetched": time.time(), "body": body}
         except Exception as e:
-            return JSONResponse({"error": f"Could not load leaders ({type(e).__name__})"}, status_code=502)
-        store.cache_put("leaders", body)
-        hit = {"fetched": time.time(), "body": body}
-    return JSONResponse({"leaders": hit["body"], "fetched": hit["fetched"], "now": time.time()}, headers={"Cache-Control": "no-store"})
+            hit = store.cache_get("leaders", 30 * 86400)          # an older list beats an empty map
+            if not hit:
+                return JSONResponse({"error": f"Wikidata did not answer ({type(e).__name__}); trying again shortly"}, status_code=502)
+            note = f"Wikidata did not answer ({type(e).__name__}); showing the list from {time.strftime('%d %b %H:%M', time.gmtime(hit['fetched']))} UTC"
+    return JSONResponse({"leaders": hit["body"], "fetched": hit["fetched"], "note": note, "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
 routes += [

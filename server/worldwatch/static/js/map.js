@@ -52,7 +52,10 @@ export function paintBase(map, dark) {
   }
 }
 
+// On the globe you can zoom out until the geostationary ring (6.6 Earth radii) fits; the flat map stops earlier,
+// where the world would otherwise repeat in tiny copies.
 export function setGlobe(map, on) {
+  map.setMinZoom(on ? -2 : 0.3);
   map.setProjection({type: on ? 'globe' : 'mercator'});
   if (on && map.getZoom() < 1.9) map.easeTo({zoom: 1.9, duration: 250});
 }
