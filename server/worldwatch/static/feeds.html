@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Watch feeds</title>
+<style>
+:root {
+  --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --text-2: rgba(0,0,0,.56); --text-3: rgba(0,0,0,.3);
+  --sep: rgba(0,0,0,.1); --accent: #007aff; --good: #248a3d; --warn: #b25000; --bad: #d70015; --idle: #8e8e93;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI Variable Text", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1c1c1e; --card: #2c2c2e; --text: rgba(255,255,255,.92); --text-2: rgba(255,255,255,.55); --text-3: rgba(255,255,255,.3);
+    --sep: rgba(255,255,255,.12); --accent: #0a84ff; --good: #30d158; --warn: #ff9f0a; --bad: #ff453a; --idle: #8e8e93; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+#clock { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 15px; }
+.lead { color: var(--text-2); max-width: 78ch; margin: 0 0 20px; font-size: 14px; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--sep); border-radius: 12px; overflow: hidden; margin-bottom: 18px; }
+.sum div { background: var(--card); padding: 12px 16px; }
+.sum b { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.sum span { color: var(--text-2); font-size: 12px; }
+.card { background: var(--card); border-radius: 12px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 900px; }
+th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--text-2); padding: 10px 14px 8px; white-space: nowrap; }
+td { padding: 10px 14px; border-top: 1px solid var(--sep); vertical-align: top; font-variant-numeric: tabular-nums; }
+td small, .sub { display: block; color: var(--text-2); font-size: 11.5px; }
+.name { font-weight: 600; font-size: 14px; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.r { text-align: right; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.ok { --c: var(--good); } .late { --c: var(--warn); } .failing { --c: var(--bad); } .waiting { --c: var(--idle); }
+.err { color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
+.foot { color: var(--text-2); font-size: 12px; margin-top: 14px; max-width: 90ch; }
+#down { display: none; background: var(--bad); color: #fff; padding: 10px 16px; border-radius: 10px; margin-bottom: 14px; font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>World Watch feeds</h1><span id="clock"></span></header>
+  <p class="lead">Every feed, live. "Fetched" is when this computer last got an answer. "Data time" is the timestamp the source itself puts on its data; where a source gives none, it says so. All times are UTC.</p>
+  <div id="down">The World Watch server is not answering. The numbers below are frozen.</div>
+  <div class="sum" id="sum"></div>
+  <div class="card"><table>
+    <thead><tr><th>Feed</th><th>State</th><th>Fetched</th><th>Data time</th><th class="r">Items</th><th class="r">Size</th><th class="r">Took</th><th class="r">Every</th><th class="r">Next</th><th class="r">OK / failed</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="foot">States: <b>ok</b> the last fetch worked and the data is as fresh as the source can be. <b>late</b> the fetch worked but the source's own timestamp is older than expected. <b>failing</b> the last fetch failed; the last good data is kept and its age keeps counting. <b>waiting</b> not fetched yet since start. Size is what crossed the network, compressed.</p>
+</main>
+<script>
+let S = null, skew = 0, lastOk = 0;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const now = () => Date.now() / 1000 + skew;
+const clock = t => new Date(t * 1000).toISOString().slice(11, 19);
+const day = t => new Date(t * 1000).toISOString().slice(0, 10);
+function ago(t, n) { const s = n - t, a = Math.abs(s), w = s < 0 ? ['in ', ''] : ['', ' ago'];
+  const v = a < 100 ? Math.round(a) + ' s' : a < 6000 ? Math.round(a / 60) + ' min' : a < 172800 ? (a / 3600).toFixed(1) + ' h' : Math.round(a / 86400) + ' d';
+  return w[0] + v + w[1]; }
+const every = s => s < 120 ? s + ' s' : s < 7200 ? s / 60 + ' min' : s / 3600 + ' h';
+const size = b => b == null ? '' : b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(2) + ' MB';
+const stamp = (t, n) => (day(t) === day(n) ? '' : day(t) + ' ') + clock(t);
+
+function render() {
+  if (!S) return;
+  const n = now();
+  $('#clock').textContent = day(n) + ' ' + clock(n) + ' UTC';
+  $('#down').style.display = Date.now() - lastOk > 8000 ? 'block' : 'none';
+  const f = S.feeds, count = k => f.filter(x => x.state === k).length, up = n - S.started;
+  const bytes = f.reduce((a, x) => a + x.total_bytes, 0);
+  $('#sum').innerHTML = [
+    [count('ok') + ' of ' + f.length, 'feeds ok'],
+    [count('late') + ' late, ' + count('failing') + ' failing', count('waiting') ? count('waiting') + ' still waiting' : 'right now'],
+    [up < 5400 ? Math.round(up / 60) + ' min' : (up / 3600).toFixed(1) + ' h', 'running since ' + clock(S.started)],
+    [size(bytes), 'downloaded this run' + (up > 900 ? ', about ' + size(bytes / up * 86400) + ' per day at this rate' : '')],
+    [S.process.peak_memory_mb + ' MB', 'peak memory of the server'],
+    [(S.process.cpu_seconds / Math.max(up, 1) * 100).toFixed(1) + ' %', 'of one CPU core, average'],
+    [S.clock ? (Math.abs(S.clock.offset_s) < 1.5 ? 'within 1 s' : (S.clock.offset_s > 0 ? 'behind by ' : 'ahead by ') + Math.abs(S.clock.offset_s) + ' s') : 'not checked yet', "this computer's clock against the feeds' servers"],
+  ].map(x => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+  $('#rows').innerHTML = f.map(x => {
+    const fetched = x.fetched ? `${stamp(x.fetched, n)}<small>${ago(x.fetched, n)}${x.from_disk ? ', saved by an earlier run' : ''}</small>` : '<small>not yet</small>';
+    const dt = x.data_label ? `<small>${esc(x.data_label)}</small>` : x.data_time ? `${stamp(x.data_time, n)}<small>${ago(x.data_time, n)}</small>` : (x.fetched ? '<small>source gives none</small>' : '');
+    return `<tr><td><span class="name">${esc(x.layer)}</span><span class="sub"><a href="${esc(x.home)}" target="_blank" rel="noopener">${esc(x.source)}</a> · ${esc(x.limit_note)}</span>${x.error ? `<span class="err">${esc(x.error)} (tried ${clock(x.tried)})</span>` : x.note ? `<span class="sub">${esc(x.note)}</span>` : ''}</td>
+      <td><span class="pill ${x.state}">${x.state}</span></td><td>${fetched}</td><td>${dt}</td>
+      <td class="r">${x.items ?? ''}</td><td class="r">${size(x.last_bytes)}</td><td class="r">${x.last_ms == null ? '' : x.last_ms + ' ms'}</td>
+      <td class="r">${every(x.interval)}</td><td class="r">${x.next_at ? ago(x.next_at, n).replace(' ago', ' overdue') : ''}</td><td class="r">${x.ok_count} / ${x.fail_count}</td></tr>`; }).join('');
+}
+async function poll() {
+  try { const t0 = Date.now(), r = await fetch('/api/status', {cache: 'no-store'}); S = await r.json();
+    skew = S.now - (t0 + Date.now()) / 2000; lastOk = Date.now(); } catch (e) {}
+  render();
+}
+poll(); setInterval(poll, 2000); setInterval(render, 1000);
+</script>
+</body>
+</html>

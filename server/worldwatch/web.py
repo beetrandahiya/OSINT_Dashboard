@@ -37,8 +37,10 @@ async def data(request):
     return JSONResponse({**st.public(now), "now": now, "payload": st.payload}, headers={"Cache-Control": "no-store"})
 
 
-async def index(request):
-    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+def page(name):
+    async def serve(request):
+        return FileResponse(STATIC / name, headers={"Cache-Control": "no-cache"})
+    return serve
 
 
 @contextlib.asynccontextmanager
@@ -49,7 +51,8 @@ async def lifespan(app):
 
 
 app = Starlette(lifespan=lifespan, routes=[
-    Route("/", index),
+    Route("/", page("index.html")),
+    Route("/feeds", page("feeds.html")),
     Route("/api/status", status),
     Route("/api/data/{name}", data),
     Mount("/static", StaticFiles(directory=STATIC)),

@@ -6,11 +6,14 @@ single source of truth for any future session. Read it fully before doing anythi
 
 ## Status
 
-- **2026-11-14: slice 0 (feed proof) built and running.** `server/` holds the collector, the
-  SQLite log and a live status page. All 11 feeds answered on the first run from a cloud
-  sandbox. Not yet run on the owner's Macs. The owner did not want a 24-hour proof run;
-  he watches it live instead. Next: slice 1 (map shell in the Apple Maps look, quakes,
-  feed-status panel). Read Apple's HIG first.
+- **2026-11-14: slice 0 (feed proof) done.** Collector, SQLite log, live feed report at `/feeds`.
+  All 11 feeds answered from the cloud sandbox. The owner skipped the 24-hour run.
+- **2026-11-14: slice 1 built, waiting for the owner's review.** The app at `/`: Apple Maps look,
+  flat map and globe, earthquakes on the map and in the list, detail card, feeds card.
+- **Everything is built and tested in the cloud session; the move to the M1 happens at the very
+  end** (owner's decision 2026-11-14). Consequence: numbers measured here are from Linux on a
+  datacenter network; CelesTrak often times out from here.
+- Next: slice 2, aircraft (near Munich live, world every 15 min, military toggle, type icons).
 
 ## Hard rules (from the owner, not negotiable)
 
@@ -190,6 +193,25 @@ variables, see `server/worldwatch/config.py`.
 - `collector.py`: timers, back-off, the four states (waiting / ok / late / failing), clock check.
 - `db.py`: `fetches` log (7 days) and `latest` good payload per feed.
 - `web.py`: `/api/status`, `/api/data/{feed}`, the page in `static/index.html`.
+
+## Design rules (Apple Maps look, sources read 2026-11-14)
+
+All numbers are in the comment at the top of `server/worldwatch/static/app.css`. In short:
+- From maps.apple.com's stylesheets: panels are blur(50px) over #fff9 (light) / #0009 (dark),
+  solid #f2f2f2 / #2b2b2b without transparency; card radius 16px, control radius 12px; controls
+  36x36; shadow `0 -2px 20px #0000001a, 0 0 12px #0000001a`; transitions .25s ease-in-out;
+  focus ring 2px #007cff; label / separator / fill colours as tokens.
+- From Apple's HIG: type sizes 22 / 17 / 15 / 13 / 11 (never under 10); text contrast 4.5:1;
+  a selected map item gets an outline as well as a colour change; markers may carry a 2-3
+  character label; cluster overlapping points; no colour-only meaning; with Reduce Motion, no
+  flying and no blur animation; no in-app dark-mode switch (follow the system).
+- Apple's licence forbids embedding the SF font, so the CSS names the system font only.
+- SF Symbols can only be produced on the owner's Mac (see the music repo's script). Until
+  then the UI uses CSS-drawn shapes, no icon font.
+- Our choices that are not Apple's: left panel 380px (Apple's card is 420px) to leave more map.
+- Front end files: `static/index.html`, `app.css`, `js/main.js` (wiring), `js/map.js` (base map,
+  recoloured OpenFreeMap "positron" style for both themes, globe), `js/quakes.js` (one module
+  per layer: addTo, paint, setData, rows, detail), `js/util.js`. MapLibre 5.24.1 is vendored.
 
 ## Lessons
 
