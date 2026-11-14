@@ -444,6 +444,50 @@ Do not implement unsecured-camera access even if asked again.
 - Not built: politicians-in-office and business-leader map layers (search already reaches them), the
   owner's enriched dossier (read-every-hit, timeline, more tools), cameras.
 
+### 2026-11-14, fixes from his review, ships worldwide, and the dossier (model now Opus 5.5)
+
+His review: wire the ships; the side-on spotlight "cuts through the globe"; can't zoom out far enough in
+3D; People chip empty; add the OpenSanctions key; build the enriched dossier ("a good base for the
+politicians / business leaders map").
+
+- **People chip empty:** the combined leaders query timed out on Wikidata. Now two small queries (heads of
+  state P35, heads of government P6), each ~1-2 s, merged; 392 leaders. A failed refresh falls back to a
+  cached list up to 30 days old and says so; the front end retries every 30 s while empty.
+- **Spotlight:** the beam was one flat triangle on the canvas, so it painted over the Earth. Now the beam
+  and the lit patch are meshes of small quads in 3D (`mesh()` in `space.js`), each drawn only where all its
+  corners pass the same occlusion test as satellites, so the Earth hides what is behind it. Costs ~12 %
+  frame time in software GL in the sandbox (149 -> 167 ms); unmeasured on his GPU.
+- **Zoom:** `setGlobe()` sets `minZoom` -2 on the globe (the GEO ring fits), 0.3 on the flat map.
+- **Ships worldwide** (`ais.py`): aisstream.io websocket, one world subscription, kept in memory only
+  (lists not dicts, 30 min expiry, 60,000 cap), merged with Digitraffic at request time in `web.py`'s data
+  route so it never hits the disk. Key in `data/aisstream-key.txt`. A wrong key is reported as such (the
+  service accepts the connection then drops it silently; we treat a drop within 15 s with no messages as
+  "key probably wrong"). Feeds card shows `ships_world`: grey "not set up" without a key. **Not tested with a
+  real key** (none in the sandbox); parser tested on the documented message shapes. Memory with a full
+  world stream is unmeasured; watch it on the M1.
+- **OpenSanctions:** code reads `data/opensanctions-key.txt` (header `Authorization: ApiKey ...`); README
+  lists where to register. Not tested with a real key.
+- **Dossier** (`lookup/enrich.py`, `static/js/dossier.js`, Dossier / Graph tabs on `/lookup`):
+  - Scan option "Open every page found" (on by default) and a "Read the pages" button. Each found page is
+    fetched like a browser would (8 at a time, never two at once per site), and judged live / dead /
+    unchecked with the reason (404/410, redirect to the front page, "not found" in the title, 403/429
+    refusals and login walls count as unchecked, not dead). Title, description, profile picture and
+    schema.org Person data are kept. Then a second pass asks the Internet Archive for the oldest copy of
+    each live page (3 at a time; gives up after 6 failures in a row and says so). Stored in table `pages`.
+  - The dossier shows: identifiers and counts; "As the internet shows you" (names, pictures, places, work,
+    self-descriptions, links between profiles, each with the pages that show it); account cards; dead links
+    left out with reasons; exposure (breaches table, malware, keys, address in code); domains; a timeline
+    of dated facts only. Clicking a card opens the detail panel with "Not me".
+  - Lessons: JSON-LD describing the WebSite/Organization was being read as the person's name; only
+    `Person` / `ProfilePage` entities count now. A page's og:image is kept as the person's picture only
+    when it looks like an avatar (path words or the username in it); otherwise it is the site's banner.
+  - Sandbox test (public test identifiers only, wiped after): 196 pages read in 50 s, 138-140 live, 12-15
+    unchecked, 2 dead dropped. Internet Archive never answered from the sandbox, so archive dates and that
+    part of the timeline are **untested**. Soft-404 pages (200 with "not found" only in the body) can still
+    pass as live.
+- Not built yet: politician and business-leader map layers on top of this dossier design, GHunt /
+  PhoneInfoga / Amass (need his Google cookies or separate installs).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

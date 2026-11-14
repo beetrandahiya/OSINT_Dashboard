@@ -8,7 +8,7 @@ import time
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import emails, store, tools, usernames
+from . import emails, enrich, store, tools, usernames
 
 job = {"running": None, "step": "", "done": 0, "total": 0, "problems": [], "finished": None}
 
@@ -38,7 +38,8 @@ CHECKS = {
     "phone":     ("phone", "Number plan", "nothing: the number is analysed on this computer", ""),
     "name":      ("name", "Web search", "the exact name to DuckDuckGo", ""),
 }
-OPTIONS = {"maigret_deep": "Maigret: all 3,000 sites instead of the 500 best known (takes 10 to 20 minutes)",
+OPTIONS = {"read_pages": "Open every page found, read what it shows, mark dead links, and look up when it was first archived (on by default)",
+           "maigret_deep": "Maigret: all 3,000 sites instead of the 500 best known (takes 10 to 20 minutes)",
            "holehe_reset": "Holehe: also use password-reset forms (finds more, but can send reset emails to your inbox)"}
 
 
@@ -158,6 +159,16 @@ async def _scan(want: set):
                 await step("phone", i, "Number plan", ["Number plan (offline)"], lambda v=v: asyncio.to_thread(tools.phone, v))
             elif k == "name":
                 await step("name", i, "Web search", ["Web search (DuckDuckGo)"], lambda v=v: tools.name_mentions(v))
+        if "read_pages" in want:
+            todo = store.pages_to_read()
+            if todo:
+                job.update(step=f"Reading {len(todo)} pages found", done=0, total=len(todo))
+                job.__setitem__("step", f"Reading {len(todo)} pages found, then asking the Internet Archive about the live ones")
+                res, probs = await enrich.enrich(todo, on_done=lambda: job.__setitem__("done", job["done"] + 1))
+                store.save_pages(res)
+                job["problems"] += probs
+                dead = sum(1 for v in res.values() if v["page"].get("alive") is False)
+                summary["pages_read"], summary["pages_dead"] = len(res), dead
     except Exception as e:
         job["problems"].append(f"Scan stopped: {type(e).__name__}: {e}")
     summary["problems"] = list(job["problems"])
@@ -174,13 +185,16 @@ async def start(request):
     if which == "selftest":
         _begin("selftest", 0)
         asyncio.create_task(_selftest())
+    elif which == "read":
+        _begin("scan", 0)
+        asyncio.create_task(_scan({"read_pages"}))
     elif which == "scan":
         try:
             want = set((await request.json()).get("run") or [])
         except ValueError:
             want = set()
         want &= set(CHECKS) | set(OPTIONS)
-        if not want & set(CHECKS):
+        if not want & (set(CHECKS) | {"read_pages"}):
             return JSONResponse({"error": "Nothing was chosen to run."}, status_code=400)
         _begin("scan", 0)
         asyncio.create_task(_scan(want))

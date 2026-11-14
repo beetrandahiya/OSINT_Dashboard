@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS findings (
     title TEXT NOT NULL, url TEXT, detail TEXT NOT NULL, first_seen REAL NOT NULL, last_seen REAL NOT NULL,
     not_me INTEGER NOT NULL DEFAULT 0, UNIQUE (identifier, tool, key));
 CREATE TABLE IF NOT EXISTS scans (id INTEGER PRIMARY KEY, started REAL NOT NULL, finished REAL, summary TEXT);
+CREATE TABLE IF NOT EXISTS pages (finding INTEGER PRIMARY KEY, read REAL NOT NULL, body TEXT NOT NULL);
 """
 
 
@@ -44,6 +45,7 @@ def add_identifier(kind, value):
 
 def remove_identifier(ident_id):
     with _lock:
+        db().execute("DELETE FROM pages WHERE finding IN (SELECT id FROM findings WHERE identifier = ?)", (ident_id,))
         db().execute("DELETE FROM findings WHERE identifier = ?", (ident_id,))
         db().execute("DELETE FROM identifiers WHERE id = ?", (ident_id,))
         db().commit()
@@ -65,10 +67,30 @@ def save_findings(ident_id, tool_names, found, now):
 
 def findings():
     with _lock:
-        rows = [dict(r) for r in db().execute("SELECT * FROM findings ORDER BY first_seen")]
+        rows = [dict(r) for r in db().execute("SELECT f.*, p.body AS page_body, p.read AS page_read FROM findings f LEFT JOIN pages p ON p.finding = f.id ORDER BY f.first_seen")]
     for r in rows:
         r["detail"] = json.loads(r["detail"])
+        body = json.loads(r.pop("page_body")) if r.get("page_body") else {}
+        r["page"], r["archive"] = body.get("page"), body.get("archive")
     return rows
+
+
+def pages_to_read(max_age=7 * 86400):
+    """Findings with a web address whose page was never read, or not for a week."""
+    with _lock:
+        rows = db().execute("""SELECT f.id, f.url FROM findings f LEFT JOIN pages p ON p.finding = f.id
+                               WHERE f.url LIKE 'http%' AND f.not_me = 0 AND f.kind IN ('account','profile','code','registered','mention')
+                               AND (p.read IS NULL OR p.read < ?)""", (__import__("time").time() - max_age,)).fetchall()
+    return [{"id": r[0], "url": r[1]} for r in rows]
+
+
+def save_pages(results):
+    import time as t
+    with _lock:
+        c = db()
+        for fid, body in results.items():
+            c.execute("INSERT OR REPLACE INTO pages (finding, read, body) VALUES (?,?,?)", (fid, t.time(), json.dumps(body)))
+        c.commit()
 
 
 def mark(finding_id, not_me):
@@ -98,7 +120,7 @@ def last_scan():
 
 def wipe():
     with _lock:
-        for t in ("findings", "identifiers", "scans"):
+        for t in ("pages", "findings", "identifiers", "scans"):
             db().execute(f"DELETE FROM {t}")
         db().commit()
         db().execute("VACUUM")

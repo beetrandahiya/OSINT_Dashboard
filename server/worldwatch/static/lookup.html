@@ -8,7 +8,9 @@
 <link rel="stylesheet" href="/static/lookup.css">
 </head>
 <body class="lookup">
-<svg id="graph" aria-label="Footprint graph"></svg>
+<svg id="graph" aria-label="Footprint graph" hidden></svg>
+<main class="glass dossier" id="dossier" aria-label="Dossier"></main>
+<div class="seg tabs" role="group" aria-label="View"><button id="tab-dossier" aria-pressed="true">Dossier</button><button id="tab-graph" aria-pressed="false">Graph</button></div>
 <p class="empty-note" id="empty" hidden></p>
 
 <aside class="glass sidebar">
@@ -29,7 +31,7 @@
 
     <h3>Scan</h3>
     <p class="line" id="scan-line"></p>
-    <button class="btn primary" id="plan">Scan</button>
+    <button class="btn primary" id="plan">Scan</button> <button class="btn" id="read-pages">Read the pages</button>
     <div class="sheet" id="sheet" hidden></div>
     <div id="progress" hidden><div class="bar"><i id="bar"></i></div><p class="line" id="step"></p></div>
     <ul class="problems" id="problems"></ul>

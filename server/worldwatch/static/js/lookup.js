@@ -1,5 +1,6 @@
 // The lookup page: your identifiers in the middle, everything found about them around, as a graph.
 import {$, ago, esc, local} from './util.js';
+import {render as dossier} from './dossier.js';
 
 const KIND = {account: ['Account', 'light-dark(#5856d6, #7d7aff)'], breach: ['Breach', 'light-dark(#ff3b30, #ff453a)'], exposure: ['Malware exposure', 'light-dark(#ff9500, #ff9f0a)'],
   registered: ['Registered with this address', 'light-dark(#af52de, #da8fff)'], profile: ['Profile', 'light-dark(#28a745, #30d158)'], key: ['Public key', 'light-dark(#00a3b4, #40c8e0)'],
@@ -19,11 +20,15 @@ function grouped() {
   }
   return [...groups.values()].map(g => {
     const best = g.items.slice().sort((a, b) => Object.keys(b.detail || {}).length - Object.keys(a.detail || {}).length)[0];
-    return {...best, id: g.id, ids: g.items.map(x => x.id), tools: [...new Set(g.items.map(x => x.tool))], not_me: g.items.every(x => x.not_me),
+    const withPage = g.items.find(x => x.page?.alive === true) || g.items.find(x => x.page) || best;
+    return {...best, page: withPage.page, archive: g.items.find(x => x.archive?.first)?.archive || withPage.archive,
+            id: g.id, ids: g.items.map(x => x.id), tools: [...new Set(g.items.map(x => x.tool))], not_me: g.items.every(x => x.not_me),
             first_seen: Math.min(...g.items.map(x => x.first_seen)), last_seen: Math.max(...g.items.map(x => x.last_seen))};
   });
 }
 let G = [];
+let tab = 'dossier';
+try { tab = localStorage.getItem('ww-lookup-tab') || 'dossier'; } catch (e) { /* private window */ }
 let S = null, picked = null, showHidden = false, view = {x: 0, y: 0, k: 1}, sheetOpen = false, chosen = null;
 try { chosen = JSON.parse(localStorage.getItem('ww-lookup-run') || 'null'); } catch (e) { /* private window */ }
 
@@ -46,14 +51,21 @@ function render() {
     : 'Not tested on this computer yet. The test asks every site about an account known to exist and about a made-up name, and keeps only the sites that get both right. It takes about a minute.';
   $('#run-test').disabled = busy; $('#plan').disabled = busy || !S.identifiers.length; $('#wipe').disabled = busy;
   const ls = S.last_scan;
-  $('#scan-line').textContent = ls ? `Last scan ${ago(ls.finished)}: ${ls.summary.findings ?? (ls.summary.usernames + ls.summary.emails)} findings from ${(ls.summary.checks || []).length || 'the'} checks.` : 'No scan yet.';
+  $('#scan-line').textContent = !ls ? 'No scan yet.' : !(ls.summary.checks || []).length && ls.summary.pages_read != null ? `Pages read ${ago(ls.finished)}: ${ls.summary.pages_read} opened, ${ls.summary.pages_dead} dead.` : `Last scan ${ago(ls.finished)}: ${ls.summary.findings ?? (ls.summary.usernames + ls.summary.emails)} findings from ${(ls.summary.checks || []).length} checks${ls.summary.pages_read != null ? `, ${ls.summary.pages_read} pages read` : ''}.`;
   $('#progress').hidden = !busy;
   if (busy) { $('#bar').style.width = S.job.total ? Math.round(S.job.done / S.job.total * 100) + '%' : '8%'; $('#step').textContent = S.job.step + (S.job.total ? ` (${S.job.done} of ${S.job.total})` : ''); }
   $('#problems').innerHTML = (busy ? S.job.problems : ls?.summary.problems || S.job.problems || []).map(p => `<li>${esc(p)}</li>`).join('');
   $('#stored').textContent = `${S.identifiers.length} identifiers, ${S.findings.length} findings (${G.length} after joining the same page found by several tools).`;
   if (sheetOpen) renderSheet();
-  draw(); renderDetail(); legend();
+  const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds);
+  if (dz.dataset.html !== html) { dz.innerHTML = html; dz.dataset.html = html; dz.scrollTop = y; }
+  $('#graph').hidden = tab !== 'graph'; dz.hidden = tab !== 'dossier'; $('#legend').style.display = tab === 'graph' ? '' : 'none';
+  $('#tab-dossier').setAttribute('aria-pressed', tab === 'dossier'); $('#tab-graph').setAttribute('aria-pressed', tab === 'graph');
+  $('#read-pages').disabled = !!S.job.running || !S.findings.length;
+  if (tab === 'graph') draw();
+  renderDetail(); legend();
 }
+function setTab(t) { tab = t; try { localStorage.setItem('ww-lookup-tab', t); } catch (e) { /* private window */ } render(); }
 function renderSheet() {
   const p = S.plan, el = $('#sheet');
   if (!chosen) chosen = Object.fromEntries(p.checks.map(c => [c.id, true]));
@@ -136,6 +148,15 @@ const act = async (fn) => { $('#err').hidden = true; try { await fn(); } catch (
 $('#add').addEventListener('submit', e => { e.preventDefault(); act(async () => { await call('/api/lookup/identifiers', 'POST', {kind: $('#kind').value, value: $('#value').value}); $('#value').value = ''; }); });
 $('#ids').addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) act(() => call('/api/lookup/identifiers/' + b.dataset.id, 'DELETE')); });
 $('#run-test').onclick = () => act(() => call('/api/lookup/run/selftest', 'POST'));
+$('#read-pages').onclick = () => act(() => call('/api/lookup/run/read', 'POST'));
+$('#tab-dossier').onclick = () => setTab('dossier');
+$('#tab-graph').onclick = () => setTab('graph');
+// a card in the dossier opens the same detail panel as a dot in the graph, with its "Not me" button
+$('#dossier').addEventListener('click', e => {
+  if (e.target.closest('a')) return;
+  const c = e.target.closest('[data-fid]'); if (!c) return;
+  picked = 'f' + c.dataset.fid; render();
+});
 $('#plan').onclick = () => { sheetOpen = true; renderSheet(); };
 $('#sheet').addEventListener('change', e => { const k = e.target.dataset.run; if (k) { chosen[k] = e.target.checked; try { localStorage.setItem('ww-lookup-run', JSON.stringify(chosen)); } catch (err) { /* private window */ } } });
 $('#sheet').addEventListener('click', e => {
