@@ -131,3 +131,23 @@ export const aurora = {
   },
   about: () => sw ? `Green glow: where NOAA's model expects aurora, stronger where it is more likely, from the observation of ${utc(sw.aurora_observed)} (${ago(sw.aurora_observed)}). Being in the zone does not mean you will see it: it needs darkness and clear sky.` : '',
 };
+
+// ---- photo: yesterday's view of the Earth from space, as an optional base picture ----
+// NASA's VIIRS instrument on the NOAA-20 satellite photographs the whole planet once a day. Yesterday is
+// the newest complete day. The strips where two passes meet, and the clouds, are part of the real picture.
+const photoDay = () => new Date((now() - 86400) * 1000).toISOString().slice(0, 10);
+let photoHook = () => {};
+export const onPhoto = fn => { photoHook = fn; };
+export const photo = {
+  id: 'photo', title: 'Photo', color: ['#3a6b4a', '#6fae84'], feeds: {}, layers: ['ww-photo'], local: true, defaultOff: true,
+  addTo(map) {
+    map.addSource('ww-photo', {type: 'raster', tileSize: 256, maxzoom: 9, attribution: 'Imagery: NASA GIBS, VIIRS NOAA-20',
+      tiles: [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/${photoDay()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`]});
+    const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;     // under the place names, over everything else of the base map
+    map.addLayer({id: 'ww-photo', type: 'raster', source: 'ww-photo', paint: {'raster-fade-duration': 150}}, labels);
+  },
+  paint() {}, onData() {}, render() {},
+  visible(on) { photoHook(on); },
+  count: () => 0, note: () => photoDay().slice(8) + '.' + photoDay().slice(5, 7) + '.', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => `The Earth as NASA's NOAA-20 satellite photographed it on ${photoDay()} (yesterday, the newest complete day). Clouds and the seams between passes are real. Sharp down to about regional zoom.`,
+};

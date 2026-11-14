@@ -196,6 +196,29 @@ Owner's picks from researched options:
   `SHAPES` and `KINDS` from `aircraft.js`). Republish it when icons, colours or components
   change, so he always judges the current state. Waiting for his notes on it.
 
+### 2026-11-14, fifth round
+
+- Owner approved the redrawn helicopter, drone and heavy-jet icons. Multi-part icon paths are
+  drawn piece by piece (no even-odd fill), or overlapping parts cut holes.
+- Asked what next, he picked: **ships, fires and imagery, and starting the lookup tool**; no
+  preference among the refinements (search, "new since last visit", declutter, chip tidy), so
+  those follow in my recommended order: search, then new-since-last-visit. SF Symbols: later.
+- **Fires (built):** NASA FIRMS MODIS 24-hour CSV, which needs no key
+  (`firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv`,
+  ~0.9 MB, ~11,000 detections). Dots only, not in the list; the card says a detection is a
+  hot pixel, not necessarily a wildfire. The larger VIIRS files timed out from the sandbox.
+- **Photo (built):** NASA GIBS tiles, layer `VIIRS_NOAA20_CorrectedReflectance_TrueColor`,
+  yesterday's date, inserted under the base map's place names; names switch to white while
+  it is on (`setPhoto` in `map.js`). Off by default (`defaultOff` on a layer module).
+  The VIIRS SNPP and NOAA-21 layers stop at 2026-11-02; NOAA-20 is current.
+- **Ships (built, partly):** only Finland's open Digitraffic AIS (northern Baltic, ~600 ships,
+  no key, CC BY 4.0). World coverage needs an aisstream.io key the owner must register for;
+  its websocket client is NOT written yet because it cannot be tested without a key. Write it
+  with him once he has one (key in `data/`, never in git, never pasted in chat).
+- FIRMS and CelesTrak both time out intermittently from the cloud sandbox (10 s tunnel limit);
+  that is the sandbox, not the feeds. Do not "fix" it by shortening retries.
+- 23 feeds; peak memory in the sandbox about 175 MB.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

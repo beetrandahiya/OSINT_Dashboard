@@ -24,8 +24,11 @@ export function createMap(container, leftPadding) {
   return map;
 }
 
+let photoOn = false;
+export function setPhoto(on) { photoOn = on; }
+
 export function paintBase(map, dark) {
-  const c = PALETTE[dark ? 'dark' : 'light'];
+  const c = PALETTE[dark ? 'dark' : 'light'], onPhoto = PALETTE.dark;   // over the satellite photo, place names use the dark-map colours so they stay readable
   const set = (id, prop, v) => { try { map.setPaintProperty(id, prop, v); } catch (e) { /* layer lacks that property */ } };
   for (const l of map.getStyle().layers) {
     const id = l.id;
@@ -41,8 +44,9 @@ export function paintBase(map, dark) {
       set(id, 'line-color', v);
     } else if (l.type === 'symbol') {
       const water = /water/.test(id), big = /country|state|city/.test(id);
-      set(id, 'text-color', water ? c.waterLabel : big ? c.label : c.labelSoft);
-      set(id, 'text-halo-color', water ? c.water : c.halo);
+      const k = photoOn ? onPhoto : c;
+      set(id, 'text-color', photoOn ? '#ffffff' : water ? k.waterLabel : big ? k.label : k.labelSoft);
+      set(id, 'text-halo-color', photoOn ? 'rgba(0,0,0,0.75)' : water ? k.water : k.halo);
       set(id, 'text-halo-width', 1.2);
     } else if (l.type === 'raster') set(id, 'raster-opacity', 0);   // shaded relief does not suit this look
   }

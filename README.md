@@ -52,6 +52,9 @@ To reach it from another device (for example over Tailscale), start it with `WW_
 | Space weather and aurora | NOAA SWPC | 10 min |
 | Undersea cables | TeleGeography (CC BY-NC-SA, private use only) | weekly |
 | GPS interference | GPSJAM (their analysis, one map per day) | 6 h |
+| Fire detections | NASA FIRMS (MODIS, last 24 hours) | 30 min |
+| Ships, northern Baltic only | Digitraffic, Finland (open data) | 60 s |
+| Satellite photo of yesterday | NASA GIBS (map tiles, loaded by the browser) | daily |
 | Munich weather and warnings | German Weather Service via Bright Sky | 10 min |
 | Munich transport disruptions | MVG (unofficial feed) | 5 min |
 | Markets | Yahoo Finance (unofficial, delayed) | 5 min |

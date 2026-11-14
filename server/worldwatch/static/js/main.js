@@ -1,5 +1,5 @@
 import {$, ago, api, esc, now} from './util.js';
-import {createMap, paintBase, paintSky, setGlobe} from './map.js';
+import {createMap, paintBase, paintSky, setGlobe, setPhoto} from './map.js';
 import news from './news.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
@@ -7,14 +7,16 @@ import {civil, military, fillRoute, select as selectAircraft} from './aircraft.j
 import {satellites, launches} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
-import {rain, night, aurora} from './sky.js';
+import {rain, night, aurora, photo, onPhoto} from './sky.js';
+import fires from './fires.js';
+import ships from './ships.js';
 import gps from './gps.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [night, aurora, gps, cables, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
-const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, gps, cables, rain, night, aurora];
+const LAYERS = [photo, night, aurora, gps, cables, fires, ships, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
+const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, ships, fires, gps, cables, rain, night, aurora, photo];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -22,9 +24,12 @@ const dark = matchMedia('(prefers-color-scheme: dark)');
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
 
-let on = Object.fromEntries(LAYERS.map(l => [l.id, true]));
+let on = Object.fromEntries(LAYERS.map(l => [l.id, !l.defaultOff]));
 try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); } catch (e) { /* private window */ }
 let ready = false, picked = null, status = null, lastAnswer = 0, got = new Set(LAYERS.filter(l => l.local).map(l => l.id));
+
+const LOW = ['ww-fires', 'ww-cables-hit', 'ww-gps'];
+onPhoto(v => { setPhoto(v); if (map.isStyleLoaded()) paintBase(map, dark.matches); });
 
 function repaint() {
   paintBase(map, dark.matches);
@@ -59,11 +64,11 @@ map.on('load', () => {
     show(l);
     for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
   }
-  const NO_CLICK = ['ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track'];
+  const NO_CLICK = ['ww-photo', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
-      .filter(x => x.properties.id != null).sort((a, b) => ['ww-cables-hit', 'ww-gps'].includes(a.layer.id) - ['ww-cables-hit', 'ww-gps'].includes(b.layer.id))[0];   // markers win over cables
+      .filter(x => x.properties.id != null).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
     if (!f) return pick(null);
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     pick({layer: layer.id, id: f.properties.id});

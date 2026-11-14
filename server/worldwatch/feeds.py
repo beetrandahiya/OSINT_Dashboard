@@ -487,6 +487,60 @@ async def mvg(feed: Feed, f: Fetcher) -> Result:
                   note=f"{incidents} incidents and {len(out) - incidents} planned changes in force; data time is the newest message")
 
 
+async def fires(feed: Feed, f: Fetcher) -> Result:
+    """Fire detections of the last 24 hours from NASA's FIRMS (the MODIS instruments on the Terra and Aqua
+    satellites, about 1 km resolution). Each row is one hot pixel a satellite saw as it passed over."""
+    import csv
+    r = await f.get("https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv")
+    published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
+    pts = []
+    for row in csv.DictReader(io.StringIO(r.text)):
+        try:
+            t = calendar.timegm(time.strptime(row["acq_date"] + row["acq_time"].zfill(4), "%Y-%m-%d%H%M"))
+            pts.append([round(float(row["longitude"]), 4), round(float(row["latitude"]), 4), round(float(row["frp"]), 1),
+                        int(row["confidence"]), t, row["satellite"], row["daynight"]])
+        except (ValueError, KeyError):
+            continue
+    return Result(len(pts), {"points": pts, "published": published, "fields": ["lon", "lat", "power_mw", "confidence", "time", "satellite", "daynight"]},
+                  data_time=published, note="data time is when NASA last rebuilt the file")
+
+
+SHIP_TYPES = {30: "Fishing vessel", 31: "Tug", 32: "Tug", 33: "Dredger", 35: "Military vessel", 36: "Sailing vessel", 37: "Pleasure craft",
+              50: "Pilot vessel", 51: "Search and rescue vessel", 52: "Tug", 53: "Port tender", 55: "Law enforcement vessel", 58: "Medical transport"}
+
+
+def _ship_type(code) -> str | None:
+    if code is None:
+        return None
+    if code in SHIP_TYPES:
+        return SHIP_TYPES[code]
+    return {4: "High-speed craft", 6: "Passenger ship", 7: "Cargo ship", 8: "Tanker"}.get(code // 10)
+
+
+async def ships(feed: Feed, f: Fetcher) -> Result:
+    """Ships in and around Finnish waters and the northern Baltic, from Finland's open maritime data service
+    (Digitraffic). It is the one free ship feed that needs no key; world coverage needs an aisstream.io key."""
+    hdr = {"Digitraffic-User": "WorldWatch/personal"}
+    now = time.time()
+    if now - feed.memo.get("names_at", 0) > 6 * 3600:        # names, types and destinations change rarely
+        v = (await f.get("https://meri.digitraffic.fi/api/ais/v1/vessels", headers=hdr)).json()
+        feed.memo.update(names={x["mmsi"]: x for x in v}, names_at=now)
+    d = (await f.get("https://meri.digitraffic.fi/api/ais/v1/locations", headers=hdr)).json()
+    names, out = feed.memo["names"], []
+    for x in d["features"]:
+        p, at = x["properties"], x["properties"]["timestampExternal"] / 1000
+        if now - at > 1800:                                    # a position older than half an hour says little about now
+            continue
+        n = names.get(p["mmsi"], {})
+        out.append({"mmsi": p["mmsi"], "lon": x["geometry"]["coordinates"][0], "lat": x["geometry"]["coordinates"][1],
+                    "speed_kn": p.get("sog"), "course": p.get("cog") if (p.get("cog") or 0) < 360 else None,
+                    "heading": p.get("heading") if (p.get("heading") or 511) < 360 else None, "status": p.get("navStat"), "time": at,
+                    "name": (n.get("name") or "").strip() or None, "kind": _ship_type(n.get("shipType")), "callsign": n.get("callSign"),
+                    "destination": (n.get("destination") or "").strip() or None, "imo": n.get("imo") or None, "draught_m": (n.get("draught") or 0) / 10 or None})
+    newest = max((s["time"] for s in out), default=None)
+    return Result(len(out), {"ships": out}, data_time=newest, note="data time is the newest position; positions older than 30 minutes are dropped")
+
+
 H = 3600
 FEEDS = [
     Feed("aircraft_near", "Aircraft near Munich", "adsb.fi", "https://adsb.fi", 20, aircraft_near, stale_after=90,
@@ -523,6 +577,10 @@ FEEDS = [
          limit_note="no published limit"),
     Feed("mvg", "Munich transport disruptions", "MVG (unofficial feed)", "https://www.mvg.de", 300, mvg,
          limit_note="the feed behind mvg.de; not an official service, can break"),
+    Feed("fires", "Fire detections", "NASA FIRMS", "https://firms.modaps.eosdis.nasa.gov", 1800, fires, stale_after=6 * H,
+         limit_note="NASA rebuilds the 24-hour file several times an hour"),
+    Feed("ships", "Ships (northern Baltic)", "Digitraffic, Finland", "https://www.digitraffic.fi/en/marine-traffic/", 60, ships, stale_after=900,
+         limit_note="open data, no key; Finnish coverage area only"),
     Feed("outages", "Internet outages", "IODA, Georgia Tech", "https://ioda.inetintel.cc.gatech.edu", 300, outages,
          limit_note="no published limit; country-level signals only"),
     Feed("markets", "Markets", "Yahoo Finance (unofficial)", "https://finance.yahoo.com", 300, markets,
