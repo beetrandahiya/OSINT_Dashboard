@@ -70,6 +70,11 @@ async def route(request):
     return JSONResponse({"callsign": callsign, "route": hit["body"], "fetched": hit["fetched"], "now": time.time()})
 
 
+async def trail(request):
+    hex_ = request.path_params["hex"].lower()
+    return JSONResponse({"hex": hex_, "points": collector.trails.get(hex_, []), "now": time.time()}, headers={"Cache-Control": "no-store"})
+
+
 def page(name):
     async def serve(request):
         return FileResponse(STATIC / name, headers={"Cache-Control": "no-cache"})
@@ -89,5 +94,6 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/status", status),
     Route("/api/data/{name}", data),
     Route("/api/route/{callsign}", route),
+    Route("/api/trail/{hex}", trail),
     Mount("/static", StaticFiles(directory=STATIC)),
 ])

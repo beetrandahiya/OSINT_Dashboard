@@ -21,7 +21,7 @@ from typing import Any, Awaitable, Callable
 
 import httpx
 
-from . import config
+from . import config, translate
 
 
 @dataclass
@@ -172,7 +172,7 @@ def _gdelt_clusters(raw_zip: bytes, langs: tuple[str, ...] | None = None) -> tup
                 except ValueError:
                     pass
         m = _TITLE.search(r[26])
-        if not locs or not m:
+        if not locs or not m or not m.group(1).strip():
             continue
         _, name, lat, lon = min(locs)
         c = places.setdefault(name, {"place": name, "lat": lat, "lon": lon, "outlets": {}, })
@@ -192,7 +192,14 @@ async def news(feed: Feed, f: Fetcher) -> Result:
     url = next(line.split()[2] for line in listing.splitlines() if line.endswith(".gkg.csv.zip"))
     stamp = url.rsplit("/", 1)[1][:14]
     if feed.memo.get("stamp") != stamp:
-        raw = (await f.get(url.replace("http://", "https://"))).content
+        r2 = await f.client.get(url.replace("http://", "https://"))
+        f.wire_bytes += r2.num_bytes_downloaded
+        if r2.status_code == 404 and feed.memo.get("payload"):
+            # GDELT sometimes lists a file a little before it can be downloaded: keep what we have and say so
+            return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["payload"]["published"],
+                          note=f"file {stamp} is listed but cannot be downloaded yet; showing file {feed.memo['stamp']}")
+        r2.raise_for_status()
+        raw = r2.content
         articles, clusters = await asyncio.to_thread(_gdelt_clusters, raw)
         feed.memo.update(stamp=stamp, payload={"file": stamp, "articles": articles, "places": clusters}, n=len(clusters))
         note = f"new 15-minute file, {articles} articles"
@@ -203,6 +210,7 @@ async def news(feed: Feed, f: Fetcher) -> Result:
 
 
 NEWS_LANGS = {"deu": "German", "hin": "Hindi"}
+GOOGLE_LANG = {"deu": "de", "hin": "hi"}
 
 
 async def news_translated(feed: Feed, f: Fetcher) -> Result:
@@ -224,10 +232,21 @@ async def news_translated(feed: Feed, f: Fetcher) -> Result:
         r.raise_for_status()
         published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
         articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content, tuple(NEWS_LANGS))
+        # Headlines are machine-translated to English (the owner's wish, 14 Nov 2026); the original is kept beside it.
+        failed = 0
+        for code, google in GOOGLE_LANG.items():
+            arts = [a for c in clusters for a in c["articles"] if a["lang"] == code]
+            english, bad = await translate.to_english(f, [a["title"] for a in arts], google)
+            failed += bad
+            for a in arts:
+                if english.get(a["title"], a["title"]) != a["title"]:
+                    a["title_original"], a["title"], a["translated"] = a["title"], english[a["title"]], True
         payload = {"file": stamp, "articles": articles, "places": clusters, "published": published, "languages": NEWS_LANGS}
         feed.memo.update(stamp=stamp, payload=payload, n=len(clusters), published=published)
         return Result(len(clusters), payload, data_time=published,
-                      note=f"{articles} German and Hindi articles (file {stamp}); GDELT releases these about an hour late")
+                      note=f"{articles} German and Hindi articles (file {stamp}), headlines machine-translated"
+                           + (f"; {failed} could not be translated and stay in their language" if failed else "")
+                           + "; GDELT releases these about an hour late")
     raise RuntimeError("none of the last 13 translated files could be downloaded")
 
 
@@ -360,7 +379,7 @@ async def space_weather(feed: Feed, f: Fetcher) -> Result:
     rows = [r for r in kp if isinstance(r, dict)] or [dict(zip(kp[0], r)) for r in kp[1:]]     # NOAA has used both shapes
     last = rows[-1]
     a = (await f.get("https://services.swpc.noaa.gov/json/ovation_aurora_latest.json")).json()
-    cells = [[lon - 360 if lon > 180 else lon, lat, p] for lon, lat, p in a["coordinates"] if p >= 10]
+    cells = [[lon, lat, p] for lon, lat, p in a["coordinates"] if p >= 3]     # lon 0..359, lat -90..90, percent
     obs = _iso(a["Observation Time"])
     return Result(len(cells), {"kp": float(last["Kp"]), "kp_time": _iso(last["time_tag"]), "kp_history": [[_iso(r["time_tag"]), float(r["Kp"])] for r in rows[-16:]],
                                "aurora": cells, "aurora_observed": obs, "aurora_valid": _iso(a["Forecast Time"])},

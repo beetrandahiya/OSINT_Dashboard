@@ -64,9 +64,9 @@ export default {
     return `<p class="eyebrow">News place</p>
       <h2>${esc(short(p))}</h2>
       <p class="where">${esc(rest(p))}${rest(p) ? ' · ' : ''}${p.outlets} ${p.outlets === 1 ? 'outlet' : 'outlets'}</p>
-      <ol class="links">${stories(p).map(g => `<li><a href="${esc(g[0].url)}" target="_blank" rel="noopener">${esc(g[0].title)}</a>
-        <span>${g.slice(0, 4).map(a => `<a class="outlet" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.outlet)}</a>`).join(', ')}${g.length > 4 ? ` and ${g.length - 4} more` : ''}${g[0].lang && g[0].lang !== 'eng' ? ' · ' + (LANGS[g[0].lang] || g[0].lang) : ''}</span></li>`).join('')}</ol>
+      <ol class="links">${stories(p).map(g => `<li><a href="${esc(g[0].url)}" target="_blank" rel="noopener">${esc(g[0].title)}</a>${g[0].translated ? `<span class="orig">${esc(g[0].title_original)}</span>` : ''}
+        <span>${g.slice(0, 4).map(a => `<a class="outlet" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.outlet)}</a>`).join(', ')}${g.length > 4 ? ` and ${g.length - 4} more` : ''}${g[0].lang && g[0].lang !== 'eng' ? ' · ' + (g[0].translated ? 'machine-translated from ' : '') + (LANGS[g[0].lang] || g[0].lang) : ''}</span></li>`).join('')}</ol>
       ${p.outlets > p.articles.length ? `<p class="source">Showing ${p.articles.length} of ${p.outlets} outlets.</p>` : ''}
-      <p class="source">Source: GDELT. English file published ${sets.news ? utc(sets.news.published) + ' (' + ago(sets.news.published) + ')' : 'not loaded yet'}; German and Hindi file ${sets.news_translated ? utc(sets.news_translated.published) + ' (' + ago(sets.news_translated.published) + ', GDELT releases it about an hour late)' : 'not loaded yet'}. GDELT's software reads each article and picks out place names, so a story can land on a place it only mentions in passing. Identical headlines are shown once; headlines stay in their own language.</p>`;
+      <p class="source">Source: GDELT. English file published ${sets.news ? utc(sets.news.published) + ' (' + ago(sets.news.published) + ')' : 'not loaded yet'}; German and Hindi file ${sets.news_translated ? utc(sets.news_translated.published) + ' (' + ago(sets.news_translated.published) + ', GDELT releases it about an hour late)' : 'not loaded yet'}. GDELT's software reads each article and picks out place names, so a story can land on a place it only mentions in passing. Identical headlines are shown once. German and Hindi headlines are translated by machine (Google Translate) and can be wrong; the original is shown beneath.</p>`;
   },
 };

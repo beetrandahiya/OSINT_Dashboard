@@ -7,7 +7,6 @@
 import {$, ago, api, esc, local, now} from './util.js';
 
 let near = [], mil = [], world = [], info = {}, theMap = null, isDark = false, shown = {aircraft: true};
-const trails = new Map();   // hex -> the positions we ourselves received for it, newest last (kept 15 minutes)
 
 // ---- gliding (the owner's decision of 14 Nov 2026, the one place where something is drawn ahead of its data) ----
 // Between two reports, a nearby aircraft is drawn moving on along its last reported heading at its last
@@ -112,7 +111,7 @@ function detail(id) {
     <dl>${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
-    <p class="source">Source: ${SOURCES[from][0]}, fetched ${ago(f.fetched)}. ${from === 'near' ? `Between reports it is drawn moving on along its last heading and speed, at most ${GLIDE_MAX} seconds ahead; that part is an estimate. The solid line is where we saw it fly since this page opened; the dashed line joins the two airports of its usual route and is not its actual path.` : 'The aircraft is drawn where it last reported; it has kept moving since.'}${from === 'world' ? ' The world view refreshes every 15 minutes.' : ''}</p>`;
+    <p class="source">Source: ${SOURCES[from][0]}, fetched ${ago(f.fetched)}. ${from === 'near' ? `Between reports it is drawn moving on along its last heading and speed, at most ${GLIDE_MAX} seconds ahead; that part is an estimate. ` : 'The aircraft is drawn where it last reported; it has kept moving since. '}${from !== 'world' ? 'The solid line joins the positions we received for it in the last 3 hours' + (from === 'military' ? ' (one every 5 minutes, so it cuts corners)' : '') + '. A dashed line, when there is one, joins the two airports of its usual route and is not its actual path.' : ''}${from === 'world' ? ' The world view refreshes every 15 minutes.' : ''}</p>`;
 }
 
 // The route comes from a second, crowd-sourced source and is looked up only when a card is opened.
@@ -123,7 +122,7 @@ export async function fillRoute() {
   try {
     const r = await api('/api/route/' + encodeURIComponent(cs));
     const el2 = $('#route'); if (!el2 || el2.dataset.callsign !== cs) return;
-    if (!r.route) { el2.textContent = 'Route not known to adsbdb'; return; }
+    if (!r.route) { el2.textContent = military.owns(sel) ? 'No published route, as usual for military flights' : 'Route not known to adsbdb'; return; }
     const p = x => `${esc(x.city || x.name)}${x.iata ? ' (' + esc(x.iata) + ')' : ''}`;
     el2.innerHTML = `${p(r.route.origin)} to ${p(r.route.destination)}<span class="sub">${esc(r.route.airline || '')}${r.route.airline ? ' · ' : ''}usual route for this callsign, from adsbdb, can be wrong</span>`;
     if (r.route.origin.lat != null && r.route.destination.lat != null) { route = {...r.route, for: sel}; drawExtras(); }
@@ -146,12 +145,20 @@ function glide() {
 }
 
 // ---- for the selected aircraft: the path we saw it fly, and its usual route ----
-let sel = null, route = null;
+let sel = null, route = null, seen = null;   // seen: the positions the server received for the selected aircraft, last 3 hours
+async function loadTrail() {
+  const id = sel; if (!id) return;
+  try { const r = await api('/api/trail/' + encodeURIComponent(id)); if (sel === id) { seen = {hex: id, points: r.points}; drawExtras(); } } catch (e) { /* the line just stays as it was */ }
+}
+setInterval(loadTrail, 15000);
 function drawExtras() {
   const map = theMap; if (!map?.getSource('ww-air-extra')) return;
   const feats = [];
-  const tr = sel && trails.get(sel);
-  if (tr && tr.length > 1) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: tr.map(p => [p[0], p[1]])}, properties: {kind: 'trail'}});
+  if (seen && seen.hex === sel && seen.points.length > 1) {
+    const lines = [[]]; let last = null;                     // split where the path crosses the date line
+    for (const [, lon, lat] of seen.points) { if (last !== null && Math.abs(lon - last) > 180) lines.push([]); lines[lines.length - 1].push([lon, lat]); last = lon; }
+    feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: lines.filter(l => l.length > 1)}, properties: {kind: 'trail'}});
+  }
   if (route && route.for === sel) {
     const o = route.origin, d = route.destination;
     feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: arc([o.lon, o.lat], [d.lon, d.lat])}, properties: {kind: 'route'}});
@@ -159,7 +166,7 @@ function drawExtras() {
   }
   map.getSource('ww-air-extra').setData({type: 'FeatureCollection', features: feats});
 }
-export function select(id) { sel = id; if (route && route.for !== id) route = null; drawExtras(); }
+export function select(id) { if (id !== sel) seen = null; sel = id; if (route && route.for !== id) route = null; drawExtras(); loadTrail(); }
 
 export const civil = {
   id: 'aircraft', title: 'Aircraft', color: ['#5856d6', '#7d7aff'], feeds: {aircraft_near: 10, aircraft_world: 120}, layers: ['ww-air-world', 'ww-air-route', 'ww-air-trail', 'ww-air-airport', 'ww-air-near'],
@@ -192,12 +199,6 @@ export const civil = {
     info[feed] = d;
     if (feed !== 'aircraft_near') { world = d.payload.aircraft; return; }
     near = d.payload.aircraft;
-    const t = d.data_time;
-    for (const a of near) {      // remember where each one really was, for the trail of whichever gets selected
-      const at = t - (a.seen_pos_s ?? 0), tr = trails.get(a.hex) || [], last = tr[tr.length - 1];
-      if (!last || at > last[2] + 1) { tr.push([a.lon, a.lat, at]); trails.set(a.hex, tr); }
-    }
-    for (const [hex, tr] of trails) { while (tr.length && tr[0][2] < t - 900) tr.shift(); if (!tr.length) trails.delete(hex); }
   },
   visible(on) { shown.aircraft = on; },
   render,

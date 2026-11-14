@@ -39,7 +39,7 @@ function show(layer) {
 async function load(layer, feed) {
   try {
     const d = await api('/api/data/' + feed);
-    if (!d.payload) return;
+    if (!d.payload) { setTimeout(() => load(layer, feed), 5000); return; }   // the server has not fetched this feed yet: ask again shortly
     layer.onData(feed, d);
     got.add(layer.id);
     layer.render(map);

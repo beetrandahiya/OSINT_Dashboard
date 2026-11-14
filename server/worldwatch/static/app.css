@@ -120,6 +120,7 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .links a { display: block; color: var(--text); text-decoration: none; font-size: 15px; line-height: 20px; }
 .links a:hover { color: var(--accent); }
 .links span { color: var(--text-2); font-size: 13px; }
+.links span.orig { display: block; font-size: 13px; line-height: 16px; margin: 2px 0; }
 .links a.outlet { display: inline; color: inherit; font-size: inherit; line-height: inherit; }
 .links a.outlet:hover { color: var(--accent); }
 .detail dl { margin: 0 0 14px; border-radius: 12px; background: var(--fill); padding: 0 12px; }

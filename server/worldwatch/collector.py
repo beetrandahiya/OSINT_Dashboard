@@ -64,6 +64,7 @@ class Collector:
         self._tasks: list[asyncio.Task] = []
         self._client: httpx.AsyncClient | None = None
         self.clock_diffs: list[float] = []
+        self.trails: dict[str, list] = {}     # aircraft hex -> [[time, lon, lat], ...] as we received them, last 3 hours
 
     async def start(self):
         for st in self.states.values():      # show what an earlier run saved, clearly marked
@@ -115,11 +116,27 @@ class Collector:
         st.payload, st.items, st.data_time, st.data_label, st.note = res.payload, res.items, res.data_time, res.data_label, res.note
         st.error, st.fails_in_a_row = None, 0
         st.ok_count += 1
+        if feed.name in ("aircraft_near", "aircraft_military") and res.data_time:
+            self._remember(res.payload["aircraft"], res.data_time)
         st.last_ms, st.last_bytes = ms, f.wire_bytes
         st.total_bytes += f.wire_bytes
         await asyncio.to_thread(db.log_fetch, feed.name, started, ms, True, f.wire_bytes, res.items, res.data_time, None)
         await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, res.payload)
         return feed.interval * random.uniform(0.97, 1.03)
+
+    def _remember(self, aircraft: list[dict], data_time: float):
+        """Keep the positions we were really given, so a selected aircraft can show where it has been."""
+        for a in aircraft:
+            t = data_time - (a.get("seen_pos_s") or 0)
+            tr = self.trails.setdefault(a["hex"], [])
+            if not tr or (t > tr[-1][0] + 4 and (a["lon"], a["lat"]) != (tr[-1][1], tr[-1][2])):
+                tr.append([round(t, 1), a["lon"], a["lat"]])
+        old = data_time - 3 * 3600
+        for hex_, tr in list(self.trails.items()):
+            while tr and tr[0][0] < old:
+                tr.pop(0)
+            if not tr:
+                del self.trails[hex_]
 
     def status(self) -> dict:
         now = time.time()

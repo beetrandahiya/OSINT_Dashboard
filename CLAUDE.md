@@ -117,6 +117,24 @@ Owner's picks from researched options:
   I first told the owner there were "82 orange and red alerts right now"; that count included
   ended alerts. The real number of current ones was about a dozen. Corrected to him.
 
+### Decisions (2026-11-14, feedback on the second round)
+
+- **Headlines are machine-translated to English** (owner: "they need to be translated").
+  `translate.py` uses the free, unofficial endpoint behind Google Translate's web page, per
+  language, in batches, cached 90 days in `lookups`. The card shows the original beneath and
+  says "machine-translated". If Google blocks it, headlines stay in their language and the
+  feed note counts the failures. Only headline text is sent.
+- **Night and aurora are soft pictures, not shapes:** both are drawn into a canvas in Web
+  Mercator and laid over the map as an image source (`picture()` / `overlay()` in `sky.js`).
+  Night fades from sun altitude 0 to -12 degrees (standard twilight definitions).
+  No `ctx.filter` anywhere: Safari, the owner's browser, does not support it.
+- **Military aircraft have no published routes** and the public trackers' flight-history
+  files are not an API (403 / "blocked for scraping" when tried): do not scrape them. Instead
+  the server keeps the positions it received for every near and military aircraft for 3 hours
+  (`Collector.trails`, `/api/trail/{hex}`), and the selected aircraft shows that as its trail.
+- Bug fixed: a layer whose feed the server had not fetched yet was asked again only after its
+  normal interval (an hour for cables). `main.js` now retries after 5 s.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
