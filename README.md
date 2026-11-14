@@ -21,7 +21,8 @@ Stop it with Ctrl-C. Collected data is kept in `data/` and survives restarts.
 
 ### Free keys (optional, each switches on one extra)
 
-Each key goes in its own one-line file in `data/` (created on first start; git ignores it). Nothing else
+Each key goes in its own one-line file in the `data` folder, which sits in the project's top folder
+(next to `README.md`, not inside `server`). It is created on first start; git ignores it. Nothing else
 needs a key.
 
 | File | Register at | Switches on |
@@ -29,8 +30,10 @@ needs a key.
 | `data/aisstream-key.txt` | aisstream.io (sign in with GitHub, "API Keys") | ships worldwide, not only the northern Baltic |
 | `data/opensanctions-key.txt` | opensanctions.org/api (free for non-commercial use) | sanctions and politically-exposed-person lists in people profiles |
 
+From the `server` folder (where you start the app):
+
 ```bash
-echo "YOUR-KEY" > data/aisstream-key.txt
+echo "YOUR-KEY" > ../data/aisstream-key.txt
 ```
 
 Restart the server after adding a key.
@@ -40,8 +43,10 @@ Restart the server after adding a key.
 Photos in the aircraft card come from planespotters.net, which asks every client to send a contact
 email or web address. Put yours in a one-line file; it stays on your machine and out of git:
 
+From the `server` folder:
+
 ```bash
-mkdir -p data && echo "you@example.com" > data/contact.txt
+echo "you@example.com" > ../data/contact.txt
 ```
 
 Without that file the app works the same, just without photos.
