@@ -219,6 +219,35 @@ Owner's picks from researched options:
   that is the sandbox, not the feeds. Do not "fix" it by shortening retries.
 - 23 feeds; peak memory in the sandbox about 175 MB.
 
+## Lookup tool (milestone 2): interview done 2026-11-14, plan proposed, awaiting go
+
+Owner's answers:
+- First thing that works: **his own footprint**.
+- Depth: "everything like a true OSINT setup in Kali", with all identifier kinds: usernames,
+  email addresses, full name and phone number, domains and code.
+- Requests come **from his Mac, only when he presses the button**. No Tor.
+- Lives on **its own page** in the same app and look.
+- Results as a **graph view** (identifiers, accounts, sites linked), not a triage list.
+- Runs only on demand. **Findings only**: no delete links, no erasure letters.
+
+Limits I set and told him: no downloading of leaked password dumps (breach names and leaked
+data types only); sign-up / password-reset probing can send reset emails to his own inbox.
+While testing from the cloud, use only public test identifiers, never his.
+
+Research (2026-11-14, probed from the sandbox with dummy identifiers):
+- WhatsMyName dataset: 691 sites, CC BY-SA 4.0, one JSON file with a URL pattern, the
+  expected "exists" / "missing" signals and known-good accounts per site. We can write our
+  own checker on httpx (no new dependency) and self-test each site with its known account.
+- Maigret 0.6.6 installs on Python 3.13 but pulls 141 packages, 190 MB. If used, run it on
+  demand as a separate process (`uvx maigret`), never as a dependency of the server.
+- No key needed and answering: XposedOrNot (breaches per email), HIBP `/breaches` (catalogue
+  only), Hudson Rock Cavalier (infostealer exposure), Gravatar, keys.openpgp.org, GitHub
+  commit search by author email, rdap.org. `phonenumbers` (offline) gives country and
+  original carrier.
+- Flaky from here: crt.sh (502), Wayback CDX (timeout). DuckDuckGo's HTML page answered but
+  search scraping is unreliable everywhere.
+- Holehe (sign-up probing) has had no release since 2024; expect many dead modules.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
