@@ -248,6 +248,28 @@ Research (2026-11-14, probed from the sandbox with dummy identifiers):
   search scraping is unreliable everywhere.
 - Holehe (sign-up probing) has had no release since 2024; expect many dead modules.
 
+### Lookup, built 2026-11-14 after his "go on" (waiting for review)
+
+- **Proof (step 1):** `lookup/usernames.py` self-test from the sandbox: 690 sites in the list,
+  **404 trusted** (found the known account, did not find a made-up name), 0 false alarms,
+  286 blind (122 of those answered 403 to a datacenter address). 48 s for 1,380 requests.
+  The test must be run again on the owner's Mac (button "Test the checker"); results are per
+  computer, kept in `data/whatsmyname-selftest.json`. Only trusted sites are asked in a scan.
+- **Slice 2:** `/lookup` page (`static/lookup.html`, `lookup.css`, `js/lookup.js`), API in
+  `lookup/api.py`, storage in `lookup/store.py` (`data/lookup.db`, separate from the map's db).
+  One subject for now: the owner. Username sweep plus email checks (`lookup/emails.py`:
+  XposedOrNot breaches, Hudson Rock, Gravatar by hash, keys.openpgp.org, GitHub commit search).
+  Before a scan a sheet lists exactly what is sent to whom; scan runs as a background task with
+  progress; failed services are listed, never skipped silently.
+- **Graph:** a radial layout computed in `layout()` (you in the middle, identifiers around,
+  findings fanned out behind their identifier in rings), plain SVG, pan and zoom, no library.
+  "Not me" hides a finding and survives rescans (`findings.not_me`).
+- The lookup API answers only to 127.0.0.1 unless `WW_LOOKUP_REMOTE=1`.
+- Tested end to end with a public figure's username and `test@example.com` only: 92 profile
+  pages and 218 email findings in 20 s. Test data wiped afterwards.
+- Not built yet: full name, phone, domains and GitHub account (the page says "not checked yet"
+  for those), sign-up probing, the optional Maigret run, other subjects with consent records.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

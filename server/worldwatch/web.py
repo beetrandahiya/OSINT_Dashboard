@@ -20,6 +20,7 @@ from starlette.staticfiles import StaticFiles
 from . import config, db
 from .collector import Collector
 from .feeds import _readsb_aircraft, adsbfi_area
+from .lookup import api as lookup_api
 
 STATIC = Path(__file__).parent / "static"
 collector = Collector()
@@ -231,6 +232,8 @@ async def lifespan(app):
 app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimum_size=2000)], routes=[
     Route("/", page("index.html")),
     Route("/feeds", page("feeds.html")),
+    Route("/lookup", page("lookup.html")),
+    *lookup_api.routes,
     Route("/api/status", status),
     Route("/api/data/{name}", data),
     Route("/api/route/{callsign}", route),

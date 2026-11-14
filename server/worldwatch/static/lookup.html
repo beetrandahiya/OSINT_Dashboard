@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Watch Lookup</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/lookup.css">
+</head>
+<body class="lookup">
+<svg id="graph" aria-label="Footprint graph"></svg>
+<p class="empty-note" id="empty" hidden></p>
+
+<aside class="glass sidebar">
+  <header class="side-head"><h1>Lookup</h1><a class="link" href="/">Map</a></header>
+  <div class="lk-body">
+    <h3>About you</h3>
+    <ul class="ids" id="ids"></ul>
+    <form id="add" class="add" autocomplete="off">
+      <select id="kind" aria-label="Kind"></select>
+      <input id="value" placeholder="Add one of your own" aria-label="Value" spellcheck="false">
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <p class="err" id="err" hidden></p>
+
+    <h3>Username checker</h3>
+    <p class="line" id="test"></p>
+    <button class="btn" id="run-test">Test the checker</button>
+
+    <h3>Scan</h3>
+    <p class="line" id="scan-line"></p>
+    <button class="btn primary" id="plan">Scan</button>
+    <div class="sheet" id="sheet" hidden></div>
+    <div id="progress" hidden><div class="bar"><i id="bar"></i></div><p class="line" id="step"></p></div>
+    <ul class="problems" id="problems"></ul>
+
+    <h3>Stored on this computer</h3>
+    <p class="line" id="stored"></p>
+    <button class="btn danger" id="wipe">Delete everything</button>
+    <p class="src">Results stay in a file on this computer (data/lookup.db). This page only answers on the computer World Watch runs on.</p>
+  </div>
+</aside>
+
+<div class="right"><section class="glass detail" id="detail" hidden></section><span class="spring"></span>
+  <section class="glass legend" id="legend"></section></div>
+
+<script type="module" src="/static/js/lookup.js"></script>
+</body>
+</html>

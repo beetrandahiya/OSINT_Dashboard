@@ -63,4 +63,11 @@ To reach it from another device (for example over Tailscale), start it with `WW_
 
 The intervals follow each source's published limits. Please don't shorten them.
 
+## Lookup
+
+`/lookup` shows what public sources reveal about your own usernames and email addresses, as a graph.
+It runs only when you press Scan, shows first what will be sent where, and keeps results in
+`data/lookup.db` on this computer. It answers only on the computer World Watch runs on
+(set `WW_LOOKUP_REMOTE=1` to allow other devices).
+
 Project history, decisions and open issues are in `CLAUDE.md`.

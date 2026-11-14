@@ -1,0 +1,43 @@
+/* The lookup page: same panels and tokens as the map, with a graph where the map would be. */
+body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
+#graph { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#graph:active { cursor: grabbing; }
+.side-head .link { font-size: 15px; }
+.lk-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; scrollbar-width: thin; }
+.lk-body h3 { margin: 18px 0 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.line { margin: 0 0 8px; font-size: 15px; line-height: 20px; }
+.src { margin: 8px 0 0; color: var(--text-2); font-size: 11px; line-height: 14px; }
+.ids { list-style: none; margin: 0 0 8px; padding: 0; }
+.ids li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 15px; }
+.ids li + li { border-top: 0.5px solid var(--sep); }
+.ids small { color: var(--text-2); font-size: 13px; flex: none; width: 96px; }
+.ids span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ids button { border: 0; background: var(--fill-strong); width: 22px; height: 22px; border-radius: 50%; color: var(--text-2); font-size: 12px; line-height: 1; cursor: default; }
+.add { display: flex; gap: 6px; }
+.add select, .add input { font: 13px var(--font); color: var(--text); background: var(--fill); border: 0; border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.add input { flex: 1; }
+.btn { font: 500 13px var(--font); color: var(--text); background: var(--fill-strong); border: 0; border-radius: 8px; padding: 6px 14px; cursor: default; }
+.btn:hover { background: color-mix(in srgb, var(--fill-strong) 70%, var(--text) 8%); }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .45; }
+.err { color: var(--bad); font-size: 13px; margin: 6px 0 0; }
+.sheet { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--fill); font-size: 13px; }
+.sheet b { display: block; font-size: 15px; margin-bottom: 6px; }
+.sheet ul { margin: 0 0 10px; padding-left: 18px; } .sheet li { margin: 4px 0; }
+.sheet .btn { margin-right: 6px; }
+.bar { height: 4px; border-radius: 2px; background: var(--fill-strong); overflow: hidden; margin: 10px 0 6px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--move); }
+.problems { margin: 6px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
+.legend { padding: 10px 16px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-radius: var(--radius-ctl); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; }
+.legend button { margin-left: auto; }
+.empty-note { position: absolute; left: calc(var(--side-w) + 80px); top: 42%; max-width: 420px; color: var(--text-2); font-size: 17px; line-height: 22px; margin: 0; }
+#graph text { font: 500 11px var(--font); fill: var(--text); pointer-events: none; }
+#graph text.big { font-size: 13px; font-weight: 600; }
+#graph line { stroke: var(--text-3); stroke-width: 1; }
+#graph circle { stroke: light-dark(#ffffff, #1c1c1e); stroke-width: 1.5; cursor: pointer; }
+#graph g.dim { opacity: .3; }
+#graph circle.sel { stroke: var(--text); stroke-width: 2.5; }
+.detail .not-me { margin-top: 12px; }
