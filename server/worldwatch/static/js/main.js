@@ -4,7 +4,7 @@ import news from './news.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
 import {civil, military, fillRoute, select as selectAircraft} from './aircraft.js';
-import {satellites, launches} from './space.js';
+import {satellites, launches, onSatChange} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
 import {rain, night, aurora, photo, onPhoto} from './sky.js';
@@ -69,7 +69,7 @@ map.on('load', () => {
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
       .filter(x => x.properties.id != null).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
-    if (!f) return pick(null);
+    if (!f) { for (const l of LAYERS) { const id = on[l.id] && l.hit?.(e.point); if (id) return pick({layer: l.id, id}); } return pick(null); }
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     pick({layer: layer.id, id: f.properties.id});
   });
@@ -118,6 +118,7 @@ function ring() {
 function pick(p, fly = false) {
   picked = p;
   selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military') ? p.id : null);
+  for (const l of LAYERS) l.select?.(p && p.layer === l.id ? p.id : null);
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
   const at = ring();
@@ -155,11 +156,17 @@ $('#list').addEventListener('keydown', e => {
     n?.focus();
   }
 });
-$('#detail').addEventListener('click', e => { if (e.target.id === 'close') pick(null); });
+$('#detail').addEventListener('click', e => {
+  if (e.target.id === 'close') return pick(null);
+  const a = e.target.closest('[data-act]');
+  if (a && picked) { byId[picked.layer].act?.(a.dataset.act, map); detailKey = ''; renderDetail(); }
+});
+onSatChange(() => { detailKey = ''; renderDetail(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
 
 function shape(globe) {
   setGlobe(map, globe);
+  setTimeout(() => { for (const l of LAYERS) l.shape?.(map); ring(); }, 60);
   $('#flat').setAttribute('aria-pressed', !globe);
   $('#globe').setAttribute('aria-pressed', globe);
   try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }

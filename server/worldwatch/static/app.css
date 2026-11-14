@@ -156,6 +156,8 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .soft { color: var(--text-2); }
 .link { color: var(--accent); text-decoration: none; font-size: 15px; }
 .link:hover { text-decoration: underline; }
+.detail .btn { font: 500 13px var(--font); color: var(--text); background: var(--fill-strong); border: 0; border-radius: 8px; padding: 6px 14px; cursor: default; margin-bottom: 12px; }
+.detail p.links { margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .source { margin: 12px 0 0; color: var(--text-2); font-size: 11px; line-height: 14px; }
 .close { position: absolute; z-index: 1; top: 14px; right: 14px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--fill-strong); cursor: default; }
 .close::before, .close::after { content: ""; position: absolute; left: 8.5px; right: 8.5px; top: 13.25px; height: 1.5px; border-radius: 1px; background: var(--text-2); transform: rotate(45deg); }

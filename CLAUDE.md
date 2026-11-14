@@ -270,6 +270,29 @@ Research (2026-11-14, probed from the sandbox with dummy identifiers):
 - Not built yet: full name, phone, domains and GitHub account (the page says "not checked yet"
   for those), sign-up probing, the optional Maigret run, other subjects with consent records.
 
+### Satellites, round 2 (built 2026-11-14 at the owner's request, waiting for review)
+
+He asked for: a trajectory for every satellite (not only the ISS), satellites "on scale
+height", a way to see what a satellite looks at, a link to https://www.watched.earth, and
+smaller dots. Built in `space.js`:
+- Ground track for the selected satellite (half an orbit back, one ahead, capped at 3 h each
+  way); the ISS track stays always on.
+- **True height on the globe:** MapLibre draws only on the surface, so satellites are drawn on
+  a canvas over the map. `camera()` works out the globe's camera distance and scale from two
+  points `map.project` places (4 and 24 degrees east of centre), `place()` projects a point at a
+  height and hides it when the Earth is in the way. Each satellite gets a thin line down to
+  its ground point. Not possible on the flat map, where a dot marks the point beneath.
+  A click on an elevated satellite is found through the layer's `hit(point)`.
+- **What it can see:** the horizon circle (`acos(R / (R + h))`) of the selected satellite, its
+  width and share of the Earth in the card, and "Look down from it", which centres the map
+  beneath the satellite and follows it until the map is dragged. The card says this is
+  geometry and the map, not a camera feed: nobody publishes where on-board cameras point.
+- watched.earth linked from every satellite card (it shows which satellites passed over a
+  place and their pictures; no deep link by satellite found).
+- Dots: radius 2 px (ISS 5).
+- New optional layer hooks used by `main.js`: `select(id)`, `hit(point)`, `act(name, map)`
+  (for `data-act` buttons in a card), `shape(map)` (called after a flat/globe switch).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
