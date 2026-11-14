@@ -223,10 +223,18 @@ async def people_search(request):
     q = (request.query_params.get("q") or "").strip()
     if len(q) < 2:
         return JSONResponse({"results": []})
+    key = "search:" + q.lower()
+    hit = store.cache_get(key, 86400)
+    if hit:
+        return JSONResponse({"results": hit["body"]})
     try:
-        return JSONResponse({"results": await _people.search(q)})
+        res = await _people.search(q)
+        store.cache_put(key, res)
+        return JSONResponse({"results": res})
     except Exception as e:
-        return JSONResponse({"error": f"Wikidata search failed ({type(e).__name__})"}, status_code=502)
+        busy = getattr(getattr(e, "response", None), "status_code", None) == 429
+        return JSONResponse({"error": "Wikidata is limiting requests from this network right now; try again in a few minutes" if busy
+                             else f"Wikidata search failed ({type(e).__name__})"}, status_code=502)
 
 
 async def people_profile(request):

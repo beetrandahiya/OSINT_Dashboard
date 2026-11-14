@@ -22,7 +22,7 @@ function tally(items) {
 }
 const seenOn = e => e.seen.slice(0, 6).map(s => s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.site)}</a>` : esc(s.site)).join(', ') + (e.seen.length > 6 ? ` and ${e.seen.length - 6} more` : '');
 
-export function render(S, G, kinds) {
+export function render(S, G, kinds, figures = {}) {
   const live = G.filter(f => !f.not_me);
   const pages = live.filter(f => f.url && ['account', 'profile', 'code', 'registered', 'mention'].includes(f.kind));
   const ok = pages.filter(f => f.page?.alive === true), dead = pages.filter(f => f.page?.alive === false),
@@ -67,14 +67,19 @@ export function render(S, G, kinds) {
 
   const ids = S.identifiers.map(i => `<span class="ds-id"><i>${esc(kinds[i.kind])}</i>${esc(i.value)}</span>`).join('');
   const ls = S.last_scan;
-  return `<header class="ds-head"><p class="eyebrow">Dossier</p><h1>What public sources show about you</h1>
+  const figs = Object.entries(figures).filter(([, l]) => l.length);
+  const figHtml = figs.length ? `<section class="ds ds-figs"><h2>Public figure record</h2>
+      <p class="source" style="margin:0 0 10px">A full name you entered matches people on Wikidata. For a public figure, the full record (offices held with dates, companies, family and ties, sanctions lists, recent news) is in their profile; the sweeps below only find accounts and web pages.</p>
+      <ul class="ds-accs">` + figs.flatMap(([name, list]) => list.map(x => `<li class="ds-acc ds-fig" data-qid="${esc(x.qid)}"><span class="ds-dot">${esc(x.name.slice(0, 1))}</span>
+        <span class="ds-acc-t"><b>${esc(x.name)}</b><span class="soft">${esc(x.description)}</span><span class="link">Open the full profile</span></span></li>`)).join('') + `</ul></section>` : '';
+  return `<header class="ds-head"><p class="eyebrow">Dossier</p><h1>What public sources show</h1>
       <div class="ds-ids">${ids}</div>
       <dl class="ds-stats">
         <div><dt>Live pages</dt><dd>${ok.length}</dd></div><div><dt>Could not check</dt><dd>${unsure.length + unread.length}</dd></div>
         <div><dt>Dead links dropped</dt><dd>${dead.length}</dd></div><div><dt>Breaches</dt><dd>${breaches.length}</dd></div>
         <div><dt>Malware exposure</dt><dd>${exposure.length ? 'yes' : 'none found'}</dd></div><div><dt>Host names</dt><dd>${hosts.length}</dd></div>
       </dl>
-      <p class="source">${ls ? `Last scan ${new Date(ls.finished * 1000).toLocaleString('en-GB')}.` : 'No scan yet.'} ${unread.length ? `${unread.length} pages have not been read yet: run a scan with “Open every page found” ticked, or press “Read the pages”.` : ''} Items you marked “Not me” are left out.</p></header>
+      <p class="source">${ls ? `Last scan ${new Date(ls.finished * 1000).toLocaleString('en-GB')}.` : 'No scan yet.'} ${unread.length ? `${unread.length} pages have not been read yet: run a scan with “Open every page found” ticked, or press “Read the pages”.` : ''} Items you marked “Not me” are left out.</p></header>${figHtml}
     ${sec('As the internet shows you', [
       names.length && `<h3>Names shown</h3>` + rows(names.slice(0, 10)),
       pics.length && `<h3>Pictures shown</h3><div class="ds-pics">` + pics.map(e => `<a href="${esc(e.seen[0].url || e.value)}" target="_blank" rel="noopener noreferrer" title="On ${esc(e.seen.map(s => s.site).join(', '))}"><img src="${esc(e.value)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"><span>${esc(e.seen[0].site)}</span></a>`).join('') + `</div>`,

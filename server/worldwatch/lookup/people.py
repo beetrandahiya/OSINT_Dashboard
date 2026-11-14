@@ -55,8 +55,12 @@ async def search(query: str) -> list[dict]:
         if not hits:
             return []
         ids = [h["id"] for h in hits]
-        rows = await _sparql(c, "SELECT ?p WHERE { VALUES ?p {" + " ".join("wd:" + i for i in ids) + "} ?p wdt:P31 wd:Q5. }")
-        humans = {_qid(x["p"]["value"]) for x in rows}
+        # keep only people (instance of human). Read from the regular Wikidata API, not the query service,
+        # which is slower and often throttled.
+        r = await c.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(ids), "props": "claims", "format": "json"})
+        r.raise_for_status()
+        humans = {q for q, e in r.json().get("entities", {}).items()
+                  if any(st.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id") == "Q5" for st in e.get("claims", {}).get("P31", []))}
     return [{"qid": h["id"], "name": h["label"], "description": h.get("description", "")} for h in hits if h["id"] in humans]
 
 

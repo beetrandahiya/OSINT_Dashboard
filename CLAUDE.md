@@ -488,6 +488,18 @@ politicians / business leaders map").
 - Not built yet: politician and business-leader map layers on top of this dossier design, GHunt /
   PhoneInfoga / Amass (need his Google cookies or separate installs).
 
+### 2026-11-14, "Narendra Modi showed nothing" (fixed)
+
+- People search hit Wikidata's 429 throttle: the human filter ran as a SPARQL query. Now it uses the
+  `wbgetentities` API (lighter, separate limit), results are cached in the lookup db, and a 429 is shown as
+  "Wikidata is limiting requests, try again in a minute" instead of an empty list.
+- Lookup for a public figure's name: the username sweep only finds accounts, which is not what he wanted.
+  The dossier now opens with a "Public figure record" card for any name identifier that matches a Wikidata
+  person; clicking it opens the full profile. "Open every page found" is on by default in the scan sheet.
+- Graph tab did not show (an SVG has no `.hidden` property; uses the attribute now). The profile overlay's
+  `#profile` display rule beat `[hidden]` and left an invisible layer over the page after closing: fixed.
+- Profile header shows the top two offices, highest first, plus "and N more"; the full list is in the timeline.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

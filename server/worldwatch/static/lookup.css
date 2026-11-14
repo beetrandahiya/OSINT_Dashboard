@@ -96,3 +96,4 @@ body.lookup .detail, body.lookup input, body.lookup .ids span { -webkit-user-sel
 .ds-t { flex: none; width: 92px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .ds-acc { cursor: default; } .ds-acc:hover { background: var(--hover); }
 body.lookup:has(#detail:not([hidden])) .dossier { right: calc(340px + var(--gap) * 2); }
+.ds-fig { cursor: pointer; } .ds-fig .link { color: var(--accent); font-size: 13px; margin-top: 2px; }

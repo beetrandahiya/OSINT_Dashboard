@@ -43,7 +43,10 @@ function group(items, label) {
 function render(d) {
   const named = a => a.filter(i => !/^Q\d+$/.test(i.name));
   const capList = (label, src, max) => { const g = named(src.filter(i => i.label === label)); return g.length ? g.slice(0, max).map(i => esc(i.name)).join(', ') + (g.length > max ? ` and ${g.length - max} more` : '') : null; };
-  const roles = d.current_roles.length ? d.current_roles : d.positions.slice(0, 1);
+  // The header shows the highest offices first (at most two); the full list is in the timeline below.
+  const TOP = /prime minister|president|chancellor|king|queen|monarch|emperor|emir|sultan|chief minister|premier|governor|mayor|chief executive|chair/i;
+  const roles = (d.current_roles.length ? d.current_roles : d.positions.slice(0, 1)).slice().sort((a, b) => TOP.test(b.name) - TOP.test(a.name)).slice(0, 2);
+  const moreRoles = Math.max(0, d.current_roles.length - roles.length);
   const age = yearsOld(d.born);
   const past = d.positions.filter(p => p.end);
   const holdings = named(d.holdings.filter(h => ['founded', 'owned by them', 'chief executive of', 'chair of', 'owns', 'parent org of'].includes(h.label)));
@@ -51,7 +54,7 @@ function render(d) {
   const memberships = named(d.ties.filter(t => t.label === 'member of'));
   const sct = (title, body, note) => body ? `<section class="pz"><h3>${title}</h3>${body}${note ? `<p class="source">${note}</p>` : ''}</section>` : '';
 
-  const roleLine = roles.map(r => esc(r.name) + (r.of ? ' of ' + esc(r.of) : '')).join(' · ');
+  const roleLine = roles.map(r => esc(r.name) + (r.of ? ' of ' + esc(r.of) : '')).join(' · ') + (moreRoles ? ` <span class="soft">and ${moreRoles} more</span>` : '');
   const timeline = d.positions.length ? `<ol class="tl">` + d.positions.map(p => `<li><span class="tl-when">${when(p.start, p.end)}</span><span class="tl-what">${esc(p.name)}${p.of ? ` <span class="soft">· ${esc(p.of)}</span>` : ''}</span></li>`).join('') + `</ol>` : null;
 
   const links = [d.official_website && `<a class="link" href="${esc(d.official_website)}" target="_blank" rel="noopener">Official site</a>`,

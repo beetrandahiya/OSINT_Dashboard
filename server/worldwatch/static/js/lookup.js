@@ -1,6 +1,7 @@
 // The lookup page: your identifiers in the middle, everything found about them around, as a graph.
 import {$, ago, esc, local} from './util.js';
 import {render as dossier} from './dossier.js';
+import {openProfile} from './profile.js';
 
 const KIND = {account: ['Account', 'light-dark(#5856d6, #7d7aff)'], breach: ['Breach', 'light-dark(#ff3b30, #ff453a)'], exposure: ['Malware exposure', 'light-dark(#ff9500, #ff9f0a)'],
   registered: ['Registered with this address', 'light-dark(#af52de, #da8fff)'], profile: ['Profile', 'light-dark(#28a745, #30d158)'], key: ['Public key', 'light-dark(#00a3b4, #40c8e0)'],
@@ -57,23 +58,36 @@ function render() {
   $('#problems').innerHTML = (busy ? S.job.problems : ls?.summary.problems || S.job.problems || []).map(p => `<li>${esc(p)}</li>`).join('');
   $('#stored').textContent = `${S.identifiers.length} identifiers, ${S.findings.length} findings (${G.length} after joining the same page found by several tools).`;
   if (sheetOpen) renderSheet();
-  const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds);
+  findFigures();
+  const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds, figures);
   if (dz.dataset.html !== html) { dz.innerHTML = html; dz.dataset.html = html; dz.scrollTop = y; }
-  $('#graph').hidden = tab !== 'graph'; dz.hidden = tab !== 'dossier'; $('#legend').style.display = tab === 'graph' ? '' : 'none';
+  $('#graph').toggleAttribute('hidden', tab !== 'graph'); dz.hidden = tab !== 'dossier';   // SVG has no .hidden property, only the attribute $('#legend').style.display = tab === 'graph' ? '' : 'none';
   $('#tab-dossier').setAttribute('aria-pressed', tab === 'dossier'); $('#tab-graph').setAttribute('aria-pressed', tab === 'graph');
   $('#read-pages').disabled = !!S.job.running || !S.findings.length;
   if (tab === 'graph') draw();
   renderDetail(); legend();
 }
+// A full name may belong to a public figure. Their real record (offices, companies, ties) is in the People
+// profile, not in username sweeps; offer it at the top of the dossier.
+const figures = {}, asked = new Set();
+function findFigures() {
+  for (const i of S.identifiers.filter(i => i.kind === 'name')) {
+    if (asked.has(i.value)) continue;
+    asked.add(i.value);
+    fetch('/api/people/search?q=' + encodeURIComponent(i.value), {cache: 'no-store'}).then(r => r.json())
+      .then(d => { figures[i.value] = (d.results || []).filter(x => x.description).slice(0, 3); render(); }).catch(() => {});
+  }
+}
 function setTab(t) { tab = t; try { localStorage.setItem('ww-lookup-tab', t); } catch (e) { /* private window */ } render(); }
 function renderSheet() {
   const p = S.plan, el = $('#sheet');
   if (!chosen) chosen = Object.fromEntries(p.checks.map(c => [c.id, true]));
+  if (!('read_pages' in chosen)) chosen.read_pages = true;
   for (const c of p.checks) if (!(c.id in chosen)) chosen[c.id] = true;
   el.hidden = false;
   el.innerHTML = `<b>Choose what runs</b>` + (p.checks.length ? p.checks.map(c => `<label class="pick"><input type="checkbox" data-run="${c.id}" ${chosen[c.id] ? 'checked' : ''}${c.id === 'wmn' && p.needs_test ? ' disabled' : ''}>
         <span><strong>${esc(c.name)}</strong> on ${c.count} ${esc(S.kinds[c.for].toLowerCase())}${c.count > 1 && !/s$/.test(S.kinds[c.for]) ? 's' : ''}<br>Sends ${esc(c.id === 'wmn' && p.trusted_sites ? 'the username to ' + p.trusted_sites + ' websites that passed the test' : c.sends)}.${c.note ? ' <em>Downloads ' + esc(c.note) + '.</em>' : ''}${c.id === 'wmn' && p.needs_test ? ' <em>Needs "Test the checker" first.</em>' : ''}</span></label>`).join('')
-      + Object.entries(p.options).filter(([k]) => p.checks.some(c => k.startsWith(c.id))).map(([k, v]) => `<label class="pick opt"><input type="checkbox" data-run="${k}" ${chosen[k] ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')
+      + Object.entries(p.options).filter(([k]) => k === 'read_pages' || p.checks.some(c => k.startsWith(c.id))).map(([k, v]) => `<label class="pick opt"><input type="checkbox" data-run="${k}" ${chosen[k] ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')
       : '<p class="line">Add an identifier first.</p>') +
     `<p class="src" style="margin:8px 0 10px">Maigret, Sherlock, Holehe and theHarvester are the standard open-source tools, run unchanged as separate programs. They are downloaded on first use.</p>
     <button class="btn primary" id="go" ${p.checks.length ? '' : 'disabled'}>Start</button><button class="btn" id="cancel">Cancel</button>`;
@@ -153,6 +167,7 @@ $('#tab-dossier').onclick = () => setTab('dossier');
 $('#tab-graph').onclick = () => setTab('graph');
 // a card in the dossier opens the same detail panel as a dot in the graph, with its "Not me" button
 $('#dossier').addEventListener('click', e => {
+  const fig = e.target.closest('[data-qid]'); if (fig) { openProfile(fig.dataset.qid); return; }
   if (e.target.closest('a')) return;
   const c = e.target.closest('[data-fid]'); if (!c) return;
   picked = 'f' + c.dataset.fid; render();
