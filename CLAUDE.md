@@ -376,6 +376,37 @@ Built (satellites, `space.js`):
 - Satellite families fetched: visual, stations, gps-ops, galileo, geo (802 in total), one
   CelesTrak request each, 2.5 s apart, every 2 h; a family that fails keeps its last data.
 
+### Profiles and dossier: plan proposed 2026-11-14, awaiting his go
+
+Research from the sandbox (2026-11-14):
+- **Wikidata SPARQL** answers but slowly: all current heads of state and government of
+  sovereign states in 29 s (362 people, 425 rows; one person can head several states), one
+  person's offices, parties, memberships, education, family and awards in 14 s (offices come
+  with start and end dates). Everything must be fetched in the background and cached.
+- **LittleSis API** (`littlesis.org/api/entities/search`) answers without a key; CC BY-SA 4.0;
+  relationships between people, companies and donors, strongest for the United States.
+- **OpenSanctions** publishes a politically-exposed-persons data set for download
+  (`data.opensanctions.org/datasets/latest/peps/`; the index redirected and was not read:
+  size and licence terms unverified; their API needs a key, bulk data is free for
+  non-commercial use as far as I know).
+- **Wikipedia** has "List of international trips made by ..." pages for some leaders; its
+  search API answered 429 from the sandbox, so coverage is unverified.
+- No public source gives where a person is now. GDELT can give the places news reports
+  mention together with a name, which is "reported at", not a track.
+
+Proposed shape (not built):
+- A **People** layer on the map plus a profile page. Profile sections, each with source and
+  date: who (photo, born, country, party), offices held as a timeline, where they have been
+  reported (GDELT place mentions, last days) and official trips where a list exists, family
+  and close ties, companies owned, founded or directed (Wikidata, LittleSis), sanctions and
+  exposed-person listings (OpenSanctions), latest news.
+- Order: 1 heads of state and government; 2 politicians in office; 3 business leaders;
+  4 search for anyone with a Wikidata entry, using the same builder so quality is identical.
+- **Dossier for himself**: every found page opened and read (name, bio, picture, dates,
+  links; dead links dropped), a timeline of accounts, breaches and code, more tools.
+- Boundary restated to him: profiles of public roles from public records, yes; live
+  whereabouts tracking of any person, no; private individuals only himself or with consent.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
