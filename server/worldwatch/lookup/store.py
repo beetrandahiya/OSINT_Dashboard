@@ -102,3 +102,29 @@ def wipe():
             db().execute(f"DELETE FROM {t}")
         db().commit()
         db().execute("VACUUM")
+
+
+# ---- public-figure profiles: a cache, since Wikidata is slow. Not personal data; separate from findings. ----
+import time as _time
+
+
+def _cache_table():
+    with _lock:
+        db().execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, fetched REAL NOT NULL, body TEXT NOT NULL)")
+        db().commit()
+
+
+def cache_get(key, max_age):
+    _cache_table()
+    with _lock:
+        row = db().execute("SELECT fetched, body FROM cache WHERE key = ?", (key,)).fetchone()
+    if row and _time.time() - row[0] < max_age:
+        return {"fetched": row[0], "body": json.loads(row[1])}
+    return None
+
+
+def cache_put(key, body):
+    _cache_table()
+    with _lock:
+        db().execute("INSERT OR REPLACE INTO cache (key, fetched, body) VALUES (?,?,?)", (key, _time.time(), json.dumps(body)))
+        db().commit()

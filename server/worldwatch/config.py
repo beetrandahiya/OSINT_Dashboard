@@ -24,3 +24,14 @@ def contact() -> str | None:
         return os.environ["WW_CONTACT"].strip()
     f = DATA / "contact.txt"
     return f.read_text().strip() or None if f.exists() else None
+
+
+def opensanctions_key() -> str | None:
+    """A free OpenSanctions API key, if the user registered for one, for the sanctions / politically-exposed
+    check in profiles. Put it in data/opensanctions-key.txt or WW_OPENSANCTIONS_KEY. Without it that one
+    section is skipped and says so. Never in git."""
+    import os
+    if os.environ.get("WW_OPENSANCTIONS_KEY"):
+        return os.environ["WW_OPENSANCTIONS_KEY"].strip()
+    f = DATA / "opensanctions-key.txt"
+    return f.read_text().strip() or None if f.exists() else None

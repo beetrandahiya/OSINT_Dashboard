@@ -197,3 +197,54 @@ routes = [
     Route("/api/lookup/wipe", wipe, methods=["POST"]),
     Route("/api/lookup/run/{what}", start, methods=["POST"]),
 ]
+
+
+# ---- public figures (profiles are not personal data about the owner; same page, own routes) ----
+from . import people as _people
+
+_people_job = {"running": False}
+
+
+async def people_search(request):
+    q = (request.query_params.get("q") or "").strip()
+    if len(q) < 2:
+        return JSONResponse({"results": []})
+    try:
+        return JSONResponse({"results": await _people.search(q)})
+    except Exception as e:
+        return JSONResponse({"error": f"Wikidata search failed ({type(e).__name__})"}, status_code=502)
+
+
+async def people_profile(request):
+    qid = request.path_params["qid"]
+    if not re.fullmatch(r"Q[0-9]{1,12}", qid):
+        return JSONResponse({"error": "not a Wikidata id"}, status_code=400)
+    fresh = request.query_params.get("fresh") == "1"
+    hit = None if fresh else store.cache_get("profile:" + qid, 86400)
+    if not hit:
+        try:
+            body = await _people.profile(qid)
+        except Exception as e:
+            return JSONResponse({"error": f"Could not build the profile ({type(e).__name__}: {str(e)[:120]})"}, status_code=502)
+        store.cache_put("profile:" + qid, body)
+        hit = {"fetched": body["built"], "body": body}
+    return JSONResponse({**hit["body"], "fetched": hit["fetched"], "now": time.time()}, headers={"Cache-Control": "no-store"})
+
+
+async def people_leaders(request):
+    hit = store.cache_get("leaders", 12 * 3600)
+    if not hit:
+        try:
+            body = await _people.leaders()
+        except Exception as e:
+            return JSONResponse({"error": f"Could not load leaders ({type(e).__name__})"}, status_code=502)
+        store.cache_put("leaders", body)
+        hit = {"fetched": time.time(), "body": body}
+    return JSONResponse({"leaders": hit["body"], "fetched": hit["fetched"], "now": time.time()}, headers={"Cache-Control": "no-store"})
+
+
+routes += [
+    Route("/api/people/search", people_search),
+    Route("/api/people/leaders", people_leaders),
+    Route("/api/people/profile/{qid}", people_profile),
+]

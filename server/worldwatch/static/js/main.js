@@ -9,14 +9,16 @@ import hazards from './hazards.js';
 import cables from './cables.js';
 import {rain, night, aurora, photo, onPhoto} from './sky.js';
 import fires from './fires.js';
+import people from './people.js';
+import {openProfile} from './profile.js';
 import ships from './ships.js';
 import gps from './gps.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, night, aurora, gps, cables, fires, ships, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
-const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, ships, fires, gps, cables, rain, night, aurora, photo];
+const LAYERS = [photo, night, aurora, gps, cables, fires, ships, people, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
+const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, ships, people, fires, gps, cables, rain, night, aurora, photo];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -64,13 +66,14 @@ map.on('load', () => {
     show(l);
     for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
   }
-  const NO_CLICK = ['ww-photo', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track'];
+  const NO_CLICK = ['ww-photo', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
-      .filter(x => x.properties.id != null).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
+      .filter(x => x.properties.id != null || x.properties.qid != null).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
     if (!f) { for (const l of LAYERS) { const id = on[l.id] && l.hit?.(e.point); if (id) return pick({layer: l.id, id}); } return pick(null); }
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
+    if (layer.pick && layer.pick(f.properties) === false) return;
     pick({layer: layer.id, id: f.properties.id});
   });
   map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null) ? 'pointer' : ''; });
@@ -226,3 +229,20 @@ loadStatus();
 markets.start();
 setInterval(loadStatus, 5000);
 setInterval(() => { renderFeeds(); renderList(); }, 20000);   // keep the "x min ago" texts moving
+
+// ---- find a person (header search) ----
+let findTimer = null;
+$('#find-q')?.addEventListener('input', e => {
+  clearTimeout(findTimer); const q = e.target.value.trim(); const list = $('#find-list');
+  if (q.length < 2) { list.hidden = true; return; }
+  findTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/people/search?q=' + encodeURIComponent(q), {cache: 'no-store'});
+      const d = await r.json(); if ($('#find-q').value.trim() !== q) return;
+      list.innerHTML = (d.results || []).map(p => `<li data-qid="${esc(p.qid)}"><b>${esc(p.name)}</b>${p.description ? `<span>${esc(p.description)}</span>` : ''}</li>`).join('') || '<li class="empty">No person found.</li>';
+      list.hidden = false;
+    } catch (err) { /* ignore */ }
+  }, 300);
+});
+$('#find-list')?.addEventListener('click', e => { const li = e.target.closest('li[data-qid]'); if (li) { openProfile(li.dataset.qid); $('#find-list').hidden = true; $('#find-q').value = ''; } });
+addEventListener('click', e => { if (!e.target.closest('.find')) $('#find-list')?.setAttribute('hidden', ''); });

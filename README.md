@@ -63,6 +63,16 @@ To reach it from another device (for example over Tailscale), start it with `WW_
 
 The intervals follow each source's published limits. Please don't shorten them.
 
+## People (public figures)
+
+A **People** chip on the map shows current heads of state and government at their countries; click one,
+or use "Find a person" in the sidebar, for a profile built from public records (Wikidata, Wikipedia,
+GDELT news, and OpenSanctions if a key is set). It covers public roles and anyone with a Wikidata entry;
+it shows who a person is and what the record holds, never where they are now.
+
+For the sanctions / politically-exposed-person section, register a free OpenSanctions API key and put it in
+`data/opensanctions-key.txt` (or `WW_OPENSANCTIONS_KEY`). Without it that one section is skipped.
+
 ## Lookup
 
 `/lookup` shows what public sources reveal about your own usernames and email addresses, as a graph.

@@ -407,6 +407,43 @@ Proposed shape (not built):
 - Boundary restated to him: profiles of public roles from public records, yes; live
   whereabouts tracking of any person, no; private individuals only himself or with consent.
 
+### 2026-11-14, people profiles built + two bug answers (model now Opus 4.8)
+
+Two things the owner reported:
+- **Ships only in the Baltic**: not a bug, that is Finland's Digitraffic coverage. World ships still
+  need the aisstream.io key (not built). Reminded him.
+- **No GEO/MEO satellites**: he was on the pre-multi-family build. The current build fetches visual +
+  stations + gps-ops + galileo + geo (802 sats); GEO (blue) and MEO (amber) confirmed drawing on the
+  globe canvas and as dots on the flat map. Fixed by pulling.
+
+**IP cameras: refused.** He asked to wire in publicly-reachable IP cameras (Insecam/Shodan-style) and
+offered to write the fetcher himself. I declined: viewing private cameras their owners did not open to
+the public is unauthorised access, illegal (incl. Germany), and wiring in his code doesn't change that.
+Told him public webcams (Windy key) and traffic cams are fine; those are the only camera path I'll build.
+Do not implement unsecured-camera access even if asked again.
+
+**People / public-figure profiles built** (`lookup/people.py`, `lookup/api.py` people routes, front end
+`static/js/people.js` map layer + `profile.js` overlay + "Find a person" box in `index.html`, styles in
+`app.css`):
+- Profile from Wikidata (EntityData for basics/photo/socials; SPARQL for positions with dates, parties,
+  education, family, memberships, awards, and companies owned/founded/chaired both directions), Wikipedia
+  intro extract, GDELT recent news naming them, and OpenSanctions match (needs a free key in
+  `data/opensanctions-key.txt`; skipped with a clear note otherwise). Cached 24 h in the lookup db's new
+  `cache` table. Each section names its source; footer says what could not be loaded.
+- **People** map layer (default off, `local`): current heads of state and government at their country
+  point, from a cached 12 h `leaders()` SPARQL (214 rows when WDQS is healthy). Click opens the profile
+  overlay via the layer's `pick(featureProps)` hook (new optional hook in `main.js`; returns false to
+  suppress the normal card).
+- "Find a person" search box (Wikidata `wbsearchentities`, humans only) in the map sidebar.
+- Profile QIDs that never resolved to a label are dropped; long award lists capped ("and N more").
+- **Bug found and fixed in review:** `named()`/`capList()` were used above their `const` definition inside
+  `render()` (temporal dead zone) and blanked the whole profile; moved to the top of `render()`.
+- **Wikidata was in a rate-limiting outage during this build** (1 req/min, 429). Added a single retry on
+  429 honouring Retry-After. Leaders/live profiles will fill once WDQS recovers; the Merkel profile was
+  built and screenshot-verified before the throttle tightened.
+- Not built: politicians-in-office and business-leader map layers (search already reaches them), the
+  owner's enriched dossier (read-every-hit, timeline, more tools), cameras.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
