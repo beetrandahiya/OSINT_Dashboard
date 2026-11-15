@@ -778,6 +778,20 @@ overlay, sections from our own feeds, counts and facts only).
 - Open questions for him: is "listed with them" (plane-alert-db tags) the right wording for aircraft; should the person
   dossier show politicians' parties' history; country names come from Natural Earth ("United States of America").
 
+### 2026-11-15, owner's standing guidance
+
+- **Memory: 200 MB is a suggestion, not a ceiling** (owner: the M1 is an 8 GB MacBook Pro that runs other services
+  too). Keep it lean (now ~175 MB steady after moving heavy one-off parses into child processes: `_in_child` in
+  `feeds.py`, `geo._prepare`), but do not trade features for megabytes.
+- **Do not restrict sources to US/EU.** Enrich every layer with providers from other regions (Asia, India, Japan,
+  Australia, Canada, UN, ...). Probed 2026-11-15 from the sandbox: UK FCDO travel advice (gov.uk content API) 200,
+  Canada travel advisories JSON 200, NZ SafeTravel feed 200, India NAVAREA VIII page (hydrobharat.gov.in) 200,
+  JMA earthquake list 200, EMSC / GFZ quakes 200, PTWC tsunami feed 200, adsb.lol area queries 200 (second ADS-B
+  source); Australia Smartraveller no answer, Japan JCG NAVAREA XI page 404, ReliefWeb API 403, Charter 404,
+  airplanes.live 403, China CENC no answer.
+- Dossiers (country and person) merged from the agent's worktree on 2026-11-15 (see its section above); its open
+  questions for the owner: wording "listed with them" for VIP aircraft, short vs long country names, former parties.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
