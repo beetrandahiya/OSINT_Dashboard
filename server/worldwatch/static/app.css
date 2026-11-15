@@ -347,3 +347,9 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .dos-foot { margin-top: 8px; padding-top: 12px; border-top: .5px solid var(--sep); }
 @media (max-width: 720px) { .dos-cols { columns: 1; } .prof-card.dos { padding: 18px 18px 16px; } .dos-face { width: 64px; height: 64px; } }
 .dos a[data-person] { color: var(--text); text-decoration: none; } .dos a[data-person]:hover { color: var(--accent); }
+/* court records in the person dossier */
+.dos-courts { margin: 14px 0; }
+.dos-quote { margin: 4px 0 10px; padding: 6px 10px; border-left: 2px solid var(--sep); color: var(--text-2); font-size: 13px; line-height: 18px; }
+.pill { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 7px; border-radius: 8px; background: var(--fill); vertical-align: 1px; }
+.pill.hot { background: #ff3b3022; color: #d70015; }
+@media (prefers-color-scheme: dark) { .pill.hot { color: #ff6961; } }

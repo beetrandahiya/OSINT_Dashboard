@@ -985,3 +985,36 @@ All numbers are in the comment at the top of `server/worldwatch/static/app.css`.
   search, works without a key (judgments only, England and Wales). CourtListener (US federal dockets via RECAP and
   opinions): free token needed (401 without). Indian Kanoon API: needs a paid key (401). ICC case pages: HTML, readable.
   Wikidata P1399 "convicted of" / P1595 "charge": sparse. Waiting for his pick.
+
+### 2026-11-15, court records in person dossiers (built, waiting for review)
+
+Owner: "pull the international criminal court stuff for sure, and uk as well". Built (`courts.py`, feed `courts_icc`,
+`/api/dossier/courts/{qid}` in `dossier.py`, "Court records" section in `profile.js`):
+- **ICC** (feed, daily): the case list at icc-cpi.int/cases (34 defendants, 4 pages, with the court's own status: in
+  custody, at large, convicted, closed...) and the 19 situation pages, which name people with warrants (Putin,
+  Netanyahu, Gallant, Akhundzada, Haqqani; Min Aung Hlaing's warrant application). A person matches when their first
+  and last name stand within three words in the text ("Vladimir Vladimirovich Putin"); the dossier quotes the court's
+  sentences and links the page. Checked: Duterte (case, "In ICC custody"), Putin, Netanyahu, Akhundzada (situation
+  pages), Modi (nothing).
+- **The ICC site has a bot shield (Gcore)**: after a few quick requests it answers 200 with a "Please enable cookies"
+  page. We respect it: situation pages are read 20 s apart once a day, the cookie page counts as a refusal
+  (`is_challenge`), one retry after 90 s, and the last good copy of each page is kept in `data/icc-situations.json`;
+  the feed note names refused pages. From the sandbox only 1 of 19 situation pages came through after the block
+  started, so Putin/Netanyahu matched in testing only from pages saved earlier by hand; **untested from his network**.
+  Do not try to get past the shield (an attempt to compare clients was rightly refused).
+- **England and Wales** (asked when a dossier opens, cached a day): The National Archives' Find Case Law Atom feed.
+  `party=` with the full name; the filter also matches surnames alone ("Crow v Johnson" for Boris Johnson), so a title
+  must carry first and last name to count as "named as a party"; the rest is folded away as "only the surname, may be
+  someone else". Plus a quoted full-text search: count of judgments mentioning the name and the newest six.
+  Judgments only, mostly since 2001.
+- **Wikidata** P1399 convicted of / P1595 charge (Putin: "child abductions in the Russo-Ukrainian war"). Wikidata
+  answered 429 for most of the testing; the dossier says so.
+- Not covered and said on the page: US courts (CourtListener needs a free key; not asked for yet), India (eCourts has
+  only a captcha search page; Indian Kanoon's API is paid), most other countries.
+- Lesson (sandbox, not the project): a typo in a shell command removed `/dev/null` in the container (running as root);
+  restored with `mknod -m 666 /dev/null c 1 3`. Never put `rm` near a redirect target.
+
+Probed for the next layer ideas (2026-11-15): DeepState Ukraine front line `deepstatemap.live/api/history/last`
+(200, 620 KB GeoJSON), IMF PortWatch chokepoint transits (ArcGIS `Daily_Chokepoints_Data`, 200), OpenSanctions
+bulk `targets.simple.csv` (200, 79 MB, no key: vessels with IMO, aircraft with registrations). Japan Joint Staff
+press page 403 (Cloudflare) from here; Taiwan MND URL guessed wrong (404), not found yet.

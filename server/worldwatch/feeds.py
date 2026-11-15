@@ -30,7 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
-from . import geo, travel
+from . import geo, travel, courts
 
 
 @dataclass
@@ -607,6 +607,43 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def courts_icc(feed: Feed, f: Fetcher) -> Result:
+    """The International Criminal Court's case list and situation pages, for person dossiers (see courts.py).
+    Case list pages 1.5 s apart, then situation pages 20 s apart (the site's bot shield refuses bursts), once a day."""
+    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"}
+    cases, sits, failed = [], [], []
+    for page in range(8):
+        got = courts.parse_cases((await f.get(courts.ICC + "/cases", params={"page": page}, headers=ua, follow_redirects=True)).text)
+        if not got:
+            break
+        cases += got
+        await asyncio.sleep(1.5)
+    kept = courts.load_situations()                # last good copy of each page, used when the site refuses one today
+    for slug in courts.SITUATIONS:
+        for attempt in (0, 1):                 # the site's bot shield blocks bursts for a while: one retry after a pause
+            try:
+                r = await f.get(f"{courts.ICC}/{slug}", headers=ua, follow_redirects=True)
+                if courts.is_challenge(r.text):
+                    raise RuntimeError("bot-protection page")
+                sits.append({**courts.parse_situation(r.text), "url": str(r.url), "read": time.time(), "slug": slug})
+                break
+            except Exception as e:
+                if attempt:
+                    old = kept.get(slug)
+                    if old:
+                        sits.append(old)
+                    failed.append(f"{slug} ({e.response.status_code if isinstance(e, httpx.HTTPStatusError) else str(e) or type(e).__name__}"
+                                  + (f", kept the copy from {time.strftime('%Y-%m-%d', time.gmtime(old['read']))})" if old else ")"))
+                else:
+                    await asyncio.sleep(90)
+        await asyncio.sleep(20)
+    courts.save_situations({s["slug"]: s for s in sits if s.get("slug")} | {k: v for k, v in kept.items() if k not in {s.get("slug") for s in sits}})
+    if not cases:
+        raise RuntimeError("the ICC case list came back empty (page layout changed?)")
+    return Result(len(cases), {"cases": cases, "situations": sits}, data_time=time.time(), data_label="read",
+                  note=f"{len(cases)} defendants, {len(sits)} situation pages" + (f"; failed: {', '.join(failed)}" if failed else ""))
+
+
 async def travel_advice(feed: Feed, f: Fetcher) -> Result:
     """Official travel advice per country from the US State Department and the German Foreign Office (see travel.py).
     If one office fails, the other is still kept and the note names the one that failed."""
@@ -945,6 +982,8 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("courts_icc", "International Criminal Court cases", "International Criminal Court", "https://www.icc-cpi.int/cases",
+         24 * H, courts_icc, min_retry=3600, limit_note="about 25 pages once a day; used by person dossiers"),
     Feed("travel_advice", "Travel advice per country", "US State Department, German Foreign Office", "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
          6 * H, travel_advice, min_retry=1800, limit_note="two official lists, asked every 6 hours; shown in country dossiers"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,

@@ -81,6 +81,7 @@ export async function openProfile(qid) {
     if (!r.ok) { card.querySelector('.prof-loading').textContent = d.error || 'Could not build the dossier.'; return; }
     render(card, d);
     signals(d, t);
+    courtRecords(d, t);
   } catch (e) { if (live(t)) card.querySelector('.prof-loading').textContent = 'Could not reach the server.'; }
 }
 
@@ -140,6 +141,7 @@ function render(card, d) {
       </div>
     </header>
     <section class="dos-signals" id="dos-signals"><h3>Signals</h3><p class="soft">Reading our live feeds…</p></section>
+    <section class="dos-block dos-courts" id="dos-courts"><h3>Court records</h3><p class="soft">Asking the International Criminal Court list and UK judgments…</p></section>
     ${intro(d.intro)}
     <div class="dos-cols">
       ${block('Record', `<dl class="dos-facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`, 'Wikidata, as it stands; what it does not record is left out.')}
@@ -188,4 +190,41 @@ async function signals(d, t) {
     ${arts ? `<div class="dos-sub-block"><h4>Naming them in the headline, last ${n.window_h} hours</h4>${arts}${n.outlets > n.in_headline ? `<p class="source">${n.outlets - n.in_headline} more outlets name them only in the text.</p>` : ''}${n.places.length > 1 ? `<p class="source">Places these articles were pinned to: ${n.places.map(p => `${esc(p.place.split(',')[0])} (${p.outlets})`).join(', ')}.</p>` : ''}</div>` : ''}
     ${s.is_leader && s.reported_at?.also?.length ? `<p class="source">Also placed by the news at: ${s.reported_at.also.map(p => esc(p.split(',')[0])).join(', ')}.</p>` : ''}
     <p class="source">Read from this server's feeds when this dossier opened. Counts are of articles and events our feeds hold; nothing is scored. GDELT finds names and places by machine and makes mistakes.</p>`;
+}
+
+// Court records: the ICC (its own case list and situation pages), England and Wales judgments, Wikidata convictions.
+async function courtRecords(d, t) {
+  let c;
+  try { c = await fetch('/api/dossier/courts/' + d.qid + '?name=' + encodeURIComponent(d.name), {cache: 'no-store'}).then(r => r.json()); }
+  catch (e) { if (live(t) && $('#dos-courts')) $('#dos-courts').innerHTML = '<h3>Court records</h3><p class="soft">Could not reach the server.</p>'; return; }
+  const box = $('#dos-courts'); if (!live(t) || !box) return;
+  const quote = s => `<blockquote class="dos-quote">${esc(s)}</blockquote>`;
+  const icc = c.icc, uk = c.uk, wd = c.wikidata || {};
+  const parts = [];
+  if (icc && (icc.cases.length || icc.situations.length)) {
+    parts.push(`<div class="dos-sub-block"><h4>International Criminal Court</h4>
+      ${icc.cases.map(k => `<p><b><a class="link" href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.name)}</a></b>${k.status ? ` <span class="pill hot">${esc(k.status)}</span>` : ''}</p>${k.said.map(quote).join('')}`).join('')}
+      ${icc.situations.map(s => `<p><b><a class="link" href="${esc(s.url)}" target="_blank" rel="noopener">Situation: ${esc((s.title || '').trim())}</a></b></p>${s.said.map(quote).join('')}`).join('')}
+      <p class="source">The court's own words from icc-cpi.int, read ${ago(c.icc_feed?.fetched)}. Matched by name (first and last name within three words), so check the text is about this person. A warrant is not a conviction.</p></div>`);
+  }
+  if (uk && (uk.party.length || uk.surname_total || uk.mention_total)) {
+    const row = j => `<li><a class="link" href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a><br><span class="soft">${esc(j.court)} · ${esc(j.date)}${j.citation ? ' · ' + esc(j.citation) : ''}</span></li>`;
+    parts.push(`<div class="dos-sub-block"><h4>England and Wales judgments</h4>
+      ${uk.party.length ? `<p class="soft">Named as a party in ${uk.party_total}${uk.party_total >= 50 ? '+' : ''} ${uk.party_total === 1 ? 'judgment' : 'judgments'}:</p><ul class="dos-list">${uk.party.slice(0, 8).map(row).join('')}</ul>` : '<p class="soft">Not named as a party in any published judgment.</p>'}
+      ${uk.surname_total ? `<div class="dos-fold"><a href="#" class="link" data-more>${uk.surname_total} more ${uk.surname_total === 1 ? 'case' : 'cases'} with only the surname in the title (may be someone else)</a><ul class="dos-list fold-rest">${uk.surname_only.map(row).join('')}</ul></div>` : ''}
+      ${uk.mention_total ? `<p class="soft">The name appears in ${uk.mention_total} ${uk.mention_total === 1 ? 'judgment' : 'judgments'}${uk.mention.length ? '; newest where they are not a party:' : '.'}</p>${uk.mention.length ? `<ul class="dos-list">${uk.mention.map(row).join('')}</ul>` : ''}` : ''}
+      <p class="source">The National Archives, Find Case Law (Open Justice Licence), asked ${ago(uk.fetched)}. Published judgments only, mostly since 2001; no filings, no ongoing cases before judgment. Searched by the exact name "${esc(c.name)}": someone else with the same name can appear.</p></div>`);
+  }
+  else if (uk) parts.push('<p class="soft">England and Wales: no published judgment names them.</p>');
+  if (icc && !icc.cases.length && !icc.situations.length) parts.push('<p class="soft">International Criminal Court: not named in its case list or situation pages.</p>');
+  if (wd.convicted?.length || wd.charged?.length) {
+    parts.push(`<div class="dos-sub-block"><h4>Recorded in Wikidata</h4><dl class="dos-facts">
+      ${wd.convicted?.length ? `<dt>Convicted of</dt><dd>${wd.convicted.map(esc).join(', ')}</dd>` : ''}
+      ${wd.charged?.length ? `<dt>Charged with</dt><dd>${wd.charged.map(esc).join(', ')}</dd>` : ''}</dl>
+      <p class="source">Wikidata properties P1399 and P1595, as editors recorded them; often missing.</p></div>`);
+  }
+  const none = !parts.some(x => x.includes('dos-sub-block'));
+  box.innerHTML = `<h3>Court records</h3>${none ? '<p class="soft"><b>No court record found</b> in the sources below.</p>' : ''}${parts.join('')}
+    ${c.problems?.length ? `<p class="source prof-problems">Not checked: ${c.problems.map(esc).join('; ')}.</p>` : ''}
+    <p class="source">Covered: the ICC, courts of England and Wales, Wikidata. Not covered: US courts (CourtListener needs a free key), India and most other countries, which offer no free search by name.</p>`;
 }

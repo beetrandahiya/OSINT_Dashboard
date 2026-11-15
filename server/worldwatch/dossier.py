@@ -18,7 +18,7 @@ import httpx
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from . import config, db, geo, navwarn
+from . import config, courts, db, geo, navwarn
 from . import news as news_window
 from .ais import stream as ais_stream
 from .lookup import store
@@ -417,7 +417,13 @@ def make_routes(collector):
         await geo.ensure()
         return JSONResponse(await asyncio.to_thread(person, collector, qid, request.query_params.get("name")), headers={"Cache-Control": "no-store"})
 
-    return [Route("/api/dossier/countries", countries), Route("/api/dossier/country", country_route), Route("/api/dossier/person/{qid}", person_route)]
+    async def courts_route(request):
+        qid = request.path_params["qid"]
+        if not re.fullmatch(r"Q\d{1,12}", qid):
+            return JSONResponse({"error": "not a Wikidata id"}, status_code=400)
+        return JSONResponse(await court_records(collector, qid, request.query_params.get("name") or ""), headers={"Cache-Control": "no-store"})
+
+    return [Route("/api/dossier/courts/{qid}", courts_route), Route("/api/dossier/countries", countries), Route("/api/dossier/country", country_route), Route("/api/dossier/person/{qid}", person_route)]
 
 
 # ---------------------------------------------------------------- live signals for a person
@@ -517,4 +523,83 @@ def person(collector, qid: str, name_hint: str | None) -> dict:
         out["country_name"] = geo.C[home]["name"]
     out["feeds"] = feeds
     out["now"] = time.time()
+    return out
+
+
+# ---------------------------------------------------------------- court records for a person
+async def _wd_entity(client, qid: str) -> dict:
+    hit = store.cache_get("wdent:" + qid, 30 * 86400)
+    if hit:
+        return hit["body"]
+    r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": qid, "props": "labels|aliases|claims",
+                                                                        "languages": "en", "format": "json"}, headers=_wm_headers())
+    r.raise_for_status()
+    e = r.json()["entities"][qid]
+    body = {"label": e.get("labels", {}).get("en", {}).get("value"), "aliases": [a["value"] for a in e.get("aliases", {}).get("en", [])],
+            "convicted": courts.wd_claims(e, "P1399"), "charged": courts.wd_claims(e, "P1595")}
+    ids = body["convicted"] + body["charged"]
+    if ids:
+        r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(ids[:50]), "props": "labels",
+                                                                            "languages": "en", "format": "json"}, headers=_wm_headers())
+        lab = {k: v.get("labels", {}).get("en", {}).get("value") for k, v in r.json().get("entities", {}).items()}
+        body["convicted"] = [lab.get(i) for i in body["convicted"] if lab.get(i)]
+        body["charged"] = [lab.get(i) for i in body["charged"] if lab.get(i)]
+    store.cache_put("wdent:" + qid, body)
+    return body
+
+
+async def _uk(client, name: str, names: list[str]) -> dict:
+    """England and Wales judgments: as a named party, and mentioning the name (quoted). Cached a day."""
+    key = "ukcase2:" + courts.fold(name)
+    hit = store.cache_get(key, 86400)
+    if hit:
+        return {**hit["body"], "fetched": hit["fetched"]}
+    ua = {"User-Agent": _wm_headers()["User-Agent"]}
+    r = await client.get(courts.UK, params={"party": name, "per_page": 50, "order": "-date"}, headers=ua)
+    r.raise_for_status()
+    party, _ = courts.parse_uk_atom(r.text)
+    r = await client.get(courts.UK, params={"query": f'"{name}"', "per_page": 10, "order": "-date"}, headers=ua)
+    r.raise_for_status()
+    mention, last = courts.parse_uk_atom(r.text)
+    total = len(mention)
+    if last > 1:
+        r2 = await client.get(courts.UK, params={"query": f'"{name}"', "per_page": 10, "order": "-date", "page": last}, headers=ua)
+        total = (last - 1) * 10 + len(courts.parse_uk_atom(r2.text)[0]) if r2.status_code == 200 else last * 10
+    party_urls = {p["url"] for p in party}
+    # the party filter also matches the surname alone ("Crow v Johnson" for Boris Johnson): a title must carry the
+    # first and last name to count as theirs; the rest is listed apart as "same surname, may be someone else"
+    pats = courts.name_patterns(names)
+    named = [p for p in party if any(x.search(courts.fold(p["title"])) for x in pats)]
+    other = [p for p in party if p not in named]
+    body = {"party": named[:25], "party_total": len(named), "surname_only": other[:8], "surname_total": len(other),
+            "mention": [m for m in mention if m["url"] not in party_urls][:6], "mention_total": total}
+    store.cache_put(key, body)
+    return {**body, "fetched": time.time()}
+
+
+async def court_records(collector, qid: str, name_hint: str) -> dict:
+    out, problems = {"qid": qid}, []
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+        try:
+            ent = await _wd_entity(client, qid)
+        except Exception as e:
+            ent = {"label": name_hint, "aliases": [], "convicted": [], "charged": []}
+            problems.append("Wikidata " + ("is limiting requests (429)" if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429 else f"failed ({type(e).__name__})") + ": other names and recorded convictions not read")
+        name = ent.get("label") or name_hint
+        names = [n for n in dict.fromkeys([name, name_hint, *ent.get("aliases", [])]) if n]
+        out.update(name=name, names=names, wikidata={"convicted": ent.get("convicted", []), "charged": ent.get("charged", [])})
+        payload, out["icc_feed"] = _feed(collector, "courts_icc")
+        out["icc"] = courts.icc_matches(payload or {}, names) if payload else None
+        if not payload:
+            problems.append("the ICC list has not been read yet by this server")
+        if len(name.split()) >= 2:
+            try:
+                out["uk"] = await _uk(client, name, names)
+            except Exception as e:
+                out["uk"] = None
+                problems.append(f"UK Find Case Law ({type(e).__name__})")
+        else:
+            out["uk"] = None
+            problems.append("a one-word name cannot be searched safely in UK judgments")
+    out["problems"] = problems
     return out
