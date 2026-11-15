@@ -31,6 +31,7 @@ from . import flags
 from . import maxar
 from . import usni
 from . import geo, travel, courts, frontline, sites, cablefaults
+from . import radar as cfradar          # the name "radar" is the rain-radar feed below
 
 
 @dataclass
@@ -611,6 +612,34 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def radar_feed(feed: Feed, f: Fetcher) -> Result:
+    """Cloudflare Radar: BGP hijacks and route leaks of the last 24 hours, outage notes of the last 30 days (see radar.py)."""
+    tok = config.cloudflare_token()
+    if not tok:
+        raise RuntimeError("not set up: no Cloudflare token in data/cloudflare-token.txt")
+    h = {"Authorization": "Bearer " + tok}
+    places = {k: [v[0], v[1]] for k, v in _COUNTRIES.items()}
+    def get(path, **params):
+        return f.get(cfradar.API + path, params={**params, "format": "json"}, headers=h)
+    hj = (await get("bgp/hijacks/events", dateRange="1d", per_page=100)).json()["result"]
+    events = hj.get("events", [])
+    page = 2
+    while len(events) < hj.get("total_count", 0) and page <= 5:          # result_info sits outside "result"
+        more = (await get("bgp/hijacks/events", dateRange="1d", per_page=100, page=page)).json()["result"]
+        if not more.get("events"):
+            break
+        events += more["events"]; hj["asn_info"] += more.get("asn_info", []); page += 1
+    hj["events"] = events
+    lk = (await get("bgp/leaks/events", dateRange="1d", per_page=100)).json()["result"]
+    an = (await get("annotations/outages", dateRange="30d", limit=100)).json()["result"]
+    d = {"hijacks": cfradar.hijacks(hj, places), "leaks": cfradar.leaks(lk, places),
+         "outages": cfradar.outages(an, places, time.time() - 30 * 86400)}
+    strong = sum(1 for x in d["hijacks"] if (x["score"] or 0) >= 10)
+    return Result(len(d["hijacks"]) + len(d["outages"]), d, data_time=max([x["last"] or 0 for x in d["hijacks"]] + [0]) or None,
+                  note=f"{len(d['hijacks'])} possible hijacks in 24 h ({strong} scored 10 or more), {len(d['leaks'])} cross-border leaks kept, "
+                       f"{len(d['outages'])} outage notes in 30 days; Cloudflare Radar, CC BY-NC 4.0")
+
+
 async def cable_faults(feed: Feed, f: Fetcher) -> Result:
     """Cables named in fault news: SubTel Forum's fault category (about 60 days) and our 6-hour news window (see cablefaults.py)."""
     cab = (await f.get("https://www.submarinecablemap.com/api/v3/cable/all.json")).json()
@@ -627,6 +656,18 @@ async def cable_faults(feed: Feed, f: Fetcher) -> Result:
             break
         await asyncio.sleep(2)
     items = [i for i in items if i["time"] >= time.time() - 60 * 86400]
+    tok = config.cloudflare_token()
+    if tok:
+        try:
+            an = (await f.get(cfradar.API + "annotations/outages", params={"dateRange": "60d", "limit": 100, "format": "json"},
+                              headers={"Authorization": "Bearer " + tok})).json()["result"]
+            for a in an.get("annotations", []):
+                if (a.get("outage") or {}).get("outageCause") == "CABLE_CUT" and a.get("description"):
+                    items.append({"title": a["description"], "url": a.get("linkedUrl") or "https://radar.cloudflare.com/outage-center",
+                                  "time": cfradar.ts(a.get("startDate")) or time.time(), "text": "", "source": "Cloudflare Radar",
+                                  "restored": bool(a.get("endDate"))})
+        except Exception as e:
+            problems.append(f"Cloudflare Radar ({type(e).__name__})")
     for published, row in news_window.english.articles():
         if re.search(r"\bcables?\b", row[4], re.I) and cablefaults.FAULT.search(row[4]):
             items.append({"title": row[4], "url": row[5], "time": published, "text": "", "source": row[3]})
@@ -1089,6 +1130,8 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("cf_radar", "Internet hijacks, leaks and outage notes", "Cloudflare Radar", "https://radar.cloudflare.com",
+         900, radar_feed, min_retry=600, limit_note="free token; three requests every 15 minutes"),
     Feed("cable_faults", "Cable faults in the news", "SubTel Forum, GDELT", "https://subtelforum.com/category/cable-faults-maintenance/",
          3 * H, cable_faults, min_retry=1800, limit_note="up to three RSS pages every 3 hours, plus our own news window"),
     Feed("sites", "Military bases and nuclear sites", "Wikidata, OpenStreetMap, US DoD, Global Energy Monitor", "https://www.wikidata.org",

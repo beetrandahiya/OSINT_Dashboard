@@ -35,3 +35,13 @@ def opensanctions_key() -> str | None:
         return os.environ["WW_OPENSANCTIONS_KEY"].strip()
     f = DATA / "opensanctions-key.txt"
     return f.read_text().strip() or None if f.exists() else None
+
+
+def cloudflare_token() -> str | None:
+    """A free Cloudflare API token with Account > Radar > Read, for internet hijacks, route leaks and outage notes.
+    data/cloudflare-token.txt or WW_CLOUDFLARE_TOKEN. Never in git."""
+    import os
+    if os.environ.get("WW_CLOUDFLARE_TOKEN"):
+        return os.environ["WW_CLOUDFLARE_TOKEN"].strip()
+    f = DATA / "cloudflare-token.txt"
+    return (f.read_text().strip() or None) if f.exists() else None

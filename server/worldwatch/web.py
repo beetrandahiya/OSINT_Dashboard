@@ -54,6 +54,9 @@ def _ships_world_state(f):
 async def status(request):
     s = collector.status()
     s["feeds"] = [_ships_world_state(f) if f["name"] == "ships_world" else f for f in s["feeds"]]
+    for f in s["feeds"]:            # an optional key the owner has not set up is not a failure
+        if "not set up" in (f.get("error") or ""):
+            f.update(state="waiting", note="not set up" + f["error"].split("not set up", 1)[1], error=None)
     s["process"] = _process()
     s["home"] = {"lat": config.HOME_LAT, "lon": config.HOME_LON}
     return JSONResponse(s, headers={"Cache-Control": "no-store"})

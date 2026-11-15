@@ -96,5 +96,5 @@ def flag(items: list[dict], cables: list[dict]) -> dict:
     out = {}
     for cid, its in found.items():
         its.sort(key=lambda x: -x["time"])
-        out[cid] = {"name": names.get(cid), "state": "restored" if RESTORED.search(its[0]["title"]) else "problem", "items": its[:6]}
+        out[cid] = {"name": names.get(cid), "state": "restored" if (its[0].get("restored") or RESTORED.search(its[0]["title"])) else "problem", "items": its[:6]}
     return out

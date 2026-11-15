@@ -1100,3 +1100,23 @@ Agent's research findings worth keeping:
 - Cloudflare Radar token: steps given to the owner (Account > Radar > Read, custom token, no IP filter, no expiry),
   file `data/cloudflare-token.txt`. Not built yet: hijack/leak layer and "cable cut" outages wait for his token; read the
   Radar API reference for the BGP and annotation endpoints first (the getting-started docs do not describe them).
+
+### 2026-11-15, Cloudflare Radar wired in (built, waiting for review)
+
+- Owner created the token (Account > Radar > Read, no IP filter, no expiry) and pasted it in chat, saying he is fine
+  with that. It lives only in `data/cloudflare-token.txt` (git-ignored); `config.cloudflare_token()` (or
+  `WW_CLOUDFLARE_TOKEN`). **The data folder is `data/` at the repo root, not `server/data/`** (I told him the wrong
+  path twice; corrected).
+- Endpoints (all answered with the token): `radar/bgp/hijacks/events` (~70 a day; `confidence_score` is the sum of tag
+  scores: rpki_new_origin_invalid 8, irr_new_origin_invalid 4; we list >= 10, about 21 a day),
+  `radar/bgp/leaks/events` (~420 a day; we keep the 40 cross-border ones with the most prefixes, no list rows),
+  `radar/annotations/outages` (Cloudflare's written notes with `outage.outageCause`: POWER_OUTAGE, MILITARY_ACTION,
+  CABLE_CUT, GOVERNMENT_DIRECTED...; 22 in 30 days). Pagination info sits outside `result`.
+- Feed **`cf_radar`** (every 15 min; the name `radar` was already the rain radar, and `feeds.py` has a function
+  `radar`, so the module is imported as `cfradar`). `radar.py` parses; countries placed at `countries.json` centres.
+- Layers: **Internet hijacks** (`netwatch.js`): line hijacker country -> victim country, strong (>= 10) red, weak faint;
+  card lists networks, prefixes, Cloudflare's evidence in words. Leaks as faint dashed lines. **Outages** layer now also
+  shows Cloudflare's notes (ongoing or ended within 7 days) beside the IODA marker with a cause letter (P power,
+  M military, C cable, G government...). **Cable problems** also read Cloudflare's CABLE_CUT notes (60 days); a note with
+  an end date marks the cable restored.
+- Feeds whose error contains "not set up" now show as waiting (grey) with that note, not failing.
