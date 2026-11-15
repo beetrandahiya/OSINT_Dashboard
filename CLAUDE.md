@@ -1120,3 +1120,8 @@ Agent's research findings worth keeping:
   M military, C cable, G government...). **Cable problems** also read Cloudflare's CABLE_CUT notes (60 days); a note with
   an end date marks the cable restored.
 - Feeds whose error contains "not set up" now show as waiting (grey) with that note, not failing.
+- **Owner wants the Cloudflare token in git** ("I'm okay with it being exposed on GitHub"): committed as
+  `keys/cloudflare-token.txt`; `config.cloudflare_token()` reads `data/` first, then `keys/`. Other keys stay in `data/`.
+  **GitHub push protection rejected the push** (Cloudflare User API Token detected). The token commit was taken back out
+  (unpushed, so rewritten); the file stays uncommitted until the owner allows it on GitHub (unblock link given to him)
+  or puts it in `data/` on his Mac. Never disguise a secret to get past push protection.

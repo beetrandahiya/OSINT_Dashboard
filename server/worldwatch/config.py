@@ -43,5 +43,7 @@ def cloudflare_token() -> str | None:
     import os
     if os.environ.get("WW_CLOUDFLARE_TOKEN"):
         return os.environ["WW_CLOUDFLARE_TOKEN"].strip()
-    f = DATA / "cloudflare-token.txt"
-    return (f.read_text().strip() or None) if f.exists() else None
+    for f in (DATA / "cloudflare-token.txt", Path(__file__).resolve().parents[2] / "keys" / "cloudflare-token.txt"):
+        if f.exists() and f.read_text().strip():
+            return f.read_text().strip()   # data/ first; keys/ is committed to the repo at the owner's request (2026-11-15)
+    return None
