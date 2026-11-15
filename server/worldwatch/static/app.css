@@ -279,7 +279,7 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .markets.min { right: auto; padding-right: 10px; }
 .markets.min > .quotes { display: none; }
 /* ---- a thin loading bar along the top while the app waits for an answer (Apple style: thin, quiet) ---- */
-.loadbar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 50; overflow: hidden; pointer-events: none; }
+.loadbar { position: fixed; top: 0; left: 0; width: 0; height: 2px; border-radius: 1px; z-index: 50; overflow: hidden; pointer-events: none; }
 .loadbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: -30%; border-radius: 1px; background: var(--accent, #007aff); animation: loadbar 1.1s ease-in-out infinite; }
 @keyframes loadbar { to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .loadbar::after { animation: none; left: 0; width: 100%; opacity: .5; } }

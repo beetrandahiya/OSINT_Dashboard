@@ -68,6 +68,22 @@ NAMES = {"eng": "English", "deu": "German", "hin": "Hindi", "fra": "French", "sp
          "slk": "Slovak", "msa": "Malay", "nep": "Nepali", "sin": "Sinhala", "aze": "Azerbaijani", "kat": "Georgian"}
 
 
+# GKG's themes (V1Themes) say what an article is about. Two flags are kept per article so the protests-and-clashes
+# layer can drop events whose articles are about something else (a celebrity at an airport coded as "fighting with
+# small arms"). Generic themes (WB_2433_CONFLICT_AND_VIOLENCE, ARREST, POLICE) do not count: they are on most crime
+# and politics stories.
+_VIOLENT = re.compile(r"(?:^|;)(KILL|ARMEDCONFLICT|MILITARY|WOUND|TERROR|REBELLION|SEIGE|KIDNAP|BLOCKADE|ACT_FORCEPOSTURE|"
+                      r"CRISISLEX_T03_DEAD|CRISISLEX_T02_INJURED|TAX_WEAPONS\w*|TAX_TERROR_GROUP\w*|MIL_\w+|"
+                      r"TAX_FNCACT_(?:TROOPS|SOLDIERS|MILITANTS|GUNMEN|INSURGENTS|REBELS|ATTACKER\w*|MILITIA\w*)|SUICIDE_ATTACK|ASSASSINATION|WMD)(?=;|$)")
+_PROTEST = re.compile(r"(?:^|;)(PROTEST|UNREST_\w+|STRIKE|DEMONSTRATION\w*|RALLY|BOYCOTT|RIOT\w*|CIVIL_DISOBEDIENCE|"
+                      r"POLITICAL_TURMOIL|BLOCKADE|REBELLION|TAX_FNCACT_PROTEST\w*|TAX_FNCACT_DEMONSTRATORS|TAX_FNCACT_STRIKERS)(?=;|$)")
+
+
+def theme_flags(themes: str) -> int:
+    """1 = about violence, 2 = about protest (either or both)."""
+    return (1 if _VIOLENT.search(themes) else 0) | (2 if _PROTEST.search(themes) else 0)
+
+
 def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
     """One GKG file -> compact rows (place, lat, lon, outlet, title, url, lang, image).
     Only articles with a headline and a city-level place: country- and state-level mentions are pinned by GDELT
@@ -104,7 +120,7 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
         if WATCH and persons and not any(_norm(p.rpartition(",")[0] or p) in WATCH for p in persons.split(";") if p):
             persons = ""                    # nobody we follow is named: drop the names, which would cost ~40 MB over 6 hours
         near = tuple((c[0], c[1], c[2], c[3]) for c in sorted(set(cities))[:8]) if persons else ()
-        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons, near))
+        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons, near, theme_flags(r[7])))
     return rows
 
 

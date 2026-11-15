@@ -25,6 +25,10 @@ from . import news as news_window
 WINDOW = 24 * 3600
 SLOT = 900
 ROOTS = {"14", "18", "19", "20"}
+# Showbiz pages: GDELT codes film plots and celebrity news as fighting ("Javed Akhtar spotted at Mumbai airport" came
+# out as small-arms fighting in Mumbai).
+SHOWBIZ = re.compile(r"/(entertainment|bollywood|hollywood|tollywood|kollywood|celebrit(y|ies)|showbiz|gossip|movies?|movie-reviews?|films?|"
+                     r"tv|television|tv-shows?|web-series|ott|music|lifestyle|arts?-and-culture|culture|style|fashion|books?|horoscopes?)(/|-|$)", re.I)
 SPORT = re.compile(r"/(sports?|football|soccer|cricket|rugby|nfl|nba|nhl|mlb|tennis|golf|boxing|ufc|mma|wwe|f1|formula-?1|motorsports?|esports|athletics|olympics|basketball|baseball|hockey)(/|-|$)", re.I)
 
 # CAMEO codes in plain words (CAMEO manual 1.1b3). Category first, then the specific action.
@@ -49,6 +53,10 @@ ACTION = {
     "200": "unconventional mass violence", "201": "mass expulsion", "202": "mass killings", "203": "ethnic cleansing",
     "204": "weapons of mass destruction", "2041": "chemical, biological or radiological weapons", "2042": "nuclear weapons",
 }
+
+
+# Which GKG theme flag (news.theme_flags: 1 violence, 2 protest) an article must carry to support a category.
+THEME_FIT = {"protest": 2, "riot": 3, "attack": 1, "clash": 1, "mass violence": 1}
 
 
 def category(code: str) -> str:
@@ -86,7 +94,7 @@ def parse_events(raw_zip: bytes) -> list[dict]:
         if len(r) < 61 or r[28] not in ROOTS or r[25] != "1" or r[51] not in ("3", "4") or not r[56] or not r[57]:
             continue
         url = r[60]
-        if SPORT.search(urlparse(url).path):
+        if SPORT.search(urlparse(url).path) or SHOWBIZ.search(urlparse(url).path):
             continue
         types = {t for t in (r[12], r[13], r[14], r[22], r[23], r[24]) if t}
         if not plausible(r[26], types, r[7], r[17], r[8] or r[18] or None):
@@ -113,7 +121,7 @@ def parse_mentions(raw_zip: bytes, wanted: set[int]) -> list[tuple]:
         except ValueError:
             continue
         if eid in wanted and r[3] == "1":                   # type 1 = web article
-            if not SPORT.search(urlparse(r[5]).path):
+            if not SPORT.search(urlparse(r[5]).path) and not SHOWBIZ.search(urlparse(r[5]).path):
                 out.append((eid, r[4], r[5], r[2], int(r[11] or 0) if len(r) > 11 else 0))   # event, outlet, address, time, confidence
     return out
 
@@ -194,6 +202,8 @@ class Unrest:
         by_event, groups = {}, {}
         for evs in self.events.values():
             for e in evs:
+                if SHOWBIZ.search(urlparse(e["url"]).path):   # slots cached before this filter existed
+                    continue
                 key = (e["fid"] or f'{e["lat"]:.2f},{e["lon"]:.2f}', e["cat"], e["added"][:8])
                 g = groups.get(key)
                 if not g:
@@ -215,12 +225,22 @@ class Unrest:
                     g["articles"][url] = {"url": url, "outlet": outlet.removeprefix("www."), "time": when}
                     g["last"] = max(g["last"], when)
         out = []
+        self.dropped_by_theme = 0
         for g in groups.values():
             arts = list(g["articles"].values())
+            known = fits = 0
+            want = THEME_FIT.get(g["cat"], 1)
             for a in arts:
                 h = heads.get(a["url"])
                 if h:
                     a.update(title=h[4], lang=h[6], image=h[7])
+                    if len(h) > 10:                           # rows cached before the theme flags existed have none
+                        known += 1
+                        fits += bool(h[10] & want)
+            if known and not fits:
+                # every article whose themes GDELT gave us is about something else: the coding is wrong, not the news
+                self.dropped_by_theme += 1
+                continue
             outlets = {a["outlet"] for a in arts}
             arts.sort(key=lambda a: (-("title" in a), -(a.get("image") is not None), a["time"]))
             one = {}
@@ -232,7 +252,7 @@ class Unrest:
                         "action": ACTION.get(code, ACTION.get(code[:3], "")), "codes": g["codes"],
                         "actions": {ACTION.get(c, ACTION.get(c[:3], c)): n for c, n in g["codes"].items()},
                         "actors": sorted(g["actors"], key=g["actors"].get, reverse=True)[:4],
-                        "articles": list(one.values())[:25]})
+                        "articles": list(one.values())[:25], "themes_checked": known})
         out.sort(key=lambda g: -g["outlets"])
         return out
 

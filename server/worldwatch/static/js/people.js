@@ -70,21 +70,33 @@ export const leadersToday = {
         'symbol-sort-key': ['-', 0, ['get', 'n']]}, paint: {'text-halo-width': 1.3}});
     this.map = map; this.load();
     setInterval(() => this.load(), 600000);
+    map.on('moveend', () => { if (today.some(t => t.spread)) this.draw(); });   // keep side-by-side dots one dot apart at every zoom
+  },
+  // One dot per leader. Leaders reported at the same city stand side by side, centred on it, 22 px apart on screen
+  // (they used to sit exactly on top of each other, so a click opened whichever was drawn first).
+  draw() {
+    const map = this.map, byPlace = new Map(), feats = [];
+    for (const t of today) { const k = t.place.place; byPlace.set(k, [...(byPlace.get(k) || []), t]); }
+    for (const ts of byPlace.values()) {
+      ts.forEach((t, i) => {
+        let at = [t.place.lon, t.place.lat];
+        t.spread = ts.length > 1;
+        if (t.spread) {
+          const p = map.project(at), q = map.unproject([p.x + (i - (ts.length - 1) / 2) * 22, p.y]);
+          if (Number.isFinite(q.lng) && Number.isFinite(q.lat)) at = [q.lng, q.lat];
+        }
+        t.at = at;
+        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id: 'today:' + t.qid, name: t.name, n: t.outlets}});
+        if (t.abroad) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: [t.home, at]}, properties: {id: 'today:' + t.qid}});
+      });
+    }
+    map.getSource('ww-leaders')?.setData({type: 'FeatureCollection', features: feats});
   },
   async load() {
     try {
       const d = await fetch('/api/people/today', {cache: 'no-store'}).then(r => r.json());
       todayInfo = d; today = d.today || [];
-      // One marker per place: leaders reported at the same city share it (they used to sit exactly on top of each
-      // other, so a click opened whichever was drawn first).
-      const feats = [], byPlace = new Map();
-      for (const t of today) { const k = t.place.place; byPlace.set(k, [...(byPlace.get(k) || []), t]); }
-      for (const [place, ts] of byPlace) {
-        const at = [ts[0].place.lon, ts[0].place.lat];
-        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id: 'todayp:' + place, name: ts.map(t => t.name).join('\n'), n: ts.reduce((a, t) => a + t.outlets, 0)}});
-        for (const t of ts) if (t.abroad) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: [t.home, at]}, properties: {id: 'todayp:' + place}});
-      }
-      this.map.getSource('ww-leaders').setData({type: 'FeatureCollection', features: feats});
+      this.draw();
       if (!today.length) setTimeout(() => this.load(), 60000);
     } catch (e) { setTimeout(() => this.load(), 60000); }
   },
@@ -99,22 +111,16 @@ export const leadersToday = {
   onData() {}, render() {},
   count: () => today.length,
   rows: () => today.filter(t => t.abroad).map(t => ({
-    id: 'todayp:' + t.place.place, time: t.place.last, badge: '★', title: `${t.name} reported in ${t.place.place.split(',')[0]}`,
+    id: 'today:' + t.qid, time: t.place.last, badge: '★', title: `${t.name} reported in ${t.place.place.split(',')[0]}`,
     thumb: img(t.articles.find(a => a.image)?.image), meta: `${t.role}, ${t.country} · ${t.place.outlets} outlets`})),
-  owns: id => String(id).startsWith('todayp:'),
-  locate(id) { const t = today.find(x => 'todayp:' + x.place.place === id); return t && [t.place.lon, t.place.lat]; },
+  owns: id => String(id).startsWith('today:'),
+  locate(id) { const t = today.find(x => 'today:' + x.qid === id); return t && (t.at || [t.place.lon, t.place.lat]); },
   ring: () => 13,
   act(name) { if (name.startsWith('profile:')) openProfile(name.slice(8)); },
   detail(id) {
-    const here = today.filter(x => 'todayp:' + x.place.place === id);
-    if (!here.length) return null;
-    if (here.length > 1) return `<p class="eyebrow">Leaders in the news · last ${todayInfo?.window_h || 6} hours</p>
-      <h2>${esc(here[0].place.place.split(',')[0])}</h2><p class="where">${here.length} leaders reported here</p>
-      ${here.map(t => `<section class="pz"><h3>${esc(t.name)}</h3><p class="soft">${esc(t.role)}, ${esc(t.country)} · ${t.place.headlines} headlines, ${t.place.outlets} outlets${t.abroad ? ' · outside their country' : ''}</p>
-        ${t.articles[0] ? `<p><a class="link" href="${esc(t.articles[0].url)}" target="_blank" rel="noopener">${esc(t.articles[0].title)}</a></p>` : ''}
-        <button class="btn" data-act="profile:${esc(t.qid)}">Open the full profile</button></section>`).join('')}
-      <p class="source">Source: GDELT news of the last ${todayInfo?.window_h || 6} hours. Each article's place is the city mentioned nearest to the leader's name. Where the news reported them, not where they are.</p>`;
-    const t = here[0];
+    const t = today.find(x => 'today:' + x.qid === id);
+    if (!t) return null;
+    const others = today.filter(x => x !== t && x.place.place === t.place.place);
     const abroad = t.abroad;
     return `<p class="eyebrow">Leader in the news · last ${todayInfo?.window_h || 6} hours</p>
       <h2>${esc(t.name)}</h2>
@@ -122,6 +128,7 @@ export const leadersToday = {
       <dl>
         <dt>Reported at</dt><dd>${esc(t.place.place)} <span class="soft">· ${t.place.headlines} different headlines, ${t.place.outlets} outlets${abroad ? ' · outside their country' : ''}</span></dd>
         ${t.places.length > 1 ? `<dt>Also placed at</dt><dd>${t.places.slice(1).map(p => `${esc(p.place.split(',')[0])} <span class="soft">(${p.outlets})</span>`).join(', ')}</dd>` : ''}
+        ${others.length ? `<dt>Also reported there</dt><dd>${others.map(o => esc(o.name)).join(', ')}</dd>` : ''}
         <dt>Articles naming them</dt><dd>${t.outlets} outlets</dd>
       </dl>
       <button class="btn" data-act="profile:${esc(t.qid)}">Open the dossier</button> ${countryBtn({name: t.country}, 'Dossier of ' + esc(t.country))}

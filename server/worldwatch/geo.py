@@ -299,5 +299,18 @@ def public(iso: str) -> dict | None:
     return {k: c.get(k) for k in ("iso", "iso3", "fips", "name", "qid", "pop", "pop_year", "continent", "region", "label", "bbox")}
 
 
+# Short names people type that Natural Earth does not list (its codes are matched separately).
+ALIASES = {"US": ["America", "United States", "USA", "U.S.", "U.S.A."], "GB": ["UK", "U.K.", "Britain", "Great Britain", "England", "Scotland", "Wales"],
+           "AE": ["UAE", "Emirates"], "RU": ["Russia"], "KR": ["South Korea", "ROK"], "KP": ["North Korea", "DPRK"], "CN": ["PRC"],
+           "TW": ["ROC"], "CD": ["DRC", "Congo-Kinshasa"], "CG": ["Congo-Brazzaville"], "CZ": ["Czech Republic"], "NL": ["Holland"],
+           "VA": ["Vatican"], "CI": ["Ivory Coast"], "MM": ["Burma"], "TR": ["Turkiye"], "SA": ["KSA"], "VN": ["Vietnam"],
+           "LA": ["Laos"], "SY": ["Syria"], "IR": ["Persia"], "PS": ["Palestine", "Gaza", "West Bank"], "BA": ["Bosnia"],
+           "MK": ["Macedonia"], "SZ": ["Swaziland"], "CV": ["Cape Verde"], "TL": ["East Timor"]}
+
+
 def listing() -> list[dict]:
-    return sorted(({"iso": c["iso"], "name": c["name"], "names": c["names"]} for c in C.values() if not c["iso"].startswith("X-")), key=lambda c: c["name"])
+    """For the search box: names, plus ISO codes ("US", "USA") and common short names, kept apart so a typed code
+    matches only whole."""
+    return sorted(({"iso": c["iso"], "name": c["name"], "names": sorted(set(c["names"]) | set(ALIASES.get(c["iso"], []))),
+                    "codes": [x for x in (c["iso"], c.get("iso3")) if x]}
+                   for c in C.values() if not c["iso"].startswith("X-")), key=lambda c: c["name"])

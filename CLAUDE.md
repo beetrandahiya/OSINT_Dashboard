@@ -961,3 +961,27 @@ All numbers are in the comment at the top of `server/worldwatch/static/app.css`.
 - Forking God's Eye View, ShadowBroker or worldmonitor (size, licence, wrong map engine). 2026-11-14.
 - Static-site hosting (CORS and history). 2026-11-14.
 - ACLED, Stooq, GDELT GEO API, own ADS-B hardware. 2026-11-14.
+
+### 2026-11-15, his notes on leaders, loading bar, disaster imagery, unrest and search (fixed)
+
+- **Leaders today: one dot per leader again** (he found the grouped card worse). Leaders the news placed in the same
+  city stand side by side, 22 px apart on screen, re-spread after every move (`draw()` in `people.js`, ids `today:<qid>`);
+  each opens its own card, which now lists "Also reported there".
+- **Loading bar on the panel**: it is laid along the top edge of the open dossier, else the detail card, else the sidebar
+  (`place()` in `main.js`), not across the top of the screen.
+- **Disaster imagery chip removed** at his request ("doesn't make a lot of sense"); `maxar.js`, the `ems` and
+  `maxar_events` feeds and routes stay in the code. The import in `main.js` is commented out.
+- **Unrest misclassification** (his example: "Armed clash, Mumbai · Javed Akhtar spotted in wheelchair at Mumbai
+  airport"). Two new checks in `unrest.py`: entertainment/celebrity/lifestyle addresses dropped like sports (`SHOWBIZ`);
+  and each news row now carries two GKG theme flags (`news.theme_flags`, V1Themes: violence / protest, generic themes
+  like WB_2433_CONFLICT_AND_VIOLENCE, ARREST, POLICE not counted). A group is dropped when every article we can match to
+  the news window lacks the fitting flag (`THEME_FIT`). Measured on 8 real slots: 6 of 98 matched events dropped, all
+  six wrong (a law-review story, a seminar, a road-trip blog); one celebrity story still passed (a KILL theme in a
+  Pakistani paper). News rows cached before this have no flags and are not checked until they age out (6 h).
+  Articles not in the 6 h news window (no city, older) cannot be checked. Feed note counts the dropped groups.
+- **Search "usa" found only Usain Bolt**: the country list now carries ISO2/ISO3 codes (matched whole) and common
+  short names (`geo.ALIASES`: USA, UK, UAE, DPRK, Burma, ...). Countries still answer before people.
+- **Court cases for dossiers (asked, not built)**: probed 2026-11-15. UK National Archives Find Case Law: open Atom
+  search, works without a key (judgments only, England and Wales). CourtListener (US federal dockets via RECAP and
+  opinions): free token needed (401 without). Indian Kanoon API: needs a paid key (401). ICC case pages: HTML, readable.
+  Wikidata P1399 "convicted of" / P1595 "charge": sparse. Waiting for his pick.

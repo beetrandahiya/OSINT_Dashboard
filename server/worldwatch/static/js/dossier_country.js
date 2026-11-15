@@ -18,7 +18,8 @@ export function countryMatches(q, max = 3) {
   if (!list) { loadCountries(); return []; }
   q = fold(q.trim());
   if (q.length < 2) return [];
-  const score = c => Math.min(...c.names.map(n => { n = fold(n); return n === q ? 0 : n.startsWith(q) ? 1 : n.split(/[\s(]+/).some(w => w.startsWith(q)) ? 2 : 9; }));
+  const code = q.toUpperCase();
+  const score = c => (c.codes || []).includes(code) ? 0 : Math.min(...c.names.map(n => { n = fold(n); return n === q ? 0 : n.startsWith(q) ? 1 : n.split(/[\s(.]+/).some(w => w.startsWith(q)) ? 2 : 9; }));
   return list.map(c => [score(c), c]).filter(([s]) => s < 9).sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name)).slice(0, max).map(([, c]) => c);
 }
 

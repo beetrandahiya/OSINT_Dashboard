@@ -3,7 +3,7 @@ import {loadFlags} from './flags.js';
 import {createMap, paintBase, paintSky, setGlobe, setPhoto} from './map.js';
 import news from './news.js';
 import navwarn from './navwarn.js';
-import maxarLayer from './maxar.js';
+// import maxarLayer from './maxar.js';   // disaster imagery: off for now, see CHIPS
 import airspace from './airspace.js';
 import {unrest, unrestSingle} from './unrest.js';
 import quakes from './quakes.js';
@@ -23,8 +23,8 @@ import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, livephoto, sharp, maxarLayer, night, aurora, gps, gpsLive, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
-const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp, maxarLayer];
+const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -34,7 +34,15 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
 {
   const bar = document.getElementById('loadbar'), real = window.fetch.bind(window);
   let open = 0, t = null;
-  const show = () => { bar.hidden = open === 0; };
+  // the bar sits on the top edge of the panel being looked at: an open dossier, else the card, else the sidebar
+  const place = () => {
+    const vis = el => el && !el.hidden && el.offsetParent !== null && el.getBoundingClientRect().height > 0;
+    const t = [document.querySelector('#profile:not([hidden]) .prof-card'), document.getElementById('detail'), document.getElementById('sidebar')].find(vis);
+    if (!t) return;
+    const r = t.getBoundingClientRect(), inset = 14;            // stay inside the panel's rounded corners
+    Object.assign(bar.style, {left: r.left + inset + 'px', top: r.top + 1 + 'px', width: Math.max(0, r.width - inset * 2) + 'px'});
+  };
+  const show = () => { if (open) place(); bar.hidden = open === 0; };
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (!url.includes('/api/') || url.includes('/api/status')) return real(input, init);   // the status poll is constant; not "loading"

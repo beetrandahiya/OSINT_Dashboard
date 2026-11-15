@@ -252,7 +252,9 @@ async def unrest(feed: Feed, f: Fetcher) -> Result:
     return Result(len(groups), {"groups": groups, "files": ev, "mention_files": men, "slots": slots, "window_h": 24}, data_time=newest,
                   note=f"{sum(g['outlets'] >= 2 for g in groups)} groups reported by two or more outlets, {sum(g['outlets'] < 2 for g in groups)} by one; "
                        f"{ev} of {slots} event files and {men} mention files of the last 24 hours"
-                       + (" (still filling)" if filling else "") + "; machine-coded from news reports, not verified")
+                       + (" (still filling)" if filling else "")
+                       + f"; {unrest_window.window.dropped_by_theme} groups left out because their articles' GDELT themes are about something else"
+                       + "; machine-coded from news reports, not verified")
 
 
 async def navwarn_feed(feed: Feed, f: Fetcher) -> Result:
