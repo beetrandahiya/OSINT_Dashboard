@@ -1087,3 +1087,7 @@ Agent's research findings worth keeping:
   covers the same 1,825 units as the public map file we read; it adds columns such as construction start and operation
   dates. Not automated: the form is for a person, and we never send his email from code. If he downloads it once and
   puts it in `data/`, add those columns (column names unknown until the file is seen). Until then the map file stays.
+- Asked about GEM's other trackers (gas/oil pipelines + LNG, extraction, gas/coal plants, steel, iron ore, coal mines:
+  all have public map files that update by themselves, checked 2026-11-15) and other strategic layers (refineries,
+  PeeringDB data centres, critical minerals, dams, chokepoint traffic). **Owner: nuclear only from GEM, nothing else;
+  critical minerals "interesting but not that needed".** Do not re-propose these unless he asks.
