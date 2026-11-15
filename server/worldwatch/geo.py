@@ -61,29 +61,46 @@ def norm(s: str) -> str:
 
 
 async def ensure(client=None) -> bool:
-    """Load the table, building it from the two public files the first time. Returns False if that failed."""
+    """Load the table, building it from the two public files the first time. Returns False if that failed.
+    The work runs in a short-lived child process: parsing the files takes ~40 MB that Python would otherwise keep;
+    only the compact result (arrays and name indexes) comes back."""
     if C:
         return True
     async with _lock:
         if C:
             return True
+        from .feeds import _in_child
         try:
-            raw = json.loads(FILE.read_text())
-            if raw.get("version") != VERSION:
-                raise ValueError("old version")
-        except (OSError, ValueError):
-            if client is None:
-                import httpx
-                async with httpx.AsyncClient(timeout=60, headers={"User-Agent": config.USER_AGENT}) as c:
-                    raw = await _build(c)
-            else:
-                raw = await _build(client)
-            if not raw:
-                return False
-            FILE.parent.mkdir(parents=True, exist_ok=True)
-            FILE.write_text(json.dumps(raw, separators=(",", ":")))
-        await asyncio.to_thread(_load, raw)
+            got = await asyncio.to_thread(_in_child, _prepare)
+        except Exception:
+            return False
+        if not got:
+            return False
+        for mine, theirs in zip((C, _by_fips, _by_name, _by_qid, _by_iso3, _icao), got):
+            mine.clear()
+            mine.update(theirs)
         return True
+
+
+def _prepare():
+    """In the child: read (or build and save) the table, index it, and hand back the compact parts."""
+    try:
+        raw = json.loads(FILE.read_text())
+        if raw.get("version") != VERSION:
+            raise ValueError("old version")
+    except (OSError, ValueError):
+        import httpx
+
+        async def go():
+            async with httpx.AsyncClient(timeout=60, headers={"User-Agent": config.USER_AGENT}) as c:
+                return await _build(c)
+        raw = asyncio.run(go())
+        if not raw:
+            return None
+        FILE.parent.mkdir(parents=True, exist_ok=True)
+        FILE.write_text(json.dumps(raw, separators=(",", ":")))
+    _load(raw)
+    return C, _by_fips, _by_name, _by_qid, _by_iso3, _icao
 
 
 async def _build(c) -> dict | None:
