@@ -194,7 +194,7 @@ def gem_plants(geo: dict, dates: dict | None = None) -> list[dict]:
     out = []
     for g in plants.values():
         g["types"] = sorted(g["types"])
-        g.get("reactors", []).sort(key=lambda r: [int(x) if x.isdigit() else x for x in re.findall(r"\d+|\D+", r["unit"] or "")])
+        g.get("reactors", []).sort(key=lambda r: [(0, int(x), "") if x.isdigit() else (1, 0, x) for x in re.findall(r"\d+|\D+", r["unit"] or "")])
         order = ["operating", "construction", "pre-construction", "announced", "mothballed", "retired"]
         g["status"] = next((s for s in order if s in g["units"]), next(iter(g["units"]), "unknown"))
         out.append(g)
