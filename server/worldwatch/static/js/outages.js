@@ -15,28 +15,34 @@ export default {
 
   addTo(map) {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-outages', type: 'circle', source: SRC, paint: {'circle-radius': 9, 'circle-opacity': 0.92, 'circle-stroke-width': 1.2}});
+    // size follows IODA's own score (log scale), faded once the outage has ended; Cloudflare notes are small with a cause letter
+    map.addLayer({id: 'ww-outages', type: 'circle', source: SRC, layout: {'circle-sort-key': ['coalesce', ['get', 'mag'], 0]},
+      paint: {'circle-radius': ['case', ['has', 'k'], 9, ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 9, 3, 11, 6, 15, 9, 20]],
+        'circle-opacity': ['case', ['get', 'over'], 0.45, 0.95], 'circle-stroke-width': ['case', ['get', 'over'], 0.8, 1.6]}});
     map.addLayer({id: 'ww-outages-label', type: 'symbol', source: SRC,
-      layout: {'text-field': ['coalesce', ['get', 'k'], '!'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true}});
+      layout: {'text-field': ['coalesce', ['get', 'k'], ['get', 'cc'], '!'], 'text-font': ['Noto Sans Bold'], 'text-size': ['case', ['has', 'k'], 12, 10.5], 'text-allow-overlap': true, 'text-ignore-placement': true}});
   },
   paint(map, dark) {
-    map.setPaintProperty('ww-outages', 'circle-color', this.color[+dark]);
+    map.setPaintProperty('ww-outages', 'circle-color', ['case', ['has', 'k'], dark ? '#ff9f0a' : '#c93400', this.color[+dark]]);
     map.setPaintProperty('ww-outages', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-outages-label', 'text-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData(feed, d) { if (feed === 'cf_radar') { notes = d.payload.outages || []; radarInfo = d; } else { events = d.payload.events; info = d; } },
   render(map) {
     const seen = new Set();   // one marker per country, even when several signals report it
-    map.getSource(SRC).setData({type: 'FeatureCollection', features: events.filter(e => e.lon != null && !seen.has(e.code) && seen.add(e.code)).map(e => (
-      {type: 'Feature', geometry: {type: 'Point', coordinates: [e.lon, e.lat]}, properties: {id: e.id}})).concat(
+    // per country the strongest signal decides the size; "over" only when every signal for the country has ended
+    const byCc = {};
+    for (const e of events) if (e.lon != null) { const b = byCc[e.code] ||= {e, score: 0, live: false}; if (e.score > b.score) { b.score = e.score; b.e = e; } if (ends(e) >= now() - 900) b.live = true; }
+    map.getSource(SRC).setData({type: 'FeatureCollection', features: Object.entries(byCc).map(([cc, b]) => (
+      {type: 'Feature', geometry: {type: 'Point', coordinates: [b.e.lon, b.e.lat]}, properties: {id: b.e.id, cc: String(cc).toUpperCase().slice(0, 3), mag: Math.log10(Math.max(1, b.score)), over: !b.live}})).concat(
       // Cloudflare's notes: one marker per note and country, a little off the IODA marker so both can be clicked
       notes.filter(n => !n.end || n.end > now() - 7 * 86400).flatMap(n => n.countries.filter(c => c.at).map(c => ({type: 'Feature',
-        geometry: {type: 'Point', coordinates: [c.at[0] + 1.2, c.at[1] - 0.8]}, properties: {id: 'cfnote:' + n.id, k: CAUSE_K[n.cause_code] || 'i'}}))))});
+        geometry: {type: 'Point', coordinates: [c.at[0] + 1.2, c.at[1] - 0.8]}, properties: {id: 'cfnote:' + n.id, k: CAUSE_K[n.cause_code] || 'i', over: !!n.end}}))))});
   },
   count: () => new Set(events.map(e => e.code)).size + notes.filter(n => !n.end).length,
   rows() {
-    return events.map(e => ({id: e.id, time: e.start, badge: '!', title: `Internet disruption, ${e.where}`,
-      meta: `Outage signal · started ${local(e.start)} · ${ago(e.start)}`})).concat(notes.filter(n => !n.end || n.end > now() - 7 * 86400).map(n => ({
+    return events.map(e => ({id: e.id, time: e.start, badge: String(e.code || '!').toUpperCase().slice(0, 3), title: `Internet disruption, ${e.where}`,
+      meta: `${ends(e) < now() - 900 ? 'Ended ' + ago(ends(e)) : 'Ongoing, ' + span(e.duration_s)} · ${SIGNALS[e.signal] || e.signal} · IODA`})).concat(notes.filter(n => !n.end || n.end > now() - 7 * 86400).map(n => ({
       id: 'cfnote:' + n.id, time: n.start, badge: CAUSE_K[n.cause_code] || 'i', strong: ['MILITARY_ACTION', 'GOVERNMENT_DIRECTED', 'CABLE_CUT'].includes(n.cause_code),
       title: n.text, meta: `${n.cause ? n.cause[0].toUpperCase() + n.cause.slice(1) : 'Outage'} · ${n.end ? 'ended ' + ago(n.end) : 'ongoing'} · Cloudflare Radar`})));
   },

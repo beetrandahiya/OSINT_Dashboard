@@ -47,15 +47,15 @@ export async function fillShip() {
   const more = `<p class="links"><a class="link" href="https://www.google.com/search?tbm=isch&q=${sq}" target="_blank" rel="noopener">Search photos of it</a>
     ${imo ? `<a class="link" href="https://www.shipspotting.com/photos/gallery?imo=${encodeURIComponent(imo)}" target="_blank" rel="noopener">ShipSpotting photos (IMO ${esc(imo)})</a>` : ''}</p>`;
   if (!r.image) {
-    top.innerHTML = `<p class="pic-wait">No free picture on Wikimedia; searching the web for photos…</p>`;
+    top.innerHTML = `<p class="pic-wait">No free picture on Wikimedia; looking on VesselFinder…</p>`;
     let w = null;
     try { w = await fetch(`/api/ship/photos?name=${encodeURIComponent(nm)}&imo=${encodeURIComponent(imo || '')}`).then(x => x.json()); } catch (e) { /* links below */ }
     const now2 = document.getElementById('shippic'); if (!now2 || now2.dataset.mmsi !== box.dataset.mmsi) return;
     if (w?.photos?.length) {
-      now2.innerHTML = `<div class="ship-grid">${w.photos.map(ph => `<a href="${esc(ph.page)}" target="_blank" rel="noopener" title="${esc(ph.title || '')}"><img src="${esc(ph.thumb)}" alt="Photo of this ship" loading="lazy" onerror="this.closest('a').remove()"><span>${esc(ph.source || '')}</span></a>`).join('')}</div>
-        <p class="source">Photos found by Brave Search (${esc(w.query)}); kept only where the result names this ship or its IMO number. Each links to the page it comes from; the pictures belong to their photographers.</p>${more}`;
+      const ph = w.photos[0];
+      now2.innerHTML = `<div class="photo"><a href="${esc(ph.page)}" target="_blank" rel="noopener" title="${esc(ph.title || '')}"><img src="${esc(ph.thumb)}" alt="Photo of this ship" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The photo could not be loaded.</p>'"></a><span>Photo: VesselFinder (found by Brave Search; the picture belongs to its photographer, links to VesselFinder's page)</span></div>${more}`;
     } else {
-      now2.innerHTML = `<p class="pic-wait">${w?.error && !/not set up/.test(w.error) ? esc(w.error) + '. ' : ''}No free picture of this ship on Wikimedia${w?.photos ? ' and no matching photo in a web image search' : ''}.</p>${more}`;
+      now2.innerHTML = `<p class="pic-wait">${w?.error && !/not set up/.test(w.error) ? esc(w.error) + '. ' : ''}No free picture of this ship on Wikimedia${w?.photos ? ' and none found on VesselFinder' : ''}.</p>${more}`;
     }
   }
   if (r.image) top.innerHTML = `<div class="photo"><a href="${esc(r.commons || 'https://www.wikidata.org/wiki/' + r.qid)}" target="_blank" rel="noopener"><img src="${esc(r.image.replace('http://', 'https://'))}${r.commons ? '' : '?width=640'}" alt="Picture of this ship" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The picture could not be loaded.</p>'"></a><span>Picture: Wikimedia Commons${r.commons ? ', filed under its IMO number' : ', via Wikidata'}${r.by === 'name' ? ' (matched by name; check it is this ship)' : ''}</span></div>${more}`;

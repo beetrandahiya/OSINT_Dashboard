@@ -21,11 +21,11 @@ export default {
       paint: {'line-width': ['match', ['get', 'kind'], 'occupied', 1.4, 0.8], 'line-opacity': 0.8}});
     // units and the rest only from zoom 6: at country scale the 400 markers are a smear
     map.addLayer({id: 'ww-front-dot', type: 'circle', source: SRC, minzoom: 6, filter: ['all', ['==', ['geometry-type'], 'Point'], ['has', 'k']],
-      paint: {'circle-radius': ['match', ['get', 'kind'], 'unit', 6, 7], 'circle-stroke-width': 1.2}});
+      paint: {'circle-radius': ['interpolate', ['exponential', 1.6], ['zoom'], 6, ['match', ['get', 'kind'], 'unit', 4, 5], 9, ['match', ['get', 'kind'], 'unit', 7, 8], 13, ['match', ['get', 'kind'], 'unit', 12, 14]], 'circle-stroke-width': 1.2}});
     map.addLayer({id: 'ww-front-label', type: 'symbol', source: SRC, minzoom: 6, filter: ['all', ['==', ['geometry-type'], 'Point'], ['has', 'k']],
       layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 9, 'text-allow-overlap': true, 'text-ignore-placement': true}});
     map.addLayer({id: 'ww-front-change', type: 'circle', source: SRC, filter: ['==', ['get', 'change'], true],
-      paint: {'circle-radius': 9, 'circle-color': 'transparent', 'circle-stroke-width': 2.5}});
+      paint: {'circle-radius': ['interpolate', ['exponential', 1.6], ['zoom'], 3, 3, 6, 7, 9, 13, 13, 26], 'circle-color': 'transparent', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 1.2, 9, 2.5]}});
   },
   paint(map, dark) {
     const c = this.color[+dark];

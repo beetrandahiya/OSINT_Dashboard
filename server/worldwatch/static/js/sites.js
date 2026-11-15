@@ -34,7 +34,7 @@ export const bases = {
     // OpenStreetMap's military areas (landuse=military): 96,000 worldwide, so only the ones on screen, from zoom 7
     map.addSource('ww-milarea', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-milarea', type: 'circle', source: 'ww-milarea', minzoom: 7,
-      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 7], 'circle-opacity': 0.25, 'circle-stroke-width': 1.4, 'circle-stroke-opacity': 0.9}});
+      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 3.5, 12, 8], 'circle-opacity': 0.75, 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 1}});
     let busy = false, again = false;
     const pull = async () => {
       if (map.getZoom() < 7 || map.getLayoutProperty('ww-bases', 'visibility') === 'none') return;
@@ -59,7 +59,7 @@ export const bases = {
     map.setPaintProperty('ww-bases', 'circle-color', ['match', ['get', 'kind'], ['missile', 'sigint'], dark ? '#ff6961' : '#c4161c', 'radar', dark ? '#ffb340' : '#b25000', this.color[+dark]]);
     map.setPaintProperty('ww-bases', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-milarea', 'circle-color', this.color[+dark]);
-    map.setPaintProperty('ww-milarea', 'circle-stroke-color', this.color[+dark]);
+    map.setPaintProperty('ww-milarea', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');   // a white edge stays visible on brown ground
     map.setPaintProperty('ww-bases-name', 'text-color', dark ? '#e5e5ea' : '#3a3a3c');
     map.setPaintProperty('ww-bases-name', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
   },

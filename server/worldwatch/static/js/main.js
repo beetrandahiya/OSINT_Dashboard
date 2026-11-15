@@ -28,6 +28,7 @@ import sanctioned from './sanctioned.js';
 import spikes from './spikes.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
+import {renderLegend} from './legend.js';
 
 // Order = drawing order on the map, bottom first.
 const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, rain, lightning];
@@ -78,6 +79,7 @@ function minimiser(btnId, panelId, key) {
 }
 minimiser('side-mini', 'sidebar', 'ww-min-side');
 minimiser('markets-mini', 'marketsbar', 'ww-min-markets');
+minimiser('legend-mini', 'legend', 'ww-min-legend');
 let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
 
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
@@ -150,10 +152,12 @@ $('#chips').addEventListener('click', e => {
   const l = byId[b.dataset.id];
   on[l.id] = !on[l.id];
   try { localStorage.setItem('ww-layers', JSON.stringify(on)); } catch (err) { /* private window */ }
-  show(l); renderChips(); renderList();
+  show(l); renderChips(); renderList(); legend();
   if (picked?.layer === l.id && !on[l.id]) pick(null);
 });
 dark.addEventListener('change', renderChips);
+const legend = () => renderLegend($('#legend'), CHIPS, on);
+legend(); dark.addEventListener('change', legend);
 document.addEventListener('ww-chips', renderChips);
 document.addEventListener('ww-detail', () => { detailKey = ''; renderDetail(); });
 document.addEventListener('ww-flags', () => { if (ready) { detailKey = ''; renderDetail(); } });

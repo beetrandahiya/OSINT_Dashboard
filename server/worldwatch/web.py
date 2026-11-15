@@ -265,7 +265,7 @@ async def satellite(request):
         return JSONResponse({"error": "not a catalogue number"}, status_code=400)
     name = (request.query_params.get("name") or "").strip()
     ucs_row = await asyncio.to_thread(lambda: satinfo.load().get(norad))   # read per request: holding all 7,551 rows cost ~10 MB
-    key, wd, problem = f"satwd3:{norad}", None, None
+    key, wd, problem = f"satwd4:{norad}", None, None
     hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
     if hit:
         wd = hit["body"]
@@ -313,13 +313,17 @@ async def satellite(request):
                 # still nothing: NASA's image library (free, mostly public domain), accepted only when the picture's
                 # title names this satellite or its family
                 if not wd.get("image") and name:
-                    for q in dict.fromkeys([re.sub(r"\s*\(.*\)", "", name).strip(), family]):
-                        if not q or len(q) < 3:
+                    generic = family.upper() in ("USA", "OBJECT", "SL", "CZ", "COSMOS", "KOSMOS")
+                    for q in dict.fromkeys([re.sub(r"\s*\(.*\)", "", name).strip(), "" if generic else family]):
+                        # "USA 388" names a classified satellite: NASA has no pictures of those, and "USA" alone
+                        # matched a science festival
+                        if not q or len(q) < 3 or (generic and q == family):
                             continue
                         r = await c.get("https://images-api.nasa.gov/search", params={"q": q, "media_type": "image"})
                         key_q = re.sub(r"[\s_-]+", " ", q.lower())
                         hit = next((i for i in (r.json().get("collection", {}).get("items") or [])[:25]
-                                    if key_q in re.sub(r"[\s_-]+", " ", (i.get("data") or [{}])[0].get("title", "").lower())), None)
+                                    if re.search(r"(?<![a-z0-9])" + re.escape(key_q) + r"(?![a-z0-9])",
+                                                 re.sub(r"[\s_-]+", " ", (i.get("data") or [{}])[0].get("title", "").lower()))), None)
                         if hit:
                             d0 = hit["data"][0]
                             wd.update(image=next((l["href"] for l in hit.get("links", []) if l.get("render") == "image"), None),
@@ -354,11 +358,12 @@ async def ship_photos(request):
     name, imo = (q.get("name") or "").strip(), re.sub(r"\D", "", q.get("imo") or "")
     if not name and not imo:
         return JSONResponse({"error": "name or imo needed", "photos": []}, status_code=400)
-    ck = f"shipphotos:{imo}:{name.lower()}"
+    ck = f"shipphotos2:{imo}:{name.lower()}"
     hit = await asyncio.to_thread(db.lookup_get, ck, 30 * 86400)
     if hit:
         return JSONResponse(hit["body"])
-    query = f'"{name}" IMO {imo}' if imo and name else (f"IMO {imo} ship" if imo else f'"{name}" ship')
+    # the owner wants VesselFinder's photo only (other results were QR codes, logos and other ships)
+    query = "site:vesselfinder.com " + (f"IMO {imo}" if imo else f'"{name}"')
     try:
         async with httpx.AsyncClient(timeout=20, headers={"Accept": "application/json", "X-Subscription-Token": key}) as c:
             r = await c.get("https://api.search.brave.com/res/v1/images/search", params={"q": query, "count": 20, "safesearch": "strict"})
@@ -372,11 +377,14 @@ async def ship_photos(request):
     photos = []
     for x in d.get("results", []):
         text = " ".join(str(x.get(k) or "") for k in ("title", "url")).lower()
+        host = ((x.get("meta_url") or {}).get("hostname") or re.sub(r"^https?://([^/]+).*", r"\1", x.get("url") or "")).lower()
+        if not (host == "vesselfinder.com" or host.endswith(".vesselfinder.com")):
+            continue
         if (imo and imo in text) or (nm and nm in re.sub(r"\W+", " ", text)):
             th = (x.get("thumbnail") or {}).get("src")
             if th:
                 photos.append({"thumb": th, "page": x.get("url"), "source": x.get("source") or (x.get("meta_url") or {}).get("hostname"), "title": x.get("title")})
-        if len(photos) >= 4:
+        if photos:
             break
     body = {"photos": photos, "query": query}
     await asyncio.to_thread(db.lookup_put, ck, time.time(), body)

@@ -1223,3 +1223,19 @@ Agent's research findings worth keeping:
   the free tier), with "Play today's time-lapse" as a button. Most Windy webcams are still-picture cameras uploading
   every few minutes; that is their nature, not a bug. Whether the free tier returns `live` at all is **untested** (no key
   here; docs schema has it). Tested with made-up Windy answers only.
+
+### 2026-11-16, his review: legend, photo fixes, circles, outages
+
+He liked the front line, military zones, quakes and the dossier. Fixes:
+- **Wrong satellite photo** (children at a "USA Science and Engineering Festival" on every "USA nnn StarShield"): the
+  NASA Image Library fallback searched the family name "USA" with a substring match. Generic families (USA, COSMOS, OBJECT,
+  SL, CZ) are no longer searched, matches must be whole words, cache key `satwd4:`.
+- **Ship photos: VesselFinder only** (owner: "just get the photo from vesselfinder.com"): Brave query
+  `site:vesselfinder.com IMO <n>`, results kept only from vesselfinder.com, one photo, cache key `shipphotos2:`.
+- **Military-area circles** invisible on brown ground: fill 0.75 with a white (dark: black) edge.
+- **Front-line circles** (change rings and unit/attack dots) now scale with zoom (exponential).
+- **Outages** showed "!" on every marker: now the country code, size by IODA's score (log), faded when every signal for
+  the country has ended; Cloudflare notes orange with the cause letter. List rows say ongoing/ended and the signal.
+- **Legend panel** (`legend.js`, `#legend` beside the sidebar above the markets strip, minimisable, remembered): one
+  section per switched-on chip with the same colours, letters and shapes the layer paints. **Colours are duplicated
+  from the layers' `paint()`: change both when a layer's look changes.**
