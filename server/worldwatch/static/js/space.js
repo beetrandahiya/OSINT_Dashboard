@@ -303,7 +303,11 @@ export const satellites = {
       : `<p class="source">No entry for catalogue number ${esc(norad)} in the UCS database or Wikidata.</p>`;
   },
   count: () => sats.length,
-  rows: () => [],
+  // manoeuvres of spy satellites seen in the last 7 days (worked out on the server from the orbit history it keeps)
+  rows: () => (reconInfo?.payload.manoeuvres || []).filter(m => m.to > Date.now() / 1000 - 7 * 86400 && byId('sat:' + m.norad)).map(m => ({
+    id: 'sat:' + m.norad, time: m.to, badge: '⇅',
+    title: `${m.name || 'Satellite ' + m.norad} ${m.kinds.map(k => k === 'raised' ? 'raised its orbit' : k === 'lowered' ? 'lowered its orbit' : 'changed its orbital plane').join(' and ')}`,
+    meta: `perigee ${m.perigee[0]} → ${m.perigee[1]} km, apogee ${m.apogee[0]} → ${m.apogee[1]} km${m.amateur ? ' · amateur-tracked orbit' : ''}`})),
   locate(id) { const s = byId(id); return s?.pos && !isGlobe() ? [s.pos.lon, s.pos.lat] : null; },   // on the globe the ring is drawn at height by the canvas
   ring: id => id === 'sat:' + ISS ? 11 : 8,
   moving: true,
@@ -328,6 +332,13 @@ export const satellites = {
         <dt>Orbit data from</dt><dd>${local(e)} <span class="soft">(${ago(e)})</span></dd>
         <dt>Catalogue number</dt><dd>${s.id}${s.omm.OBJECT_ID ? ' <span class="soft">· launched ' + esc(s.omm.OBJECT_ID.slice(0, 4)) + '</span>' : ''}</dd>
       </dl>
+      ${(() => {
+        const mv = (reconInfo?.payload.manoeuvres || []).filter(m => m.norad === s.id);
+        const kept = reconInfo?.payload.history_days;
+        if (!reconOmm.some(o => o.NORAD_CAT_ID === s.id)) return '';
+        return `<section class="pz"><h3>Orbit changes</h3>${mv.length ? `<ul class="dos-list">${mv.map(m => `<li><b>${m.kinds.join(', ')}</b> between ${local(m.from)} and ${local(m.to)}<br><span class="soft">perigee ${m.perigee[0]} → ${m.perigee[1]} km · apogee ${m.apogee[0]} → ${m.apogee[1]} km · inclination ${m.inclination[0]}° → ${m.inclination[1]}°</span></li>`).join('')}</ul>` : `<p class="soft">None seen in the ${kept != null ? kept + ' days' : 'time'} this server has kept its orbits (up to 45).</p>`}
+          <p class="source">Worked out here by comparing each new published orbit with the one before. Air drag only lowers an orbit, slowly, so a rise, a drop much faster than drag, or a change of plane means the satellite fired its engine. Thresholds: rise over ${s.source === 'amateur observers' ? '5' : '0.8'} km, drop over ${s.source === 'amateur observers' ? '10' : '3'} km plus 1 km a day, plane change over ${s.source === 'amateur observers' ? '0.2' : '0.03'}°.</p></section>`;
+      })()}
       <div id="satabout"></div>
       ${s.source === 'amateur observers' ? `<p class="source">Its orbit is not published by its owner. These elements come from amateur observers who track it by eye and camera (Mike McCants' list, from the SeeSat-L community), dated ${local(e)}; they can be off by tens of kilometres.</p>` : ''}
       <button class="btn" data-act="follow">${following ? 'Leave the satellite' : 'Look down from it'}</button>

@@ -30,7 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
-from . import geo, travel, courts
+from . import geo, travel, courts, frontline
 
 
 @dataclass
@@ -431,7 +431,11 @@ async def recon_sats(feed: Feed, f: Fetcher) -> Result:
         problems.append(f"amateur list failed ({type(e).__name__})")
     if not omm:
         raise RuntimeError("; ".join(problems) or "no orbits")
-    return Result(len(omm), {"omm": omm, "sources": sources}, data_time=max(_iso(o["EPOCH"]) for o in omm),
+    hist = await asyncio.to_thread(satinfo.record_history, omm)
+    moves = satinfo.manoeuvres(hist, {o["NORAD_CAT_ID"]: o["OBJECT_NAME"] for o in omm})
+    days = (time.time() - hist["_started"]) / 86400
+    problems.append(f"{len(moves)} manoeuvres seen in {min(days, 45):.1f} days of orbit history kept here")
+    return Result(len(omm), {"omm": omm, "sources": sources, "manoeuvres": moves, "history_days": round(days, 1)}, data_time=max(_iso(o["EPOCH"]) for o in omm),
                   note=", ".join(f"{n} from {k}" for k, n in sources.items()) + ("; " + "; ".join(problems) if problems else "")
                        + ("" if had_ucs else "; the UCS purpose list has not been loaded yet, so only amateur-tracked classified satellites are here"))
 
@@ -607,6 +611,37 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+_FRONT: dict = {}            # map file and occupied area per DeepState update id, so an unchanged map is not re-read
+
+
+async def front_ukraine(feed: Feed, f: Fetcher) -> Result:
+    """The front line in Ukraine from DeepState (see frontline.py): their newest map, the change log of the last
+    7 days, and the occupied area compared with the update nearest to a week earlier."""
+    hist = (await f.get(frontline.BASE + "public")).json()
+    hist = [h for h in hist if h.get("status") and frontline.update_time(h)]
+    hist.sort(key=frontline.update_time)
+    last = hist[-1]
+    t_last = frontline.update_time(last)
+    week = min(hist, key=lambda h: abs(frontline.update_time(h) - (t_last - 7 * 86400)))
+
+    async def map_of(h):
+        if h["id"] not in _FRONT:
+            geo_ = (await f.get(f"{frontline.BASE}{h['id']}/geojson")).json()
+            _FRONT[h["id"]] = await asyncio.to_thread(frontline.parse, geo_)
+        return _FRONT[h["id"]]
+    now_map = await map_of(last)
+    old_map = await map_of(week) if week["id"] != last["id"] else None
+    for k in [k for k in _FRONT if k not in (last["id"], week["id"])]:
+        del _FRONT[k]
+    payload = {**now_map, "update": {"id": last["id"], "time": t_last, "text": frontline.changes([last], 0)[0]["text"] if frontline.changes([last], 0) else None},
+               "week": old_map and {"time": frontline.update_time(week), "occupied_km2": old_map["occupied_km2"]},
+               "changes": frontline.changes(hist, t_last - 7 * 86400)}
+    d = old_map and now_map["occupied_km2"] - old_map["occupied_km2"]
+    return Result(len(now_map["areas"]) + len(now_map["points"]), payload, data_time=t_last, data_label="map update",
+                  note=f"occupied area {now_map['occupied_km2']:,} km²" + (f", {d:+,} km² since {time.strftime('%d %b', time.gmtime(frontline.update_time(week)))}" if old_map else "")
+                       + f"; {len(payload['changes'])} changes logged in 7 days; DeepState's assessment (Ukrainian OSINT team)")
+
+
 async def courts_icc(feed: Feed, f: Fetcher) -> Result:
     """The International Criminal Court's case list and situation pages, for person dossiers (see courts.py).
     Case list pages 1.5 s apart, then situation pages 20 s apart (the site's bot shield refuses bursts), once a day."""
@@ -982,6 +1017,8 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("front_ukraine", "Front line, Ukraine", "DeepState", "https://deepstatemap.live/en",
+         2 * H, front_ukraine, stale_after=3 * 86400, min_retry=600, limit_note="change list every 2 hours (1.4 MB); a map file (0.6 MB) only when they publish a new update"),
     Feed("courts_icc", "International Criminal Court cases", "International Criminal Court", "https://www.icc-cpi.int/cases",
          24 * H, courts_icc, min_retry=3600, limit_note="about 25 pages once a day; used by person dossiers"),
     Feed("travel_advice", "Travel advice per country", "US State Department, German Foreign Office", "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",

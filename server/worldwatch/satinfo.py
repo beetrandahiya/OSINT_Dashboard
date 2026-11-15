@@ -154,3 +154,75 @@ def parse_save_compact(raw: bytes):
     ucs = parse_ucs(raw)
     save(ucs)
     return compact(ucs), len(ucs), sum(1 for v in ucs.values() if spy(v))
+
+
+# ---------------------------------------------------------------- manoeuvres of spy satellites
+# Each fetch adds every spy satellite's newest orbit (if its epoch is new) to a 45-day history on disk. A change
+# between two consecutive orbits is called a manoeuvre only when air drag cannot explain it: drag only ever lowers
+# an orbit, and slowly. Thresholds are wider for amateur-tracked orbits, which are rougher.
+HISTORY = config.DATA / "orbit-history.json"
+MU, RE = 398600.4418, 6378.137
+
+
+def axis_km(mean_motion_rev_day: float) -> float:
+    n = mean_motion_rev_day * 2 * 3.141592653589793 / 86400
+    return (MU / n ** 2) ** (1 / 3)
+
+
+def _epoch_ts(s: str) -> float:
+    return calendar.timegm(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S"))
+
+
+def record_history(omm: list[dict]) -> dict:
+    try:
+        hist = json.loads(HISTORY.read_text())
+    except (OSError, ValueError):
+        hist = {}
+    cut = time.time() - 45 * 86400
+    started = hist.pop("_started", time.time())
+    for o in omm:
+        try:
+            t = _epoch_ts(o["EPOCH"])
+            row = [t, round(axis_km(float(o["MEAN_MOTION"])), 3), round(float(o["ECCENTRICITY"]), 7), round(float(o["INCLINATION"]), 4),
+                   1 if o.get("SOURCE") == "amateur observers" else 0]
+        except (KeyError, ValueError, ZeroDivisionError):
+            continue
+        h = hist.setdefault(str(o["NORAD_CAT_ID"]), [])
+        if not h or t > h[-1][0] + 60:
+            h.append(row)
+        hist[str(o["NORAD_CAT_ID"])] = [r for r in h if r[0] >= cut]
+    hist = {k: v for k, v in hist.items() if v}
+    HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    HISTORY.write_text(json.dumps({**hist, "_started": started}, separators=(",", ":")))
+    return {**hist, "_started": started}
+
+
+def manoeuvres(hist: dict, names: dict, since_days=30) -> list[dict]:
+    out, cut = [], time.time() - since_days * 86400
+    for norad, rows in hist.items():
+        if not norad.isdigit():
+            continue
+        for a, b in zip(rows, rows[1:]):
+            if b[0] < cut:
+                continue
+            amateur = a[4] or b[4]
+            days = max((b[0] - a[0]) / 86400, 0.01)
+            da = b[1] - a[1]
+            di = b[3] - a[3]
+            per_a, apo_a = a[1] * (1 - a[2]) - RE, a[1] * (1 + a[2]) - RE
+            per_b, apo_b = b[1] * (1 - b[2]) - RE, b[1] * (1 + b[2]) - RE
+            raise_km, drop_km, incl_deg = (5.0, 10.0, 0.2) if amateur else (0.8, 3.0, 0.03)
+            # natural decay above ~300 km is well under 1 km a day; allow for it before calling a drop a burn
+            kinds = []
+            if da > raise_km:
+                kinds.append("raised")
+            elif da < -(drop_km + 1.0 * days):
+                kinds.append("lowered")
+            if abs(di) > incl_deg:
+                kinds.append("plane change")
+            if kinds:
+                out.append({"norad": int(norad), "name": names.get(int(norad)), "kinds": kinds, "from": a[0], "to": b[0], "days": round(days, 2),
+                            "perigee": [round(per_a, 1), round(per_b, 1)], "apogee": [round(apo_a, 1), round(apo_b, 1)],
+                            "inclination": [a[3], b[3]], "amateur": bool(amateur)})
+    out.sort(key=lambda m: -m["to"])
+    return out

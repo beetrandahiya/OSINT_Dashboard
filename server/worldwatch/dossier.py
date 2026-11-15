@@ -439,7 +439,7 @@ def _once(arts: list[dict]) -> list[dict]:
 
 
 def person(collector, qid: str, name_hint: str | None) -> dict:
-    prof = (store.cache_get("profile2:" + qid, 7 * 86400) or {}).get("body") or {}
+    prof = (store.cache_get("profile3:" + qid, 7 * 86400) or {}).get("body") or {}
     name = prof.get("name") or name_hint or ""
     key = news_window._norm(name)
     surname = key.split()[-1] if key else ""

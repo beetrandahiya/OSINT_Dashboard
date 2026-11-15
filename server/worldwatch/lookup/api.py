@@ -242,13 +242,13 @@ async def people_profile(request):
     if not re.fullmatch(r"Q[0-9]{1,12}", qid):
         return JSONResponse({"error": "not a Wikidata id"}, status_code=400)
     fresh = request.query_params.get("fresh") == "1"
-    hit = None if fresh else store.cache_get("profile2:" + qid, 86400)
+    hit = None if fresh else store.cache_get("profile3:" + qid, 86400)
     if not hit:
         try:
             body = await _people.profile(qid)
         except Exception as e:
             return JSONResponse({"error": f"Could not build the profile ({type(e).__name__}: {str(e)[:120]})"}, status_code=502)
-        store.cache_put("profile2:" + qid, body)
+        store.cache_put("profile3:" + qid, body)
         hit = {"fetched": body["built"], "body": body}
     return JSONResponse({**hit["body"], "fetched": hit["fetched"], "now": time.time()}, headers={"Cache-Control": "no-store"})
 

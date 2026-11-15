@@ -193,6 +193,41 @@ async def _wikipedia(client, title):
         return None
 
 
+# OpenSanctions' topic codes in words (their documented list, opensanctions.org/reference/#type.topic)
+TOPICS = {"sanction": "sanctioned", "sanction.linked": "linked to a sanctioned party", "sanction.counter": "under counter-sanctions",
+          "debarment": "barred from public contracts", "role.pep": "politically exposed person", "role.pol": "politician",
+          "role.rca": "relative or close associate of a politically exposed person", "role.judge": "judge", "role.civil": "civil servant",
+          "role.diplo": "diplomat", "role.lawyer": "lawyer", "role.acct": "accountant", "role.spy": "intelligence officer",
+          "role.oligarch": "oligarch", "role.journo": "journalist", "role.act": "activist", "role.lobby": "lobbyist",
+          "crime": "crime", "crime.fraud": "fraud", "crime.cyber": "cybercrime", "crime.fin": "financial crime", "crime.env": "environmental crime",
+          "crime.theft": "theft", "crime.war": "war crimes", "crime.boss": "crime boss", "crime.terror": "terrorism", "crime.traffick": "trafficking",
+          "crime.traffick.drug": "drug trafficking", "crime.traffick.human": "human trafficking", "wanted": "wanted by law enforcement",
+          "corp.offshore": "offshore company", "corp.shell": "shell company", "corp.public": "listed company", "corp.disqual": "disqualified director",
+          "gov.soe": "state-owned company", "gov.igo": "intergovernmental organisation", "gov.head": "head of state or government",
+          "gov.admin": "civil service", "gov.executive": "executive branch", "gov.legislative": "legislature", "gov.judicial": "judiciary",
+          "gov.security": "security services", "gov.financial": "central bank or financial regulator", "fin.bank": "bank",
+          "fin.fund": "fund", "fin.adivsor": "financial adviser", "reg.action": "regulator's action", "reg.warn": "regulator's warning",
+          "risk.klepto": "kleptocracy", "export.control": "export controls", "export.risk": "export risk", "poi": "person of interest",
+          "mil": "military", "asset.frozen": "assets frozen"}
+
+
+async def _dataset_titles(client) -> dict:
+    """OpenSanctions data set codes ("us_ofac_sdn") -> the list's real title and publisher, from their public catalogue
+    (2 MB, no key), cached a week."""
+    hit = store.cache_get("os-datasets", 7 * 86400)
+    if hit:
+        return hit["body"]
+    try:
+        r = await client.get("https://data.opensanctions.org/datasets/latest/index.json", headers={"User-Agent": config.USER_AGENT}, timeout=30)
+        r.raise_for_status()
+        body = {d["name"]: [d.get("title") or d["name"], (d.get("publisher") or {}).get("name"), (d.get("publisher") or {}).get("country_label")]
+                for d in r.json().get("datasets", [])}
+        store.cache_put("os-datasets", body)
+        return body
+    except (httpx.HTTPError, ValueError, KeyError):
+        return {}
+
+
 async def _sanctions(client, name, born=None):
     """Politically-exposed-person and sanctions listings from OpenSanctions. Their API needs a free key
     (data/opensanctions-key.txt); without it this section is skipped."""
@@ -211,13 +246,19 @@ async def _sanctions(client, name, born=None):
         if r.status_code != 200:
             return [], f"OpenSanctions answered {r.status_code}"
         out = []
+        titles = await _dataset_titles(client)
         for m in r.json().get("responses", {}).get("q", {}).get("results", []):
             if m.get("score", 0) < 0.7:
                 continue
             props = m.get("properties", {})
+            lists = []
+            for code in m.get("datasets", []):
+                t = titles.get(code)
+                lists.append({"code": code, "title": t[0] if t else code, "publisher": t[1] if t else None, "country": t[2] if t else None})
             out.append({"name": m.get("caption"), "score": round(m.get("score", 0), 2),
-                        "listed_on": [d.get("title", d.get("name")) for d in m.get("datasets_full", [])] or m.get("datasets", []),
-                        "topics": props.get("topics", []), "url": "https://www.opensanctions.org/entities/" + m.get("id", "")})
+                        "listed_on": lists, "topics": [TOPICS.get(t, t) for t in props.get("topics", [])],
+                        "positions": props.get("position", [])[:6], "country": props.get("country", [])[:4],
+                        "url": "https://www.opensanctions.org/entities/" + m.get("id", "")})
         return out, None
     except httpx.HTTPError as e:
         return [], f"OpenSanctions could not be reached ({type(e).__name__})"

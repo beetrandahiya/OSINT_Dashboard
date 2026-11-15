@@ -164,7 +164,11 @@ async function signals(d, t) {
   if (!live(t) || !$('#dos-signals')) return;
   const f = s.feeds || {}, n = s.news;
   const keyless = d.problems.some(p => /OpenSanctions key/.test(p)), sancFail = d.problems.find(p => /OpenSanctions/.test(p) && !/key set/.test(p));
-  const sanc = d.sanctions.length ? tile('Sanctions and PEP lists', 'Listed', esc(d.sanctions.slice(0, 2).map(x => (x.topics || []).join(', ') || 'listed').join('; ')), 'OpenSanctions match by name and birth date', 'hot')
+  const topics = [...new Set(d.sanctions.flatMap(x => x.topics || []))];
+  const sanctioned = topics.some(t => /^sanctioned|counter-sanctions|assets frozen/.test(t));
+  const nLists = new Set(d.sanctions.flatMap(x => (x.listed_on || []).map(l => typeof l === 'string' ? l : l.code))).size;
+  const sanc = d.sanctions.length ? tile('Sanctions and PEP lists', sanctioned ? 'Sanctioned' : topics.some(t => /politically exposed/.test(t)) ? 'Politically exposed' : 'Listed',
+      `${nLists} ${nLists === 1 ? 'list' : 'lists'} · ${esc(topics.slice(0, 3).join(', ') || 'listed')}`, 'OpenSanctions match by name and birth date', sanctioned ? 'hot' : 'warm')
     : tile('Sanctions and PEP lists', keyless ? 'Not checked' : sancFail ? 'Not checked' : 'Not listed', keyless ? 'no OpenSanctions key in data/' : sancFail ? esc(sancFail) : 'no match by name and birth date', 'OpenSanctions');
   const air = s.aircraft || [], seen = air.filter(a => a.seen), up = seen.filter(a => !a.seen.ground);
   const airVal = !air.length ? 'None listed' : up.length ? `${up.length} airborne` : seen.length ? `${seen.length} on the ground` : 'Not seen now';
@@ -187,6 +191,10 @@ async function signals(d, t) {
 
   $('#dos-signals').innerHTML = `<h3>Signals</h3><div class="sig-grid">${tiles}</div>
     ${planes ? `<div class="dos-sub-block"><h4>Aircraft listed with them</h4>${planes}<p class="source">"Listed" means plane-alert-db's volunteers tagged the aircraft with this person's name or office. It does not mean they are aboard; nobody publishes that. Positions are the newest from adsb.lol, adsb.fi or OpenSky (which can be 20 minutes old).</p></div>` : ''}
+    ${d.sanctions.length ? `<div class="dos-sub-block"><h4>On sanctions and exposed-person lists</h4>${d.sanctions.map(x => `<p><b><a class="link" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a></b> <span class="soft">· match ${Math.round(x.score * 100)} %${(x.topics || []).length ? ' · ' + esc(x.topics.join(', ')) : ''}</span></p>
+      ${(x.positions || []).length ? `<p class="soft">Positions recorded: ${x.positions.map(esc).join('; ')}</p>` : ''}
+      <ul class="dos-list">${(x.listed_on || []).map(l => typeof l === 'string' ? `<li>${esc(l)}</li>` : `<li>${esc(l.title)}${l.publisher || l.country ? ` <span class="soft">· ${esc([l.publisher, l.country].filter(Boolean).join(', '))}</span>` : ''}</li>`).join('')}</ul>`).join('')}
+      <p class="source">OpenSanctions, matched by name and birth date. "Politically exposed" means a public office holder or someone close to one, a category banks must check; it is not a sanction or an accusation.</p></div>` : ''}
     ${arts ? `<div class="dos-sub-block"><h4>Naming them in the headline, last ${n.window_h} hours</h4>${arts}${n.outlets > n.in_headline ? `<p class="source">${n.outlets - n.in_headline} more outlets name them only in the text.</p>` : ''}${n.places.length > 1 ? `<p class="source">Places these articles were pinned to: ${n.places.map(p => `${esc(p.place.split(',')[0])} (${p.outlets})`).join(', ')}.</p>` : ''}</div>` : ''}
     ${s.is_leader && s.reported_at?.also?.length ? `<p class="source">Also placed by the news at: ${s.reported_at.also.map(p => esc(p.split(',')[0])).join(', ')}.</p>` : ''}
     <p class="source">Read from this server's feeds when this dossier opened. Counts are of articles and events our feeds hold; nothing is scored. GDELT finds names and places by machine and makes mistakes.</p>`;

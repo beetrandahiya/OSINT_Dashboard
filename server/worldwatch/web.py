@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db, maxar, satinfo, translate
+from . import config, db, maxar, patterns, satinfo, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -641,6 +641,17 @@ async def area(request):
     return JSONResponse({**_area["body"], "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
+async def flight_patterns(request):
+    """Orbiting military aircraft and tankers in the air, worked out from the positions we received (patterns.py)."""
+    st = collector.states.get("aircraft_military")
+    mil = (st.payload or {}).get("aircraft", []) if st else []
+    vst = collector.states.get("vip_aircraft")
+    vip = (vst.payload or {}).get("aircraft", {}) if vst else {}
+    body = await asyncio.to_thread(patterns.analyse, collector.trails, mil, time.time(), vip)
+    body["fetched"] = st.fetched if st else None
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
 async def trail(request):
     hex_ = request.path_params["hex"].lower()
     return JSONResponse({"hex": hex_, "points": collector.trails.get(hex_, []), "now": time.time()}, headers={"Cache-Control": "no-store"})
@@ -689,6 +700,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/data/{name}", data),
     Route("/api/route/{callsign}", route),
     Route("/api/trail/{hex}", trail),
+    Route("/api/aircraft/patterns", flight_patterns),
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
     Route("/api/news/place", news_place),
