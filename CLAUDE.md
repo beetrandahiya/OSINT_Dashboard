@@ -1124,4 +1124,5 @@ Agent's research findings worth keeping:
   `keys/cloudflare-token.txt`; `config.cloudflare_token()` reads `data/` first, then `keys/`. Other keys stay in `data/`.
   **GitHub push protection rejected the push** (Cloudflare User API Token detected). The token commit was taken back out
   (unpushed, so rewritten); the file stays uncommitted until the owner allows it on GitHub (unblock link given to him)
-  or puts it in `data/` on his Mac. Never disguise a secret to get past push protection.
+  or puts it in `data/` on his Mac. Never disguise a secret to get past push protection. He then allowed it on GitHub
+  and the token was committed and pushed (2026-11-15).
