@@ -703,13 +703,18 @@ async def cameras(feed: Feed, f: Fetcher) -> Result:
     A source that fails keeps its last list from this run."""
     have, problems = feed.memo.setdefault("cams", {}), []
     ua = {"User-Agent": config.USER_AGENT}
-    async def take(key, label, coro):
-        try:
-            got = await coro
-            if got:
-                have[key] = got
-        except Exception as e:
-            problems.append(f"{label} ({type(e).__name__})")
+    async def take(key, label, coro, again=None):
+        for attempt in (0, 1):                       # one retry after a pause: these servers time out now and then
+            try:
+                got = await (coro if attempt == 0 else again())
+                if got:
+                    have[key] = got
+                return
+            except Exception as e:
+                if attempt or again is None:
+                    problems.append(f"{label} ({type(e).__name__}{', kept the last list' if key in have else ''})")
+                    return
+                await asyncio.sleep(10)
     async def ca():
         out = []
         for dist in range(1, 13):
@@ -719,11 +724,15 @@ async def cameras(feed: Feed, f: Fetcher) -> Result:
                 pass
             await asyncio.sleep(0.5)
         return out
-    await take("tfl", "London", _with(f, "https://api.tfl.gov.uk/Place/Type/JamCam", ua, cams.tfl))
-    await take("nyc", "New York", _with(f, "https://webcams.nyctmc.org/api/cameras", ua, cams.nyc))
+    await take("tfl", "London", _with(f, "https://api.tfl.gov.uk/Place/Type/JamCam", ua, cams.tfl),
+               lambda: _with(f, "https://api.tfl.gov.uk/Place/Type/JamCam", ua, cams.tfl))
+    await take("nyc", "New York", _with(f, "https://webcams.nyctmc.org/api/cameras", ua, cams.nyc),
+               lambda: _with(f, "https://webcams.nyctmc.org/api/cameras", ua, cams.nyc))
     await take("caltrans", "California", ca())
-    await take("sg", "Singapore", _with(f, "https://api.data.gov.sg/v1/transport/traffic-images", ua, cams.singapore))
-    await take("hk", "Hong Kong", _with(f, "https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_En.xml", ua, cams.hongkong, text=True))
+    await take("sg", "Singapore", _with(f, "https://api.data.gov.sg/v1/transport/traffic-images", ua, cams.singapore),
+               lambda: _with(f, "https://api.data.gov.sg/v1/transport/traffic-images", ua, cams.singapore))
+    await take("hk", "Hong Kong", _with(f, "https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_En.xml", ua, cams.hongkong, text=True),
+               lambda: _with(f, "https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_En.xml", ua, cams.hongkong, text=True))
     await take("fi", "Finland", _with(f, "https://tie.digitraffic.fi/api/weathercam/v1/stations", {**ua, "Accept-Encoding": "gzip"}, cams.finland))
     allc = [c for v in have.values() for c in v]
     if not allc:

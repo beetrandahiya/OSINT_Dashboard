@@ -54,6 +54,13 @@ def _ships_world_state(f):
 async def status(request):
     s = collector.status()
     s["feeds"] = [_ships_world_state(f) if f["name"] == "ships_world" else f for f in s["feeds"]]
+    s["feeds"].append({"name": "windy", "layer": "Public webcams worldwide", "source": "Windy", "home": "https://www.windy.com/webcams",
+                       "interval": None, "limit_note": "asked only for the area on screen, from zoom 5, with the Cameras chip on; 50 at a time (free key)",
+                       "state": ("waiting" if not config.windy_key() else "failing" if _WINDY_LAST["error"] else "ok"),
+                       "fetched": _WINDY_LAST["time"], "data_time": _WINDY_LAST["time"], "items": _WINDY_LAST["cams"], "error": _WINDY_LAST["error"],
+                       "note": ("not set up: put a free Windy Webcams key in data/windy-key.txt" if not config.windy_key()
+                                else "key found; not asked yet (switch Cameras on and zoom in)" if not _WINDY_LAST["time"]
+                                else f"last answer: {_WINDY_LAST['cams']} webcams for the area on screen")})
     for f in s["feeds"]:            # an optional key the owner has not set up is not a failure
         if "not set up" in (f.get("error") or ""):
             f.update(state="waiting", note="not set up" + f["error"].split("not set up", 1)[1], error=None)
@@ -649,6 +656,7 @@ _CAM_IMG: dict = {}
 
 WINDY = "https://api.windy.com/webcams/api/v3/webcams"
 _WINDY_BOX: dict = {}
+_WINDY_LAST = {"time": None, "error": None, "cams": 0, "status": None}
 
 
 def _windy_cam(w: dict) -> dict:
@@ -677,12 +685,18 @@ async def windy_cams(request):
     try:
         async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "x-windy-api-key": key}) as c:
             r = await c.get(WINDY, params={"bbox": box, "limit": 50, "include": "location,images,urls,player", "sortKey": "popularity"})
+            _WINDY_LAST.update(time=time.time(), status=r.status_code)
             if r.status_code in (401, 403):
-                return JSONResponse({"error": "Windy refused the key", "cams": []})
-            r.raise_for_status()
+                _WINDY_LAST["error"] = f"Windy refused the key (HTTP {r.status_code}): {r.text[:160]}"
+                return JSONResponse({"error": _WINDY_LAST["error"], "cams": []})
+            if r.status_code >= 400:
+                _WINDY_LAST["error"] = f"Windy answered HTTP {r.status_code}: {r.text[:200]}"
+                return JSONResponse({"error": _WINDY_LAST["error"], "cams": []})
             d = r.json()
     except (httpx.HTTPError, ValueError) as ex:
-        return JSONResponse({"error": f"Windy did not answer ({type(ex).__name__})", "cams": []})
+        _WINDY_LAST.update(time=time.time(), error=f"Windy did not answer ({type(ex).__name__})")
+        return JSONResponse({"error": _WINDY_LAST["error"], "cams": []})
+    _WINDY_LAST.update(error=None, cams=len(d.get("webcams", [])))
     body = {"cams": [_windy_cam(x) for x in d.get("webcams", []) if (x.get("location") or {}).get("latitude") is not None], "total": d.get("total")}
     if len(_WINDY_BOX) > 100:
         _WINDY_BOX.clear()
