@@ -2,7 +2,7 @@
 // many different outlets did. That count is the only number shown; nothing is scored or ranked beyond it.
 // Pictures are the outlets' own preview images, fetched through our server (/api/news/image) so outlets never see
 // the browser. Headlines in other languages are machine-translated: the leading one at once, the rest when a card opens.
-import {ago, esc, local, skyShot, utc} from './util.js';
+import {ago, esc, local, skyShot, utc, spyPass} from './util.js';
 
 const SRC = 'ww-news', LIST_MIN_OUTLETS = 3;
 let places = [], sets = {}, langs = {eng: 'English'};
@@ -104,6 +104,7 @@ export default {
       ${hero ? `<img class="news-hero" src="${esc(img(hero.image))}" alt="" onerror="this.remove()">` : ''}
       <div id="more">${storyList(arts)}${full.has(id) ? '' : (p.outlets > p.articles.length ? `<p class="source">Loading all ${p.outlets} outlets…</p>` : '')}</div>
       ${skyShot(p.lat, p.lon)}
+      ${spyPass(p.lat, p.lon)}
       <p class="source">Source: GDELT, files from the last ${e?.window_h || 6} hours. English: ${e ? `${e.files} files, newest published ${utc(e.newest)} (${ago(e.newest)})` : 'not loaded yet'}. Other languages: ${t ? `${t.files} files, newest ${utc(t.newest)} (${ago(t.newest)}; GDELT releases them about an hour late)` : 'not loaded yet'}. GDELT's software reads each article and picks out place names, so a story can land on a place it only mentions in passing. Identical headlines are shown once. Pictures are each outlet's own preview image. Headlines in other languages are translated by machine (Google Translate) and can be wrong; the original is shown beneath.</p>`;
   },
   async fill(id) {

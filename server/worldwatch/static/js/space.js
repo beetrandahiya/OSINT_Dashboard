@@ -4,11 +4,11 @@
 // Launches come from Launch Library 2 and are drawn at their pads. No flight paths: none are published.
 import {json2satrec} from '../vendor/satellite/io.js';
 import {propagate, gstime} from '../vendor/satellite/propagation.js';
-import {eciToGeodetic, degreesLat, degreesLong} from '../vendor/satellite/transforms.js';
+import {eciToGeodetic, degreesLat, degreesLong, eciToEcf, ecfToLookAngles} from '../vendor/satellite/transforms.js';
 import {ago, esc, local, now, utc} from './util.js';
 
 const ISS = 25544, EARTH_KM = 6371;
-let sats = [], satInfo = null, launchList = [], launchInfo = null, shown = true, theMap = null, sel = null, following = false, cv = null;
+let sats = [], baseOmm = [], reconOmm = [], purposes = {}, reconInfo = null, catInfo = null, satInfo = null, launchList = [], launchInfo = null, shown = true, theMap = null, sel = null, following = false, cv = null;
 
 function where(rec, t) {
   const d = new Date(t * 1000), pv = propagate(rec, d);
@@ -58,6 +58,11 @@ function footprint(p) {
 // invisible custom layer on every frame), so they are exact at every zoom. The flat map shows plain dots.
 const CLASS = {LEO: ['Low Earth orbit', '#28a745', '#30d158'], MEO: ['Medium Earth orbit', '#c98a00', '#ffc857'], GEO: ['Geostationary', '#007aff', '#7db7ff'], HEO: ['Highly elliptical', '#d6336c', '#ff7ab6']};
 const classOf = s => { const P = period(s), e = s.omm.ECCENTRICITY, a = Math.cbrt(398600.4418 * (P * 60 / (2 * Math.PI)) ** 2); return e > 0.25 ? 'HEO' : Math.abs(P - 1436.1) < 30 ? 'GEO' : a - EARTH_KM < 2000 ? 'LEO' : a - EARTH_KM < 35786 ? 'MEO' : 'HEO'; };
+// What a satellite does (UCS Satellite Database), one word each, with a letter drawn beside it on the globe.
+const WHAT = {imaging: ['I', 'Imaging (cameras)'], radar: ['R', 'Radar imaging'], signals: ['S', 'Signals intelligence'], warning: ['W', 'Missile early warning'],
+  weather: ['M', 'Weather'], navigation: ['N', 'Navigation'], comms: ['C', 'Communications'], science: ['X', 'Science'], technology: ['T', 'Technology test'], other: ['?', 'Other']};
+const what = s => purposes[s.id] || (s.source === 'amateur observers' ? ['classified', true] : null);
+const isSpy = s => { const w = what(s); return !!w && (w[0] === 'classified' || (w[1] && ['imaging', 'radar', 'signals', 'warning'].includes(w[0]))); };
 const isGlobe = () => theMap?.getProjection?.()?.type === 'globe';
 const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 const tint = s => CLASS[s.cls][1 + isDark()];
@@ -146,7 +151,7 @@ function drawHeights() {
   const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, box.clientWidth, box.clientHeight);
   drawn = [];
   if (!shown || !isGlobe() || !M || !(view = camera())) return;
-  const dark = isDark(), edge = dark ? '#1c1c1e' : '#ffffff', ink = dark ? '#f2f2f7' : '#1c1c1e', picked = sel && byId(sel), t = now();
+  const dark = isDark(), edge = dark ? '#1c1c1e' : '#ffffff', ink = dark ? '#f2f2f7' : '#1c1c1e', red = dark ? '#ff453a' : '#ff3b30', picked = sel && byId(sel), t = now();
   if (picked?.pos && !following) spotlight(x, picked);
   const iss = sats.find(s => s.id === ISS);
   for (const s of [iss, picked].filter((v, i, a) => v && a.indexOf(v) === i)) {
@@ -158,15 +163,23 @@ function drawHeights() {
     const up = place(s.pos.lon, s.pos.lat, s.pos.km); if (!up) continue;
     const big = s.id === ISS || s === picked, col = tint(s);
     if (big) { x.setLineDash([2, 3]); stroke(x, Array.from({length: 13}, (_, i) => [s.pos.lon, s.pos.lat, s.pos.km * i / 12]), col, 1, 0.6); x.setLineDash([]); }
-    x.fillStyle = col; x.strokeStyle = edge; x.lineWidth = big ? 1.2 : 0.6;
-    x.beginPath(); x.arc(up[0], up[1], big ? 4.5 : 2, 0, 7); x.fill(); x.stroke();
+    const spyish = isSpy(s);
+    x.fillStyle = col; x.strokeStyle = spyish ? red : edge; x.lineWidth = big ? 1.2 : spyish ? 1.4 : 0.6;
+    x.beginPath(); x.arc(up[0], up[1], big ? 4.5 : spyish ? 3 : 2, 0, 7); x.fill(); x.stroke();
     if (s === picked) { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(up[0], up[1], 9, 0, 7); x.stroke(); }
     if (big) { x.font = '600 11px "SF Pro", -apple-system, system-ui, sans-serif'; x.lineWidth = 3; x.strokeStyle = edge; const name = s.id === ISS ? 'ISS' : s.name; x.strokeText(name, up[0] + 12, up[1] + 4); x.fillStyle = ink; x.fillText(name, up[0] + 12, up[1] + 4); }
     drawn.push([up[0], up[1], 'sat:' + s.id]);
   }
+  // what each one does, as a letter beside it, once few enough are in view to read
+  if (drawn.length && drawn.length < 160) {
+    x.font = '600 9px "SF Pro", -apple-system, system-ui, sans-serif'; x.lineWidth = 2.5;
+    for (const [px, py, id] of drawn) { const sat = byId(id), w = sat && what(sat); if (!w) continue; const L = w[0] === 'classified' ? 'S?' : WHAT[w[0]]?.[0]; if (!L) continue;
+      x.strokeStyle = edge; x.strokeText(L, px + 5, py - 4); x.fillStyle = isSpy(sat) ? red : ink; x.fillText(L, px + 5, py - 4); }
+  }
   // which colour is which orbit, top of the map
   const used = [...new Set(sats.map(s => s.cls))].filter(c => CLASS[c]); let lx = (box.clientWidth + 420 - 340) / 2 - used.length * 62, ly = 34;
   x.font = '500 12px "SF Pro", -apple-system, system-ui, sans-serif';
+  if (sats.some(isSpy)) { x.strokeStyle = red; x.lineWidth = 1.4; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.stroke(); const t2 = 'Military imaging or signals'; x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += x.measureText(t2).width + 34; }
   for (const c of used) { x.fillStyle = CLASS[c][1 + dark]; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.fill(); x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(CLASS[c][0], lx + 9, ly); x.fillStyle = ink; x.fillText(CLASS[c][0], lx + 9, ly); lx += x.measureText(CLASS[c][0]).width + 34; }
 }
 
@@ -183,7 +196,7 @@ function tick(map) {
   for (const s of sats) {
     const p = where(s.rec, t); if (!p) continue;
     s.pos = p;
-    feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, label: s.id === ISS ? 'ISS' : ''}});
+    feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, spy: isSpy(s), label: s.id === ISS ? 'ISS' : ''}});
   }
   map.getSource('ww-sats').setData({type: 'FeatureCollection', features: shown && !isGlobe() ? feats : []});   // dots on the flat map only
   const picked = sel && byId(sel);
@@ -192,12 +205,12 @@ function tick(map) {
 }
 
 export const satellites = {
-  id: 'satellites', title: 'Satellites', color: ['#28a745', '#30d158'], feeds: {satellites: 600}, layers: ['ww-sats', 'ww-sats-label'],
+  id: 'satellites', title: 'Satellites', color: ['#28a745', '#30d158'], feeds: {satellites: 600, recon_sats: 1800, sat_catalog: 21600}, layers: ['ww-sats', 'ww-sats-label'],
   addTo(map) {
     theMap = map;
     map.addSource('ww-sats', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-sats', type: 'circle', source: 'ww-sats', layout: {'circle-sort-key': ['case', ['get', 'iss'], 1, 0]},
-      paint: {'circle-radius': ['case', ['get', 'iss'], 5, 2], 'circle-stroke-width': ['case', ['get', 'iss'], 1.2, 0.6], 'circle-opacity': ['case', ['get', 'iss'], 1, 0.85]}});
+      paint: {'circle-radius': ['case', ['get', 'iss'], 5, ['get', 'spy'], 3, 2], 'circle-stroke-width': ['case', ['get', 'iss'], 1.2, ['get', 'spy'], 1.4, 0.6], 'circle-opacity': ['case', ['get', 'iss'], 1, 0.85]}});
     map.addLayer({id: 'ww-sats-label', type: 'symbol', source: 'ww-sats', filter: ['get', 'iss'],
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1], 'text-anchor': 'top', 'text-allow-overlap': true}});
     cv = document.createElement('canvas');
@@ -211,15 +224,18 @@ export const satellites = {
   paint(map, dark) {
     const edge = dark ? '#1c1c1e' : '#ffffff';
     map.setPaintProperty('ww-sats', 'circle-color', ['match', ['get', 'cls'], 'MEO', CLASS.MEO[1 + dark], 'GEO', CLASS.GEO[1 + dark], 'HEO', CLASS.HEO[1 + dark], CLASS.LEO[1 + dark]]);
-    map.setPaintProperty('ww-sats', 'circle-stroke-color', edge);
+    map.setPaintProperty('ww-sats', 'circle-stroke-color', ['case', ['get', 'spy'], dark ? '#ff453a' : '#ff3b30', edge]);
     map.setPaintProperty('ww-sats-label', 'text-color', dark ? '#e5e5ea' : '#1c3d24');
     map.setPaintProperty('ww-sats-label', 'text-halo-color', edge); map.setPaintProperty('ww-sats-label', 'text-halo-width', 1.2);
   },
   shape(map) { if (!isGlobe() && following) stopFollowing(); tick(map); },   // called when the map switches between flat and globe
   onData(feed, d) {
-    satInfo = d;
-    const keep = new Map(sats.map(s => [s.id, s]));
-    sats = d.payload.omm.map(o => { try { const s = {id: o.NORAD_CAT_ID, name: o.OBJECT_NAME, omm: o, rec: json2satrec(o)}; s.cls = classOf(s); s.pos = keep.get(s.id)?.pos; return s; } catch (e) { return null; } }).filter(Boolean);
+    if (feed === 'sat_catalog') { catInfo = d; purposes = d.payload.purpose || {}; return; }
+    if (feed === 'recon_sats') { reconInfo = d; reconOmm = d.payload.omm || []; } else { satInfo = d; baseOmm = d.payload.omm; }
+    const keep = new Map(sats.map(s => [s.id, s])), seen = new Set();
+    sats = [...baseOmm, ...reconOmm].filter(o => !seen.has(o.NORAD_CAT_ID) && seen.add(o.NORAD_CAT_ID)).map(o => {
+      try { const s = {id: o.NORAD_CAT_ID, name: o.OBJECT_NAME, omm: o, rec: json2satrec(o), source: o.SOURCE || 'CelesTrak'}; s.cls = classOf(s); s.pos = keep.get(s.id)?.pos; return s; } catch (e) { return null; }
+    }).filter(Boolean);
   },
   render(map) { tick(map); },
   visible(on) { shown = on; if (!on && following) stopFollowing(); if (theMap?.getSource('ww-sats')) tick(theMap); },
@@ -238,6 +254,31 @@ export const satellites = {
       setTimeout(() => { if (following) { map.triggerRepaint(); setTimeout(() => following && sitAt(s, true), 120); } }, isGlobe() ? 0 : 400);
     }
   },
+  async fill(id) {
+    const box = document.getElementById('satwho'); if (!box || box.dataset.done) return;
+    box.dataset.done = '1';
+    const norad = box.dataset.norad;
+    let r = satCards.get(norad);
+    if (!r) { try { r = await fetch('/api/satellite/' + norad).then(x => x.json()); satCards.set(norad, r); } catch (e) { box.dataset.done = ''; return; } }
+    const top = document.getElementById('satwho'), about = document.getElementById('satabout');
+    if (!top || top.dataset.norad !== norad) return;
+    const wd = r.wikidata || {}, u = r.ucs;
+    if (wd.image) top.innerHTML = `<div class="photo"><a href="https://www.wikidata.org/wiki/${esc(wd.qid)}" target="_blank" rel="noopener"><img src="${esc(wd.image.replace('http://', 'https://'))}?width=640" alt="Picture of this satellite or its type" loading="lazy"></a><span>Picture: Wikimedia Commons, via Wikidata (often an artist's impression or the satellite type)</span></div>`;
+    const rowsHtml = [
+      wd.description && `<p class="prof-intro">${esc(wd.description[0].toUpperCase() + wd.description.slice(1))}.</p>`,
+      u && `<dt>Does</dt><dd>${esc(u.purpose || '')}${u.detail ? ' · ' + esc(u.detail) : ''}</dd>`,
+      u?.users && `<dt>Used by</dt><dd>${esc(u.users)}</dd>`,
+      (u?.operator || wd.operators?.length) && `<dt>Operator</dt><dd>${esc(u?.operator || wd.operators.join(', '))}${u?.country ? ` <span class="soft">· ${esc(u.country)}</span>` : ''}</dd>`,
+      wd.kinds?.length && `<dt>Kind</dt><dd>${wd.kinds.map(esc).join(', ')}</dd>`,
+      (u?.contractor || wd.makers?.length) && `<dt>Built by</dt><dd>${esc(u?.contractor || wd.makers.join(', '))}</dd>`,
+      u?.launched && `<dt>Launched</dt><dd>${esc(u.launched)}</dd>`,
+    ].filter(Boolean);
+    if (about) about.dataset.done = '1';
+    if (about) about.innerHTML = rowsHtml.length ? `<section class="pz"><h3>What it is</h3>${rowsHtml.filter(x => x.startsWith('<p')).join('')}<dl>${rowsHtml.filter(x => !x.startsWith('<p')).join('')}</dl>
+      ${wd.wikipedia ? `<a class="link" href="${esc(wd.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}
+      <p class="source">From ${[u && 'the UCS Satellite Database (last updated May 2023)', r.wikidata && Object.keys(wd).length && 'Wikidata'].filter(Boolean).join(' and ')}.</p></section>`
+      : `<p class="source">No entry for catalogue number ${esc(norad)} in the UCS database or Wikidata.</p>`;
+  },
   count: () => sats.length,
   rows: () => [],
   locate(id) { const s = byId(id); return s?.pos && !isGlobe() ? [s.pos.lon, s.pos.lat] : null; },   // on the globe the ring is drawn at height by the canvas
@@ -249,7 +290,9 @@ export const satellites = {
     const s = byId(id);
     if (!s || !s.pos) return null;
     const e = epoch(s), p = s.pos, rad = horizon(p.km), wide = 2 * rad * EARTH_KM, o = orbit(s);
-    return `<p class="eyebrow">Satellite</p>
+    const w = what(s);
+    return `<div id="satwho" data-norad="${s.id}"></div>
+      <p class="eyebrow">${w ? (w[0] === 'classified' ? 'Classified US satellite' : (w[1] ? 'Military · ' : '') + WHAT[w[0]][1]) : 'Satellite'}</p>
       <h2>${esc(s.id === ISS ? 'International Space Station' : s.name)}</h2>
       <p class="where"><span class="swatch" style="background:${tint(s)}"></span>${o[0]} <span class="sub">${o[1]}; tilted ${s.omm.INCLINATION.toFixed(1)}° to the equator</span></p>
       <dl>
@@ -261,6 +304,8 @@ export const satellites = {
         <dt>Orbit data from</dt><dd>${local(e)} <span class="soft">(${ago(e)})</span></dd>
         <dt>Catalogue number</dt><dd>${s.id}${s.omm.OBJECT_ID ? ' <span class="soft">· launched ' + esc(s.omm.OBJECT_ID.slice(0, 4)) + '</span>' : ''}</dd>
       </dl>
+      <div id="satabout"></div>
+      ${s.source === 'amateur observers' ? `<p class="source">Its orbit is not published by its owner. These elements come from amateur observers who track it by eye and camera (Mike McCants' list, from the SeeSat-L community), dated ${local(e)}; they can be off by tens of kilometres.</p>` : ''}
       <button class="btn" data-act="follow">${following ? 'Leave the satellite' : 'Look down from it'}</button>
       <p class="links"><a class="link" href="https://celestrak.org/satcat/table-satcat.php?CATNR=${s.id}" target="_blank" rel="noopener">CelesTrak catalogue entry</a>
       <a class="link" href="https://www.watched.earth" target="_blank" rel="noopener">watched.earth: which satellites passed over a place, and their pictures</a></p>
@@ -268,6 +313,7 @@ export const satellites = {
   },
 };
 let restore = null;
+const satCards = new Map();
 function stopFollowing() {
   following = false;
   if (restore) theMap.easeTo({...restore, duration: 700});
@@ -377,3 +423,41 @@ export const launches = {
       <p class="source">Source: Launch Library 2 (The Space Devs). This entry was last edited ${l.updated ? ago(Date.parse(l.updated) / 1000) : 'at an unknown time'}; we fetched the list ${ago(launchInfo.fetched)}. Launch times slip often. The flight path itself is not published by anyone, so it is not drawn.</p>`;
   },
 };
+
+// ---- which spy satellites passed over a place in the last 24 hours ----
+// For every military imaging, radar or signals satellite we have an orbit for, its position every minute over the
+// last day, and its elevation as seen from the place. A pass counts when it rose above 30 degrees: high enough that
+// its sensors could have been pointed at the place. Whether they were is not published.
+function passes(lat, lon, hours = 24) {
+  const obs = {latitude: lat * Math.PI / 180, longitude: lon * Math.PI / 180, height: 0}, t1 = Date.now() / 1000, out = [];
+  for (const s of sats) {
+    if (!isSpy(s) || period(s) > 225) continue;    // low orbits only: high ones watch half the Earth all day, "passing over" means nothing there
+    let best = null, cur = null;
+    for (let t = t1 - hours * 3600; t <= t1; t += 60) {
+      const d = new Date(t * 1000), pv = propagate(s.rec, d);
+      if (!pv || !pv.position) continue;
+      const el = ecfToLookAngles(obs, eciToEcf(pv.position, gstime(d))).elevation * 180 / Math.PI;
+      if (el >= 30) { if (!cur || el > cur.el) cur = {t, el}; }
+      else if (cur) { if (!best || cur.t > best.t) best = cur; out.push({s, ...cur}); cur = null; }
+    }
+    if (cur) out.push({s, ...cur});
+  }
+  return out.sort((a, b) => b.t - a.t);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-spypass]'); if (!b) return;
+  const box = b.closest('.spypass'), lat = +box.dataset.lat, lon = +box.dataset.lon;
+  b.disabled = true; b.textContent = 'Working it out…';
+  setTimeout(() => {
+    const list = passes(lat, lon), n = new Set(list.map(p => p.s.id)).size;
+    box.dataset.done = '1';
+    box.innerHTML = `<h3>Spy satellites overhead, last 24 hours</h3>${list.length ? `<ul class="pz-list">${list.slice(0, 25).map(p => {
+      const w = what(p.s), kind = w[0] === 'classified' ? 'classified US satellite' : WHAT[w[0]][1].toLowerCase();
+      return `<li><a href="#" data-satpick="${p.s.id}">${esc(p.s.name)}</a> <span class="soft">· ${esc(kind)} · ${now() - p.t < 120 ? 'overhead now' : local(p.t) + ' (' + ago(p.t) + ')'} · ${Math.round(p.el)}° up</span></li>`; }).join('')}</ul>` : '<p>None rose above 30° here.</p>'}
+      <p class="source">${list.length} passes by ${n} of the ${sats.filter(x => isSpy(x) && period(x) <= 225).length} military imaging, radar and signals satellites in low orbit we have orbits for (public orbits from CelesTrak, classified US ones from amateur observers). Counted when the satellite was more than 30° above the horizon here, at its highest moment. That says it could have looked, not that it did. Satellites in high orbits (early warning, some signals satellites) watch half the Earth at once and are left out. Many military satellites are missing from public lists.</p>`;
+  }, 30);
+});
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-satpick]'); if (!a) return;
+  e.preventDefault(); window.dispatchEvent(new CustomEvent('ww-pick', {detail: {layer: 'satellites', id: 'sat:' + a.dataset.satpick}}));
+});

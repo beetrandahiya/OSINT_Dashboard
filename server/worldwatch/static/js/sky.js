@@ -151,3 +151,104 @@ export const photo = {
   count: () => 0, note: () => photoDay().slice(8) + '.' + photoDay().slice(5, 7) + '.', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
   about: () => `The Earth as NASA's NOAA-20 satellite photographed it on ${photoDay()} (yesterday, the newest complete day). Clouds and the seams between passes are real. Sharp down to about regional zoom.`,
 };
+
+// ---- lightning: EUMETSAT's MTG Lightning Imager, flashes seen from geostationary orbit over Europe, Africa and the
+// Atlantic. The picture is EUMETSAT's own (transparent where there was none), the newest they serve. ----
+const EUM = 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&styles=&crs=EPSG:3857&format=image/png&transparent=true';
+let lightMap = null, lightAt = 0, lightOn = true;
+export const lightning = {
+  id: 'lightning', title: 'Lightning', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-lightning'], local: true,
+  addTo(map) {
+    lightMap = map;
+    const add = () => {
+      if (map.getLayer('ww-lightning')) map.removeLayer('ww-lightning');
+      if (map.getSource('ww-lightning')) map.removeSource('ww-lightning');
+      lightAt = now();
+      map.addSource('ww-lightning', {type: 'raster', tileSize: 256, maxzoom: 8, attribution: 'Lightning: EUMETSAT MTG-LI',
+        tiles: [`${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&_=${Math.floor(lightAt / 300)}`]});
+      const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-photo', 'ww-sharp', 'ww-clouds'].includes(l.id))?.id;
+      map.addLayer({id: 'ww-lightning', type: 'raster', source: 'ww-lightning', paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, first);
+    };
+    add(); setInterval(add, 300000);          // a fresh picture every five minutes
+  },
+  paint() {}, onData() {}, render() {},
+  visible(on) { lightOn = on; },
+  count: () => 0, note: () => lightAt ? local(lightAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area), the newest picture they serve, asked for at ${local(lightAt)}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
+};
+
+// ---- clouds: EUMETSAT's cloud mask from the Meteosat satellites (Europe, Africa, the Atlantic, and from the
+// Indian Ocean satellite also India and the Middle East). Only the cloudy pixels are kept, drawn as soft white. ----
+let cloudsOn = false, cloudAt = 0, cloudBusy = false;
+async function cloudPicture(map) {
+  if (cloudBusy || !cloudsOn) return; cloudBusy = true;
+  try {
+    const b = map.getBounds(), W = 700, H = 450;
+    const x0 = Math.max(-180, b.getWest()), x1 = Math.min(180, b.getEast()), y0 = Math.max(-80, b.getSouth()), y1 = Math.min(80, b.getNorth());
+    const m = ll => [ll[0] * 20037508.34 / 180, Math.log(Math.tan((90 + ll[1]) * Math.PI / 360)) * 20037508.34 / Math.PI];
+    const [a, c] = [m([x0, y0]), m([x1, y1])], bbox = `${a[0]},${a[1]},${c[0]},${c[1]}`;
+    const load = layer => new Promise(ok => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => ok(null);
+      im.src = `${EUM}&layers=${layer}&width=${W}&height=${H}&bbox=${bbox}`; });
+    const imgs = (await Promise.all([load('msg_iodc:clm'), load('msg_fes:clm')])).filter(Boolean);   // the 0-degree satellite drawn last wins where both see
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const x = cv.getContext('2d'), out = x.createImageData(W, H);
+    for (const im of imgs) {
+      const t = document.createElement('canvas'); t.width = W; t.height = H; const tx = t.getContext('2d'); tx.drawImage(im, 0, 0, W, H);
+      const px = tx.getImageData(0, 0, W, H).data;
+      for (let i = 0; i < px.length; i += 4) {
+        if (px[i + 3] < 128) continue;                                 // outside this satellite's view
+        const cloud = px[i] > 200 && px[i + 1] > 200 && px[i + 2] > 200; // the mask paints clouds white, clear land green, clear sea blue
+        out.data[i] = out.data[i + 1] = out.data[i + 2] = 255; out.data[i + 3] = cloud ? 150 : 0;
+      }
+    }
+    x.putImageData(out, 0, 0);
+    const coords = [[x0, y1], [x1, y1], [x1, y0], [x0, y0]];
+    const src = map.getSource('ww-clouds');
+    if (src) src.updateImage({url: cv.toDataURL(), coordinates: coords});
+    else {
+      map.addSource('ww-clouds', {type: 'image', url: cv.toDataURL(), coordinates: coords});
+      const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-photo', 'ww-sharp'].includes(l.id))?.id;
+      map.addLayer({id: 'ww-clouds', type: 'raster', source: 'ww-clouds', paint: {'raster-opacity': 0.85, 'raster-fade-duration': 0}}, first);
+    }
+    cloudAt = now();
+  } finally { cloudBusy = false; }
+}
+export const clouds = {
+  id: 'clouds', title: 'Clouds', color: ['#8e8e93', '#aeaeb2'], feeds: {}, layers: ['ww-clouds'], local: true, defaultOff: true,
+  addTo(map) {
+    let t = null;
+    map.on('moveend', () => { clearTimeout(t); t = setTimeout(() => cloudPicture(map), 500); });
+    setInterval(() => cloudPicture(map), 600000);
+    cloudPicture(map);
+  },
+  paint() {}, onData() {}, render() {},
+  visible(on) { cloudsOn = on; if (on && lightMap) cloudPicture(lightMap); },
+  count: () => 0, note: () => cloudAt ? local(cloudAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => `Clouds from EUMETSAT's Meteosat cloud mask (the 0° and Indian Ocean satellites), the newest picture they serve, refreshed every 10 minutes and when the map moves. Covers Europe, Africa, the Middle East and India; the Americas and East Asia are not covered.`,
+};
+
+// ---- sharp photo: Esri World Imagery, up to 0.3-0.5 m per pixel in cities. Sharp but not current: each area is a
+// different date. The date of the picture under the map's centre is looked up and shown. ----
+let sharpOn = false, sharpDate = null, sharpMap = null;
+async function sharpWhen() {
+  if (!sharpOn || !sharpMap) return;
+  const c = sharpMap.getCenter();
+  try { sharpDate = await fetch(`/api/imagery/date?lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&z=${Math.round(sharpMap.getZoom())}`).then(r => r.json()); } catch (e) { sharpDate = null; }
+  document.dispatchEvent(new Event('ww-chips'));
+}
+export const sharp = {
+  id: 'sharp', title: 'Sharp photo', color: ['#5e5ce6', '#7d7aff'], feeds: {}, layers: ['ww-sharp'], local: true, defaultOff: true,
+  addTo(map) {
+    sharpMap = map;
+    map.addSource('ww-sharp', {type: 'raster', tileSize: 256, maxzoom: 19, attribution: 'Imagery: Esri, Vantor, Earthstar Geographics',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']});
+    const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+    map.addLayer({id: 'ww-sharp', type: 'raster', source: 'ww-sharp', paint: {'raster-fade-duration': 150}}, labels);
+    let t = null; map.on('moveend', () => { clearTimeout(t); t = setTimeout(sharpWhen, 700); });
+  },
+  paint() {}, onData() {}, render() {},
+  visible(on) { sharpOn = on; photoHook(on); if (on) sharpWhen(); },
+  count: () => 0, note: () => sharpDate?.date ? sharpDate.date.slice(0, 7) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => sharpDate?.date ? `Under the map's centre: a picture taken ${sharpDate.date}${sharpDate.res ? ', ' + sharpDate.res + ' m per pixel' : ''}${sharpDate.sensor ? ', ' + sharpDate.sensor : ''} (${sharpDate.source || 'Esri World Imagery'}). Sharp, but not current: each area has its own date, often months or years old.`
+    : 'Esri World Imagery: sharp aerial and satellite pictures, each area from its own date (months or years old). Zoom in for the date of the picture under the map\'s centre.',
+};

@@ -590,6 +590,49 @@ Built:
   (God's Eye View's synthesized launch paths were the criticism). Told him the honest options.
   LL2 fields now also carried: target orbit, mission text, window.
 
+### 2026-11-15, VIP jets, spy satellites, warships, weather and sharp imagery (built, waiting for review)
+
+He picked VIP jets, warships (with photos), satellite identity (what it is, what it does, a photo, purpose shown on
+the globe) and "which spy satellite passed over a hotspot", plus "similar to the rain thing" overlays and the
+sharpest possible recent picture of a small place. He rejected my science/utility list (fireballs, radio
+blackouts, Meteoalarm, river gauges, shake maps, Wikipedia edits, ASN outages): "none of them make a lot of sense".
+His taste: geopolitics, military, the god's-eye feel.
+
+- **VIP jets** (`vip_aircraft` feed, `vip` layer in `aircraft.js`): plane-alert-db (ODbL), 1,015 aircraft kept from
+  17,276 (categories Governments, Dictator Alert, Radiohead = Air Force One, celebrities/tycoons, Royal; military
+  categories only with strong words like president/government). Matched by hex against all aircraft feeds; halo +
+  label (the leader's name for government/dictator planes). Rows only for airborne government ones. Seen live:
+  SPAR18 (US C-40C), Erdogan's G450, Maduro's ACJ319, Mohammed VI's BBJ, Danish PM's Challenger.
+- **Satellite identity** (`satinfo.py`, `sat_catalog` + `recon_sats` feeds, `/api/satellite/{norad}`): UCS Satellite
+  Database xlsx (read with zipfile, no dependency; 7,551 satellites; **last updated May 2023**; UCS spells
+  "Meterology") gives purpose/users/operator; Wikidata by P377 gives picture, description, kind, maker (cached 30 d).
+  Globe: purpose letter beside each satellite once fewer than 160 are in view (I imaging, R radar, S signals,
+  W warning, M weather, N navigation, C comms, X science, T tech); military imaging/radar/signals/warning get a red
+  ring (also on the flat map) and a legend entry.
+- **Spy satellites** (`recon_sats`): public orbits from CelesTrak for UCS military EO catalogue numbers (full active
+  CSV; when that fails, family names YAOGAN, COSMOS, USA, ...), classified US ones from McCants' classfd.tle
+  (amateur SeeSat-L sightings; only "USA" payloads, no rocket bodies/debris, epochs within 60 days). 266 now
+  (87 Yaogan). Cards say amateur orbits can be off by tens of km.
+- **Spy passes over a place** (`passes()` in `space.js`, `spyPass()` button in news, unrest, disaster and navy
+  cards): last 24 h, every minute, low-orbit (period <= 225 min) spy satellites, counted when > 30 deg elevation at
+  the place, at the peak. Card says "could have looked, not that it did". High orbits left out (they watch half the
+  Earth all day; first version listed EKS early-warning satellites as "overhead now").
+- **Warships + ship photos** (`warships` layer in `ships.js`, `/api/ship/about`): AIS type 35 from the stream;
+  pictures from Wikidata by IMO (P458) / MMSI (P587), for warships by name (wbsearchentities, ship-like description;
+  HNLMS Tromp found), then Wikimedia Commons "Category:IMO <n>" (better coverage: 9 of 14 Baltic merchant ships
+  sampled; Wikidata had 2 of 25). Commons rate-limits the shared sandbox address. Warships untested live (no AIS key
+  here; Digitraffic shows 1).
+- **Lightning** (`lightning` in `sky.js`): EUMETSAT MTG Lightning Imager `mtg_fd:li_afa` WMS tiles (transparent, CORS
+  ok), refreshed every 5 min. Europe/Africa/Atlantic/E. South America only.
+- **Clouds** (`clouds`, default off): EUMETSAT cloud mask `msg_fes:clm` + `msg_iodc:clm` fetched for the visible box,
+  recoloured in a canvas (white = cloud kept, green/blue clear dropped), laid as an image source. Europe, Africa,
+  Middle East, India; not the Americas or East Asia (GIBS has GOES/Himawari IR but no cloud mask; IR disks are opaque).
+- **Sharp photo** (`sharp`, default off): Esri World Imagery tiles (to z19; Vantor 0.3-0.5 m in cities) with the
+  capture date of the picture under the map centre from Esri's identify service (`/api/imagery/date`, cached a
+  week per ~1 km): Munich 2025-06-22, Mumbai 2025-11-11, both 0.5 m WorldView-2. Sharp but not current.
+  Latest *clear* 10 m Sentinel-2 needs a free Copernicus Data Space account (not built); Maxar Open Data publishes
+  free sharp imagery for major disasters only.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

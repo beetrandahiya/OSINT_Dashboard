@@ -2,7 +2,7 @@
 // military exercises, security threats, GPS interference. Official notices from NGA (US, worldwide series) and
 // UKHO (UK). Areas are drawn only where the notice states them (a circle "within n miles of" a point, or an
 // "area bound by" listed points); otherwise the points it names are marked.
-import {ago, esc} from './util.js';
+import {ago, esc, spyPass} from './util.js';
 
 const SRC = 'ww-navwarn';
 const KIND = {rocket: ['R', 'Rocket or space debris'], missile: ['M', 'Missile firing'], weapons: ['W', 'Weapons firing or explosives'],
@@ -63,6 +63,7 @@ export default {
         <dt>On the map</dt><dd>${w.how ? w.how.split('+').map(h => how[h]).join(' and ') : 'no position could be read'}</dd>
         ${w.authority ? `<dt>Issued by</dt><dd>${esc(w.authority)}</dd>` : ''}
       </dl>
+      ${w.lat != null ? spyPass(w.lat, w.lon) : ''}
       <a class="link" href="${esc(w.link)}" target="_blank" rel="noopener">Open the official list</a>
       <p class="source">Source: ${w.source === 'NGA' ? 'US National Geospatial-Intelligence Agency, Maritime Safety Information' : 'UK Hydrographic Office, NAVAREA I'}; list fetched ${ago(info?.fetched)}. The kind is chosen from words in the notice (for example FIRING, MISSILE, ROCKET). Times inside the notice are in its own format, usually UTC. Read the notice itself before relying on the shape.</p>`;
   },

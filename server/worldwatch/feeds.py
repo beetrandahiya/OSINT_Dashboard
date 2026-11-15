@@ -26,6 +26,7 @@ from . import news as news_window
 from . import unrest as unrest_window
 from . import navwarn
 from . import airspace
+from . import satinfo
 
 
 @dataclass
@@ -309,6 +310,90 @@ async def airspace_feed(feed: Feed, f: Fetcher) -> Result:
     return Result(len(zones) + len(tfrs), {"zones": zones, "tfrs": tfrs, "problems": problems}, data_label="in force when fetched",
                   note=f"{sum(z['source'] == 'EASA' for z in zones)} EASA bulletins, {sum(z['source'] == 'FAA' for z in zones)} FAA country entries, {len(tfrs)} US restrictions"
                        + ("; " + "; ".join(problems) if problems else ""))
+
+
+_VIP_CATS = {"Governments", "Dictator Alert", "Don't you know who I am?", "Radiohead", "Royal Aircraft"}
+_VIP_WORDS = re.compile(r"head of state|president|prime minister|royal flight|air force one|potus|executive transport|\bvip\b|\bking\b|emir|sultan|royal family|chancellor", re.I)
+_VIP_MIL = {"Toy Soldiers", "USAF", "United States Marine Corps", "United States Navy", "Other Navies", "GAF", "RAF", "Other Air Forces", "Army Air Corps"}
+_VIP_STRONG = re.compile(r"head of state|president|prime minister|royal flight|air force one|potus|\bking\b|emir|sultan|royal family|chancellor|government", re.I)
+_VIP_NOT = {"Coastguard", "Aerial Firefighter", "Dogs with Jobs", "Flying Doctors", "Police Forces", "Historic"}
+
+
+async def vip_aircraft(feed: Feed, f: Fetcher) -> Result:
+    """Government, head-of-state and VIP aircraft by transponder address, from plane-alert-db (volunteer-kept,
+    ODbL). Only the list; their positions come from the aircraft feeds we already have."""
+    import csv
+    text = (await f.get("https://raw.githubusercontent.com/sdr-enthusiasts/plane-alert-db/main/plane-alert-db.csv")).text
+    out = {}
+    for x in csv.DictReader(io.StringIO(text)):
+        tags = " ".join(x.get(k) or "" for k in ("$Tag 1", "$#Tag 2", "$#Tag 3", "$Operator"))
+        cat = x.get("Category") or ""
+        military = cat in _VIP_MIL
+        if cat in _VIP_CATS or (cat not in _VIP_NOT and (_VIP_STRONG if military else _VIP_WORDS).search(tags)):
+            hex_ = (x.get("$ICAO") or "").strip().lower()
+            if re.fullmatch(r"[0-9a-f]{6}", hex_):
+                out[hex_] = {"reg": x.get("$Registration") or None, "operator": x.get("$Operator") or None, "type": x.get("$Type") or None,
+                             "category": cat, "tags": [t for t in (x.get("$Tag 1"), x.get("$#Tag 2"), x.get("$#Tag 3")) if t], "link": x.get("$#Link") or None}
+    return Result(len(out), {"aircraft": out}, data_label="list as of this fetch",
+                  note=f"{len(out)} government, head-of-state and VIP aircraft out of the list's {text.count(chr(10)) - 1:,}")
+
+
+async def sat_catalog(feed: Feed, f: Fetcher) -> Result:
+    """What each satellite does (UCS Satellite Database). The full rows are kept on disk for satellite cards;
+    the map gets one word per satellite."""
+    ucs = await asyncio.to_thread(satinfo.parse_ucs, (await f.get(satinfo.UCS_URL)).content)
+    await asyncio.to_thread(satinfo.save, ucs)
+    return Result(len(ucs), {"purpose": satinfo.compact(ucs)}, data_label="UCS database, last updated May 2023",
+                  note=f"{len(ucs):,} satellites with a stated purpose; {sum(satinfo.spy(v) for v in ucs.values())} are military imaging, radar, signals or early-warning")
+
+
+async def recon_sats(feed: Feed, f: Fetcher) -> Result:
+    """Orbits of military imaging and signals satellites: public ones from CelesTrak, classified US ones as
+    tracked by amateur observers (McCants' classfd.tle)."""
+    ucs = satinfo.load()
+    if not ucs:                                    # first start: the purpose list decides which orbits to keep
+        ucs = await asyncio.to_thread(satinfo.parse_ucs, (await f.get(satinfo.UCS_URL)).content)
+        await asyncio.to_thread(satinfo.save, ucs)
+    want = {k for k, v in ucs.items() if satinfo.spy(v)}
+    omm, problems, sources = [], [], {}
+    try:
+        import csv
+        text = (await f.get("https://celestrak.org/NORAD/elements/gp.php", params={"GROUP": "active", "FORMAT": "csv"})).text
+        rows = [satinfo.omm_from_csv_row(r) for r in csv.DictReader(io.StringIO(text)) if r.get("NORAD_CAT_ID", "").isdigit() and int(r["NORAD_CAT_ID"]) in want]
+        for o in rows:
+            o["SOURCE"] = "CelesTrak"
+        omm += rows
+        sources["CelesTrak"] = len(rows)
+    except Exception as e:
+        # The full active list is large; when it fails, ask for the main military families by name instead.
+        got = 0
+        for name in ("YAOGAN", "COSMOS", "USA", "GAOFEN", "OFEQ", "SAR-LUPE", "CSO", "RISAT", "IGS", "HELIOS", "TJS", "SJ-", "GEOEYE"):
+            await asyncio.sleep(2.5)
+            try:
+                r = await f.client.get("https://celestrak.org/NORAD/elements/gp.php", params={"NAME": name, "FORMAT": "json"})
+                f.wire_bytes += r.num_bytes_downloaded
+                rows = [dict(o, SOURCE="CelesTrak") for o in r.json() if o["NORAD_CAT_ID"] in want] if r.status_code == 200 else []
+            except (httpx.HTTPError, ValueError):
+                continue
+            have = {o["NORAD_CAT_ID"] for o in omm}
+            rows = [o for o in rows if o["NORAD_CAT_ID"] not in have]
+            omm += rows
+            got += len(rows)
+        sources["CelesTrak"] = got
+        problems.append(f"CelesTrak's full active list failed ({type(e).__name__}); asked by family name instead")
+    try:
+        amateur = await asyncio.to_thread(satinfo.parse_mccants, (await f.get(satinfo.MCCANTS_URL)).content)
+        have = {o["NORAD_CAT_ID"] for o in omm}
+        amateur = [dict(o, SOURCE="amateur observers") for o in amateur if o["NORAD_CAT_ID"] not in have]
+        omm += amateur
+        sources["amateur observers"] = len(amateur)
+    except Exception as e:
+        problems.append(f"amateur list failed ({type(e).__name__})")
+    if not omm:
+        raise RuntimeError("; ".join(problems) or "no orbits")
+    return Result(len(omm), {"omm": omm, "sources": sources}, data_time=max(_iso(o["EPOCH"]) for o in omm),
+                  note=", ".join(f"{n} from {k}" for k, n in sources.items()) + ("; " + "; ".join(problems) if problems else "")
+                       + ("" if ucs else "; the UCS purpose list has not been loaded yet, so only amateur-tracked classified satellites are here"))
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -612,6 +697,12 @@ FEEDS = [
          limit_note="official warning lists; asked every 30 minutes"),
     Feed("airspace", "Airspace warnings and closures", "EASA, FAA", "https://www.easa.europa.eu/en/domains/air-operations/czibs", 3600, airspace_feed,
          stale_after=12 * H, min_retry=600, limit_note="official lists, asked hourly; flight-region outlines from VATSpy (community, CC BY-SA)"),
+    Feed("vip_aircraft", "Government and VIP aircraft list", "plane-alert-db (ODbL)", "https://github.com/sdr-enthusiasts/plane-alert-db", 7 * 86400,
+         vip_aircraft, min_retry=1800, limit_note="a volunteer-kept list, fetched weekly; positions come from the aircraft feeds"),
+    Feed("sat_catalog", "What satellites do", "UCS Satellite Database", "https://www.ucs.org/resources/satellite-database", 7 * 86400, sat_catalog,
+         min_retry=1800, limit_note="one 1.5 MB spreadsheet, fetched weekly; last updated by UCS in May 2023"),
+    Feed("recon_sats", "Spy satellites", "CelesTrak, amateur observers", "https://www.mmccants.org/tles/", 12 * H, recon_sats,
+         stale_after=3 * 86400, min_retry=1800, limit_note="twice a day; classified orbits come from amateur sightings"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

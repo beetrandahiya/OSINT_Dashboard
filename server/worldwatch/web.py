@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db, translate
+from . import config, db, satinfo, translate
 from . import news as news_window
 from .collector import Collector
 from .ais import stream as ais_stream
@@ -226,6 +226,149 @@ async def news_place(request):
     return JSONResponse({"place": name, "articles": arts, "untranslated": failed, "languages": news_window.NAMES})
 
 
+_ucs = {"at": 0, "data": {}}
+
+
+async def satellite(request):
+    """What one satellite is: the UCS row (purpose, operator, users) and Wikidata's entry (picture, description,
+    kind, operator, manufacturer), by catalogue number. Wikidata is asked when a card opens and remembered 30 days."""
+    try:
+        norad = int(request.path_params["norad"])
+    except ValueError:
+        return JSONResponse({"error": "not a catalogue number"}, status_code=400)
+    if time.time() - _ucs["at"] > 3600:
+        _ucs.update(at=time.time(), data=await asyncio.to_thread(satinfo.load))
+    key, wd = f"satwd:{norad}", None
+    hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
+    if hit:
+        wd = hit["body"]
+    else:
+        q = f"""SELECT ?s ?sLabel ?sDescription ?img ?typeLabel ?useLabel ?opLabel ?makerLabel ?article WHERE {{
+          ?s wdt:P377 "{norad}". OPTIONAL {{ ?s wdt:P18 ?img }} OPTIONAL {{ ?s wdt:P31 ?type }} OPTIONAL {{ ?s wdt:P366 ?use }}
+          OPTIONAL {{ ?s wdt:P137 ?op }} OPTIONAL {{ ?s wdt:P176 ?maker }}
+          OPTIONAL {{ ?article schema:about ?s; schema:isPartOf <https://en.wikipedia.org/> }}
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }} LIMIT 40"""
+        try:
+            async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "Accept": "application/sparql-results+json"}) as c:
+                r = await c.get("https://query.wikidata.org/sparql", params={"query": q})
+            if r.status_code == 200:
+                rows = r.json()["results"]["bindings"]
+                v = lambda x, k: x.get(k, {}).get("value")
+                if rows:
+                    main = rows[0]["s"]["value"]
+                    rows = [x for x in rows if x["s"]["value"] == main] or rows   # the ISS number also names its modules
+                    wd = {"qid": main.rsplit("/", 1)[1], "name": v(rows[0], "sLabel"), "description": v(rows[0], "sDescription"),
+                          "image": next((v(x, "img") for x in rows if v(x, "img")), None),
+                          "kinds": sorted({v(x, "typeLabel") for x in rows if v(x, "typeLabel")} - {"artificial satellite of the Earth", "satellite"}),
+                          "uses": sorted({v(x, "useLabel") for x in rows if v(x, "useLabel")}),
+                          "operators": sorted({v(x, "opLabel") for x in rows if v(x, "opLabel")}),
+                          "makers": sorted({v(x, "makerLabel") for x in rows if v(x, "makerLabel")}),
+                          "wikipedia": next((v(x, "article") for x in rows if v(x, "article")), None)}
+                else:
+                    wd = {}
+                await asyncio.to_thread(db.lookup_put, key, time.time(), wd)
+        except (httpx.HTTPError, ValueError, KeyError):
+            wd = None
+    return JSONResponse({"norad": norad, "ucs": _ucs["data"].get(norad), "wikidata": wd,
+                         "ucs_kind": satinfo.code(_ucs["data"][norad]) if norad in _ucs["data"] else None})
+
+
+async def ship_about(request):
+    """A ship's picture and description from Wikidata: by IMO number (P458) or MMSI (P587), and for warships, which
+    rarely have an IMO number, by name. Remembered 30 days."""
+    q = request.query_params
+    imo, mmsi, name, mil = (q.get("imo") or "").strip(), (q.get("mmsi") or "").strip(), (q.get("name") or "").strip(), q.get("mil") == "1"
+    key = f"ship:{imo}:{mmsi}:{name.lower() if mil else ''}"
+    hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
+    if hit:
+        return JSONResponse(hit["body"])
+    fields = """OPTIONAL { ?s wdt:P18 ?img } OPTIONAL { ?s wdt:P31 ?type } OPTIONAL { ?s wdt:P137 ?op } OPTIONAL { ?s wdt:P8047 ?flag }
+      OPTIONAL { ?s wdt:P729 ?since } OPTIONAL { ?article schema:about ?s; schema:isPartOf <https://en.wikipedia.org/> }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }"""
+    body, by = {}, None
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "Accept": "application/sparql-results+json"}) as c:
+        async def sparql(where):
+            r = await c.get("https://query.wikidata.org/sparql", params={"query": f"SELECT ?s ?sLabel ?sDescription ?img ?typeLabel ?opLabel ?flagLabel ?since ?article WHERE {{ {where} {fields} }} LIMIT 20"})
+            return r.json()["results"]["bindings"] if r.status_code == 200 else []
+        try:
+            rows = []
+            if re.fullmatch(r"\d{7}", imo):
+                rows, by = await sparql(f'?s wdt:P458 "{imo}".'), "imo"
+            if not rows and re.fullmatch(r"\d{9}", mmsi):
+                rows, by = await sparql(f'?s wdt:P587 "{mmsi}".'), "mmsi"
+            if not rows and mil and len(name) >= 4:
+                r = await c.get("https://www.wikidata.org/w/api.php", params={"action": "wbsearchentities", "search": name.title(), "language": "en", "type": "item", "limit": 7, "format": "json"})
+                hits = [h["id"] for h in r.json().get("search", []) if re.search(r"ship|frigate|destroyer|corvette|carrier|submarine|cruiser|vessel|patrol|boat|navy", h.get("description", ""), re.I)]
+                if hits:
+                    rows, by = await sparql(f"VALUES ?s {{ wd:{hits[0]} }}"), "name"
+        except (httpx.HTTPError, ValueError, KeyError):
+            return JSONResponse({"error": "Wikidata could not be reached"})
+        if rows:
+            v = lambda x, k: x.get(k, {}).get("value")
+            body = {"qid": v(rows[0], "s").rsplit("/", 1)[1], "name": v(rows[0], "sLabel"), "description": v(rows[0], "sDescription"),
+                    "image": next((v(x, "img") for x in rows if v(x, "img")), None),
+                    "kinds": sorted({v(x, "typeLabel") for x in rows if v(x, "typeLabel")})[:4],
+                    "operator": next((v(x, "opLabel") for x in rows if v(x, "opLabel")), None),
+                    "country": next((v(x, "flagLabel") for x in rows if v(x, "flagLabel")), None),
+                    "built": (next((v(x, "since") for x in rows if v(x, "since")), None) or "")[:4] or None,
+                    "wikipedia": next((v(x, "article") for x in rows if v(x, "article")), None), "by": by}
+        # Wikimedia Commons files ships under "Category:IMO <number>", which covers far more ships than Wikidata
+        if not body.get("image") and re.fullmatch(r"\d{7}", imo):
+            try:
+                api = "https://commons.wikimedia.org/w/api.php"
+                cat = f"Category:IMO {imo}"
+                for _ in range(2):                                 # the IMO category often holds one category per ship name
+                    r = await c.get(api, params={"action": "query", "list": "categorymembers", "cmtitle": cat, "cmtype": "file|subcat", "cmlimit": 10, "format": "json"})
+                    members = r.json().get("query", {}).get("categorymembers", []) if r.status_code == 200 else []
+                    files = [m["title"] for m in members if m["title"].startswith("File:")]
+                    if files:
+                        r = await c.get(api, params={"action": "query", "titles": files[0], "prop": "imageinfo", "iiprop": "url", "iiurlwidth": 640, "format": "json"})
+                        page = next(iter(r.json()["query"]["pages"].values()))
+                        info = (page.get("imageinfo") or [{}])[0]
+                        body.update(image=info.get("thumburl") or info.get("url"), commons=info.get("descriptionurl"), by=body.get("by") or "imo")
+                        break
+                    subs = [m["title"] for m in members if m["title"].startswith("Category:")]
+                    if not subs:
+                        break
+                    cat = subs[0]
+            except (httpx.HTTPError, ValueError, KeyError, StopIteration):
+                pass
+    await asyncio.to_thread(db.lookup_put, key, time.time(), body)
+    return JSONResponse(body)
+
+
+async def imagery_date(request):
+    """When the sharp picture (Esri World Imagery) under a point was taken, from Esri's own metadata. Cached a week
+    per ~1 km square, since the pictures change a few times a year at most."""
+    try:
+        lat, lon, z = float(request.query_params["lat"]), float(request.query_params["lon"]), int(request.query_params.get("z", 14))
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "lat and lon are needed"}, status_code=400)
+    key = f"esri-date:{lat:.2f},{lon:.2f}"
+    hit = await asyncio.to_thread(db.lookup_get, key, 7 * 86400)
+    if not hit:
+        d = 0.01
+        try:
+            async with httpx.AsyncClient(timeout=10, headers={"User-Agent": config.USER_AGENT}) as c:
+                r = await c.get("https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/identify", params={
+                    "geometry": f"{lon},{lat}", "geometryType": "esriGeometryPoint", "sr": 4326, "layers": "all", "tolerance": 1,
+                    "mapExtent": f"{lon - d},{lat - d},{lon + d},{lat + d}", "imageDisplay": "400,400,96", "returnGeometry": "false", "f": "json"})
+            res = r.json().get("results", [])
+        except (httpx.HTTPError, ValueError):
+            return JSONResponse({"date": None, "error": "Esri could not be reached"})
+        best = None
+        for x in res:                      # the sharpest picture that has a date
+            a = x.get("attributes", {})
+            dt = a.get("DATE (YYYYMMDD)") or ""
+            if re.fullmatch(r"\d{8}", dt):
+                res_m = float(a.get("RESOLUTION (M)") or 99)
+                if not best or res_m < best["res"]:
+                    best = {"date": f"{dt[:4]}-{dt[4:6]}-{dt[6:]}", "res": res_m, "sensor": a.get("DESCRIPTION"), "source": a.get("SOURCE")}
+        hit = {"fetched": time.time(), "body": best or {}}
+        await asyncio.to_thread(db.lookup_put, key, hit["fetched"], hit["body"])
+    return JSONResponse(hit["body"] or {"date": None})
+
+
 async def news_image(request):
     """An outlet's preview picture, fetched by this server so the outlet never sees the browser. Only pictures
     named in the current news data are fetched; this is not an open proxy."""
@@ -329,6 +472,9 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/photo/{hex}", photo),
     Route("/api/news/place", news_place),
     Route("/api/news/image", news_image),
+    Route("/api/satellite/{norad}", satellite),
+    Route("/api/imagery/date", imagery_date),
+    Route("/api/ship/about", ship_about),
     Route("/api/aircraft/area", area),
     Mount(f"/s/{VERSION}", Forever(directory=STATIC)),
     Mount("/static", StaticFiles(directory=STATIC)),

@@ -193,10 +193,17 @@ function detail(id) {
   const fresh = from === 'view' ? `Between reports it is drawn moving on along its last heading and speed, at most ${GLIDE_MAX} seconds ahead; that part is an estimate.`
     : from === 'military' ? 'This feed refreshes every 5 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.'
     : 'The world view refreshes every 20 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.';
+  const v = vipList[a.hex];
+  const vipBlock = v ? `<section class="pz vip"><h3>${esc(VIP_NAME[v.category] || v.category)}</h3>
+      <p><b>${esc(v.operator || 'Operator not listed')}</b>${v.type ? ' · ' + esc(v.type) : ''}${v.reg ? ' · ' + esc(v.reg) : ''}</p>
+      ${v.tags.length ? `<p class="soft">Listed as: ${v.tags.map(esc).join(' · ')}</p>` : ''}
+      ${v.link ? `<a class="link" href="${esc(v.link)}" target="_blank" rel="noopener">The list's reference</a>` : ''}
+      <p class="source">From plane-alert-db, a volunteer-kept list of notable aircraft (ODbL). Its tags are the volunteers' words; a listed aircraft can be flying without the person named on board.</p></section>` : '';
   return `<div class="photo" id="photo" data-hex="${esc(a.hex)}"></div>
-    <p class="eyebrow">${isMil ? 'Military ' + kind(a)[2].toLowerCase() : kind(a)[2]}</p>
+    <p class="eyebrow">${v ? 'Government or VIP aircraft' : isMil ? 'Military ' + kind(a)[2].toLowerCase() : kind(a)[2]}</p>
     <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}</h2>
     <p class="where" id="route" data-callsign="${esc(a.flight || '')}">${a.flight ? 'Looking up the route' : 'No callsign reported'}</p>
+    ${vipBlock}
     <dl>${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
@@ -284,4 +291,46 @@ export const military = {
   moving: true,
   detail,
   owns: id => mil.some(a => a.hex === id) || view.some(a => a.hex === id && a.military),
+};
+
+// ---- government and VIP aircraft, by transponder address, from plane-alert-db ----
+let vipList = {}, vipInfo = null;
+const VIP_NAME = {'Dictator Alert': 'Autocrat\'s aircraft (the list\'s "Dictator Alert")', Governments: 'Government aircraft', Radiohead: 'Head of state',
+  "Don't you know who I am?": 'Celebrity or tycoon', 'Royal Aircraft': 'Royal flight'};
+function vipNow() {
+  const seen = new Map();
+  for (const a of world) if (vipList[a.hex]) seen.set(a.hex, {a, at: [a.lon, a.lat], ground: a.on_ground});
+  for (const a of mil) if (vipList[a.hex]) seen.set(a.hex, {a, at: [a.lon, a.lat], ground: a.alt_ft === 'ground'});
+  for (const a of view) if (vipList[a.hex]) seen.set(a.hex, {a, at: shownAt(a), ground: a.alt_ft === 'ground'});
+  return [...seen.values()];
+}
+const vipLabel = h => { const v = vipList[h.a.hex]; return (v.category === 'Dictator Alert' || v.category === 'Governments' || v.category === 'Radiohead') && v.tags[1] && !/^government$/i.test(v.tags[1]) ? v.tags[1] : v.tags[0] === 'Air Force One' ? 'Air Force One' : v.operator; };
+export const vip = {
+  id: 'vip', title: 'VIP jets', color: ['#c69200', '#ffd426'], feeds: {vip_aircraft: 3600}, layers: ['ww-vip-halo', 'ww-vip-label'],
+  about: () => 'Government, head-of-state and VIP aircraft from plane-alert-db, wherever our aircraft feeds see them.',
+  addTo(map) {
+    map.addSource('ww-air-vip', {type: 'geojson', data: empty});
+    map.addLayer({id: 'ww-vip-halo', type: 'circle', source: 'ww-air-vip', paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 7, 6, 13], 'circle-opacity': 0.18, 'circle-stroke-width': 2}});
+    map.addLayer({id: 'ww-vip-label', type: 'symbol', source: 'ww-air-vip',
+      layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true}, paint: {'text-halo-width': 1.3}});
+    setInterval(() => { if (!document.hidden && vipInfo) this.render(map); }, 2000);
+  },
+  paint(map, dark) {
+    const c = this.color[+dark];
+    map.setPaintProperty('ww-vip-halo', 'circle-color', c); map.setPaintProperty('ww-vip-halo', 'circle-stroke-color', c);
+    map.setPaintProperty('ww-vip-label', 'text-color', dark ? '#ffd426' : '#7a5a00'); map.setPaintProperty('ww-vip-label', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
+  },
+  onData(feed, d) { vipInfo = d; vipList = d.payload.aircraft || {}; },
+  render(map) {
+    map.getSource('ww-air-vip').setData({type: 'FeatureCollection', features: vipNow().map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
+      properties: {id: h.a.hex, label: vipLabel(h) + (h.ground ? ' (on the ground)' : '')}}))});
+  },
+  count: () => vipNow().length,
+  rows: () => vipNow().filter(h => !h.ground && vipList[h.a.hex].category !== "Don't you know who I am?").map(h => ({id: h.a.hex, time: vipInfo?.fetched || 0, badge: '◆',
+    title: `${vipLabel(h)}: ${vipList[h.a.hex].type || 'aircraft'} airborne`, meta: `${VIP_NAME[vipList[h.a.hex].category] || vipList[h.a.hex].category} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
+  owns: id => !!vipList[id] && !!find(id),
+  locate: id => civil.locate(id),
+  ring: () => 18,
+  moving: true,
+  detail,
 };

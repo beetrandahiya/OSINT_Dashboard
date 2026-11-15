@@ -6,22 +6,22 @@ import airspace from './airspace.js';
 import {unrest, unrestSingle} from './unrest.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
-import {civil, military, fillRoute, select as selectAircraft} from './aircraft.js';
+import {civil, military, vip, fillRoute, select as selectAircraft} from './aircraft.js';
 import {satellites, launches, onSatChange} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
-import {rain, night, aurora, photo, onPhoto} from './sky.js';
+import {rain, night, aurora, photo, onPhoto, lightning, clouds, sharp} from './sky.js';
 import fires from './fires.js';
 import people, {leadersToday} from './people.js';
 import {openProfile} from './profile.js';
-import ships from './ships.js';
+import ships, {warships} from './ships.js';
 import gps from './gps.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, night, aurora, gps, airspace, cables, fires, ships, people, leadersToday, civil, military, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain];
-const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, satellites, launches, ships, people, leadersToday, fires, gps, cables, rain, night, aurora, photo];
+const LAYERS = [photo, sharp, night, clouds, aurora, gps, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, satellites, launches, ships, warships, people, leadersToday, fires, gps, cables, rain, lightning, clouds, night, aurora, photo, sharp];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -69,7 +69,7 @@ map.on('load', () => {
     show(l);
     for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
   }
-  const NO_CLICK = ['ww-photo', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
+  const NO_CLICK = ['ww-photo', 'ww-sharp', 'ww-clouds', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
@@ -99,6 +99,7 @@ $('#chips').addEventListener('click', e => {
   if (picked?.layer === l.id && !on[l.id]) pick(null);
 });
 dark.addEventListener('change', renderChips);
+document.addEventListener('ww-chips', renderChips);
 
 // ---- the list: what is coming up first, then the newest things across the layers that are switched on ----
 function renderList() {
@@ -123,7 +124,7 @@ function ring() {
 
 function pick(p, fly = false) {
   picked = p;
-  selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military') ? p.id : null);
+  selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military' || p.layer === 'vip') ? p.id : null);
   for (const l of LAYERS) l.select?.(p && p.layer === l.id ? p.id : null);
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
@@ -143,7 +144,7 @@ function renderDetail() {
   el.hidden = !picked;
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
-  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button>' + html;
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
   el.scrollTop = key === detailKey ? scroll : 0;
@@ -169,6 +170,7 @@ $('#detail').addEventListener('click', e => {
   if (a && picked) { byId[picked.layer].act?.(a.dataset.act, map); detailKey = ''; renderDetail(); }
 });
 onSatChange(() => { detailKey = ''; renderDetail(); });
+addEventListener('ww-pick', e => pick(e.detail, true));
 addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
 
 function shape(globe) {

@@ -1,6 +1,6 @@
 // Disasters: alerts from GDACS (the UN and EU alert system) and open events from NASA's EONET.
 // Each marker carries a two-letter code for the kind of event; the alert level is GDACS's own.
-import {ago, esc, local, skyShot, utc} from './util.js';
+import {ago, esc, local, skyShot, utc, spyPass} from './util.js';
 
 const SRC = 'ww-hazards';
 let sets = {}, info = {}, events = [];
@@ -54,6 +54,7 @@ export default {
         <dt>Last update</dt><dd>${local(e.modified)} <span class="soft">(${utc(e.modified)}, ${ago(e.modified)})</span></dd>
       </dl>
       ${skyShot(e.lat, e.lon)}
+      ${spyPass(e.lat, e.lon)}
       ${e.url ? `<a class="link" href="${esc(e.url)}" target="_blank" rel="noopener">Open the ${e.source === 'GDACS' ? 'GDACS report' : 'source report'}</a>` : ''}
       <p class="source">Source: ${esc(e.source)}, fetched ${ago(f.fetched)}. ${e.source === 'GDACS' ? 'The marker is the centre point GDACS gives for the event; large events such as droughts cover far more than a point. Orange and red alerts stay listed for a week after their end date, green ones for three days.' : 'The marker is the latest position NASA lists' + (e.track ? '; the line joins the earlier reported positions.' : '.')}</p>`;
   },
