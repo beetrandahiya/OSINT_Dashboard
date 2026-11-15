@@ -13,6 +13,13 @@ from . import db
 
 URL = "https://translate.googleapis.com/translate_a/single"
 BATCH_CHARS = 1500
+PAUSE = 1800          # after Google pushes back (a 429, or a redirect to its "unusual traffic" page), wait this long
+_blocked = {"until": 0.0}
+
+
+def blocked() -> float:
+    """Seconds left in a pause after Google pushed back; 0 when translation may be tried."""
+    return max(0.0, _blocked["until"] - time.time())
 
 
 def _key(lang: str, text: str) -> str:
@@ -30,6 +37,9 @@ async def to_english(fetcher, titles: list[str], lang: str) -> tuple[dict[str, s
             todo.append(t)
     failed = 0
     while todo:
+        if blocked():                      # Google told us to slow down: don't ask again until the pause is over
+            failed += len(todo)
+            break
         batch, size = [], 0
         while todo and (not batch or size + len(todo[0]) < BATCH_CHARS):
             t = todo.pop(0)
@@ -39,6 +49,8 @@ async def to_english(fetcher, titles: list[str], lang: str) -> tuple[dict[str, s
             r = await fetcher.client.post(URL, params={"client": "gtx", "sl": lang, "tl": "en", "dt": "t"},
                                           data={"q": "\n".join(x.replace("\n", " ") for x in batch)})
             fetcher.wire_bytes += r.num_bytes_downloaded
+            if r.status_code in (302, 429, 503):
+                _blocked["until"] = time.time() + PAUSE
             r.raise_for_status()
             lines = "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).split("\n")
             if len(lines) != len(batch):

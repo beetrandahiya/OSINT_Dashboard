@@ -1,6 +1,9 @@
 import {$, ago, api, esc, now} from './util.js';
 import {createMap, paintBase, paintSky, setGlobe, setPhoto} from './map.js';
 import news from './news.js';
+import navwarn from './navwarn.js';
+import airspace from './airspace.js';
+import {unrest, unrestSingle} from './unrest.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
 import {civil, military, fillRoute, select as selectAircraft} from './aircraft.js';
@@ -17,8 +20,8 @@ import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, night, aurora, gps, cables, fires, ships, people, civil, military, satellites, outages, launches, hazards, quakes, news, rain];
-const CHIPS = [news, quakes, hazards, outages, civil, military, satellites, launches, ships, people, fires, gps, cables, rain, night, aurora, photo];
+const LAYERS = [photo, night, aurora, gps, airspace, cables, fires, ships, people, civil, military, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, satellites, launches, ships, people, fires, gps, cables, rain, night, aurora, photo];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -105,7 +108,7 @@ function renderList() {
   const past = rows.filter(r => r.time <= t).sort((a, b) => b.time - a.time || (b.order ?? 0) - (a.order ?? 0));
   const li = r => `<li role="option" tabindex="0" data-layer="${r.layer.id}" data-id="${esc(r.id)}" aria-selected="${picked?.layer === r.layer.id && picked.id === r.id}" style="--c:${r.layer.color[+dark.matches]}">
       <span class="badge${r.strong ? ' strong' : ''}">${esc(r.badge)}</span>
-      <span class="row-text"><span class="row-title">${esc(r.title)}</span><span class="row-meta">${esc(r.meta)}</span></span></li>`;
+      <span class="row-text"><span class="row-title">${esc(r.title)}</span><span class="row-meta">${esc(r.meta)}</span></span>${r.thumb ? `<img class="row-thumb" src="${esc(r.thumb)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</li>`;
   const html = (coming.length ? `<li class="group">Coming up</li>${coming.map(li).join('')}<li class="group">Latest</li>` : '') + past.map(li).join('');
   const list = $('#list');
   if (list.contains(document.activeElement) && list.dataset.html) return;   // don't pull the list from under the keyboard
@@ -140,12 +143,13 @@ function renderDetail() {
   el.hidden = !picked;
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
-  const keep = key === detailKey ? ['#route', '#photo', '#tracknote'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button>' + html;
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
   el.scrollTop = key === detailKey ? scroll : 0;
   detailKey = key;
   fillRoute();
+  byId[picked.layer].fill?.(picked.id);   // a layer can fetch more for its card after it is drawn
 }
 function refreshPick() { if (picked && !$('#detail').matches(':hover')) { renderDetail(); ring(); } }
 

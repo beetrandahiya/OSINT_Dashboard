@@ -13,14 +13,15 @@ import httpx
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db
+from . import config, db, translate
+from . import news as news_window
 from .collector import Collector
 from .ais import stream as ais_stream
-from .feeds import _readsb_aircraft, adsbfi_area
+from .feeds import Fetcher, _readsb_aircraft, adsbfi_area
 from .lookup import api as lookup_api
 
 STATIC = Path(__file__).parent / "static"
@@ -203,6 +204,50 @@ async def photo(request):
     return JSONResponse({"photo": hit["body"]})
 
 
+async def news_place(request):
+    """Every article of one news place over the last six hours, headlines in other languages machine-translated
+    now (and remembered), so a card shows the full picture without sending everything with the map."""
+    name = request.query_params.get("p", "")
+    arts = news_window.place_articles(name)
+    todo: dict[str, list[dict]] = {}
+    for a in arts:
+        if a["lang"] != "eng":
+            todo.setdefault(a["lang"], []).append(a)
+    failed = 0
+    if todo:
+        async with httpx.AsyncClient(timeout=15, headers={"User-Agent": config.USER_AGENT}) as c:
+            f = Fetcher(c)
+            for lang, group in todo.items():
+                english, bad = await translate.to_english(f, [a["title"] for a in group], news_window.GOOGLE.get(lang, "auto"))
+                failed += bad
+                for a in group:
+                    if english.get(a["title"], a["title"]) != a["title"]:
+                        a["title_original"], a["title"], a["translated"] = a["title"], english[a["title"]], True
+    return JSONResponse({"place": name, "articles": arts, "untranslated": failed, "languages": news_window.NAMES})
+
+
+async def news_image(request):
+    """An outlet's preview picture, fetched by this server so the outlet never sees the browser. Only pictures
+    named in the current news data are fetched; this is not an open proxy."""
+    url = request.query_params.get("u", "")
+    if url not in news_window.images():
+        return Response(status_code=404)
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True, headers={"User-Agent": config.USER_AGENT}) as c:
+            async with c.stream("GET", url) as r:
+                kind = r.headers.get("content-type", "")
+                if r.status_code != 200 or not kind.startswith("image/"):
+                    return Response(status_code=502)
+                body = b""
+                async for chunk in r.aiter_bytes():
+                    body += chunk
+                    if len(body) > 3_000_000:
+                        return Response(status_code=502)
+    except httpx.HTTPError:
+        return Response(status_code=502)
+    return Response(body, media_type=kind.split(";")[0], headers={"Cache-Control": "private, max-age=86400"})
+
+
 _area = {"at": 0.0, "key": None, "body": None}
 
 
@@ -282,6 +327,8 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/trail/{hex}", trail),
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
+    Route("/api/news/place", news_place),
+    Route("/api/news/image", news_image),
     Route("/api/aircraft/area", area),
     Mount(f"/s/{VERSION}", Forever(directory=STATIC)),
     Mount("/static", StaticFiles(directory=STATIC)),

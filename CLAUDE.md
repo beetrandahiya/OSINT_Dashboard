@@ -500,6 +500,67 @@ politicians / business leaders map").
   `#profile` display rule beat `[hidden]` and left an invisible layer over the page after closing: fixed.
 - Profile header shows the top two offices, highest first, plus "and N more"; the full list is in the timeline.
 
+### 2026-11-15, next round chosen (owner's picks)
+
+Owner put the aisstream.io and OpenSanctions keys in `data/` on his Mac (not tested here). He picked, in order:
+**denser news with pictures**, **protests and clashes** ("super super good, just make sure it is well done"),
+**navy warnings**, **airspace closures worldwide** ("not just US"), then **sanctioned ships and aircraft** and
+**breaking-news spikes**. **Business leaders dropped** ("isn't that cool"); ministers not asked for either.
+Not picked (keep as ideas): Wikipedia most-read places, radiation (BfS ODL, 1,672 stations, works), German
+Foreign Office travel warnings (works), city lights (GIBS `VIIRS_NOAA20_DayNightBand_At_Sensor_Radiance` works),
+circling aircraft, WHO outbreaks, tsunami/volcano, PeeringDB, RIPE BGP.
+
+Research, measured from the sandbox 2026-11-15:
+- **News sparse in India** because the map shows one 15-minute GKG file (~40 India articles per file; India is
+  the 3rd most pinned country). Decision: **6-hour rolling window** (no extra downloads; every file is already
+  fetched). 88 % of GKG rows carry the outlet's own share image (column 18, V2.1SHARINGIMAGE). Images go through
+  our server so outlets don't see his browser. The translated series carries ~65 languages incl. Hindi, Gujarati,
+  Telugu: take all, translate lazily when a card opens instead of everything up front.
+- GKG files have holes: in one run 3 of 9 recent slots were 404 while older ones existed. Walk-back handles it.
+- **Protests/clashes** from GDELT Events 2.0 export (~30-55 KB zip per 15 min). In 9 files: root codes 19 fight 343,
+  18 assault 60, 14 protest 46, 20 mass violence 1; NumSources 1 for 444 of 450. Decision: IsRootEvent only,
+  city-level ActionGeo (types 3/4) only, grouped by place + day + type, **single-outlet groups hidden behind a toggle**
+  (owner's pick), sports URLs dropped, card says machine-coded and unverified.
+- **Navy warnings:** NGA MSI (`msi.nga.mil/api/publications/broadcast-warn`) answered 503 "unavailable" from the
+  sandbox, untested; UKHO NAVAREA I page (`msi.admiralty.co.uk/RadioNavigationalWarnings`) works (HTML). Draw areas
+  only where coordinates parse exactly.
+- **Airspace:** FAA NOTAM search 403 from here; ICAO/autorouter need accounts. Works: EASA conflict-zone bulletins
+  (CZIB page, ~20 in force), FAA prohibitions page, FAA TFR list (56), VATSpy FIR boundaries (CC BY-SA 4.0,
+  approximate, community-drawn: label so).
+
+### Built 2026-11-15 (waiting for review)
+
+- **News, 6 hours, all languages, pictures** (`news.py`, `static/js/news.js`): every GKG file of the last 6 hours is
+  kept as compact rows (place, lat, lon, outlet, title, url, lang, image) and counted per place. Each slot's rows are
+  written once to `data/gdelt/` so a restart does not refill. Map payload carries 8 articles per place; a card asks
+  `/api/news/place?p=` for all of them, which also machine-translates their headlines then (cached 90 days). The
+  translated feed translates only the leading headline of places with 3+ outlets up front. Pictures go through
+  `/api/news/image?u=`, which fetches only addresses present in the current news data (not an open proxy).
+  Measured: 6,657 English + 6,868 translated articles in the window, 3,277 places, 589 list rows; Mumbai 56 outlets.
+  Peak memory 141 MB (GKG files are read line by line now; reading them whole had pushed the peak to 254 MB).
+- **Google Translate blocked the sandbox** after the first burst (302 to its "unusual traffic" page). `translate.py`
+  now pauses 30 minutes after a 302/429/503 and the feed note says so. On his Mac it worked before; untested at
+  this volume there.
+- **Protests and clashes** (`unrest.py`, `static/js/unrest.js`, chips "Protests and clashes" and "Unrest, one
+  outlet" (off by default)): 24 h of Events + Mentions files, cached per slot like news. Filters: IsRootEvent, city
+  level, roots 14/18/19/20, sports addresses, and `plausible()`: the vague codes (190, 191, 192, 180, 200) need an
+  armed CAMEO actor type (MIL, REB, INS, UAF, SEP, SPY) or a known group, or two different countries (not for 192);
+  assault/abduction also accept police/criminal actors. On a real 24 h this cut 1,628 events to 896 and removed the
+  examples that prompted it (a port suing over a tanker coded as military force in Liberia; "opposition attacks
+  cabinet" in Adelaide; a Savoy blue plaque coded as occupation in London). Groups = place + category + UTC day;
+  outlets = distinct sources over the event's own article and all later mentions. Protests are rings, violent kinds
+  filled, letter P/R/A/C/M. Headlines/pictures borrowed from the news window when the same address is there; else
+  words from the address, labelled. GDELT slot times are clamped to now (they are labels, can be ahead).
+- **Navy warnings** (`navwarn.py`, `static/js/navwarn.js`): NGA broadcast warnings + UKHO NAVAREA I. Only activity
+  kinds (rocket, missile, weapons, exercise, security, GNSS) by keywords; buoys and lights dropped. Circles from
+  "WITHIN n MILES OF", polygons from "BOUND BY", otherwise points. **NGA still 503 from the sandbox (whole site),
+  so the NGA parser is written from the documented field names and untested**; UKHO gives 1 activity warning now.
+- **Airspace** (`airspace.py`, `static/js/airspace.js`): 16 active EASA CZIBs (detail pages read once per revision
+  number for FIR codes, affected airspace and recommendations; level "avoid" when the advice says not to operate),
+  21 FAA country entries (SFAR = prohibited, else notice), 44 US TFRs with exact shapes from each NOTAM's XML (cached
+  per NOTAM). FIRs drawn from VATSpy, one shape per FIR in its strongest level, card lists every warning. Unmapped
+  codes are kept in the data (e.g. OLBA, UKBU).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

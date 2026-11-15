@@ -22,6 +22,10 @@ from typing import Any, Awaitable, Callable
 import httpx
 
 from . import config, translate
+from . import news as news_window
+from . import unrest as unrest_window
+from . import navwarn
+from . import airspace
 
 
 @dataclass
@@ -178,111 +182,130 @@ async def launches(feed: Feed, f: Fetcher) -> Result:
     return Result(len(out), {"launches": out}, data_time=max(upd) if upd else None, note="data time is the newest edit to a launch entry")
 
 
-_TITLE = re.compile(r"<PAGE_TITLE>(.*?)</PAGE_TITLE>")
-
-
-_LANG = re.compile(r"srclc:(\w+)")
-
-
-def _gdelt_clusters(raw_zip: bytes, langs: tuple[str, ...] | None = None) -> tuple[int, list[dict]]:
-    """Group one 15-minute GDELT file by the first city-level place each article mentions.
-    The count per place is the number of distinct outlets, nothing more."""
-    z = zipfile.ZipFile(io.BytesIO(raw_zip))
-    text = z.read(z.namelist()[0]).decode("utf-8", "replace")
-    places: dict[str, dict] = {}
-    articles = 0
-    for line in text.split("\n"):
-        r = line.split("\t")
-        if len(r) < 27:
-            continue
-        lang = "eng"
-        if langs is not None:      # the translated file covers 65 languages; keep only the ones asked for
-            m = _LANG.search(r[25])
-            lang = m.group(1) if m else ""
-            if lang not in langs:
-                continue
-        articles += 1
-        locs = []
-        for part in r[10].split(";"):
-            p = part.split("#")
-            # types 3 and 4 are US and world cities; country- and state-level mentions are skipped
-            # because GDELT pins them to a centroid, which would put stories in the wrong spot.
-            if len(p) >= 9 and p[0] in ("3", "4") and p[5] and p[6]:
-                try:
-                    locs.append((int(p[8]), p[1], float(p[5]), float(p[6])))
-                except ValueError:
-                    pass
-        m = _TITLE.search(r[26])
-        if not locs or not m or not m.group(1).strip():
-            continue
-        _, name, lat, lon = min(locs)
-        c = places.setdefault(name, {"place": name, "lat": lat, "lon": lon, "outlets": {}, })
-        c["outlets"].setdefault(r[3], {"outlet": r[3], "title": html.unescape(m.group(1)), "url": r[4], "lang": lang})
-    out = [{"place": c["place"], "lat": c["lat"], "lon": c["lon"], "outlets": len(c["outlets"]),
-            "articles": list(c["outlets"].values())[:30]} for c in places.values()]
-    out.sort(key=lambda c: -c["outlets"])
-    return articles, out
-
-
-async def _gdelt_newest(feed: Feed, f: Fetcher, listing: str, suffix: str):
-    """GDELT names a file in its listing some time before the file can be downloaded: minutes for the English
-    series, about an hour for the translated one, and its file names are slot labels, not times. So: walk back
-    one 15-minute slot at a time to the newest file that really exists, and take the data time from that file's
-    own Last-Modified header. Returns (stamp, response) or (stamp, None) when we already hold that file."""
-    text = (await f.get(listing)).text
-    url = next(line.split()[2] for line in text.splitlines() if line.endswith(suffix))
-    t = calendar.timegm(time.strptime(url.rsplit("/", 1)[1][:14], "%Y%m%d%H%M%S"))
-    for back in range(0, 13):           # up to three hours back
-        stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(t - back * 900))
-        if feed.memo.get("stamp") == stamp:
-            return stamp, None
-        r = await f.client.get(f"https://data.gdeltproject.org/gdeltv2/{stamp}{suffix}")
-        f.wire_bytes += r.num_bytes_downloaded
-        if r.status_code == 404:
-            continue
-        r.raise_for_status()
-        return stamp, r
-    raise RuntimeError("none of the last 13 files in GDELT's listing could be downloaded")
-
-
 async def news(feed: Feed, f: Fetcher) -> Result:
-    stamp, r = await _gdelt_newest(feed, f, "https://data.gdeltproject.org/gdeltv2/lastupdate.txt", ".gkg.csv.zip")
-    if r is None:
-        return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"], note=f"no newer file can be downloaded yet (file {stamp})")
-    published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
-    articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content)
-    payload = {"file": stamp, "articles": articles, "places": clusters, "published": published}
-    feed.memo.update(stamp=stamp, payload=payload, n=len(clusters), published=published)
-    return Result(len(clusters), payload, data_time=published, note=f"{articles} articles (file {stamp}); data time is when GDELT published the file")
-
-
-NEWS_LANGS = {"deu": "German", "hin": "Hindi"}
-GOOGLE_LANG = {"deu": "de", "hin": "hi"}
+    """English news places over the last six hours (see news.py)."""
+    got, held, expected = await news_window.english.refresh(f)
+    payload = {"places": news_window.places(news_window.english), "newest": news_window.english.newest(),
+               "oldest": news_window.english.oldest(), "files": held, "window_h": news_window.WINDOW // 3600}
+    n = sum(len(r) for _, r in news_window.english.files.values())
+    return Result(len(payload["places"]), payload, data_time=payload["newest"],
+                  note=f"{n:,} articles in {held} of {expected} files of the last 6 hours"
+                       + (" (still filling: a few older files per fetch)" if held < expected - 2 else "")
+                       + "; data time is when GDELT published the newest file")
 
 
 async def news_translated(feed: Feed, f: Fetcher) -> Result:
-    """German and Hindi articles from GDELT's second file series, which runs about an hour behind."""
-    stamp, r = await _gdelt_newest(feed, f, "https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt", ".translation.gkg.csv.zip")
-    if r is None:
-        return Result(feed.memo["n"], feed.memo["payload"], data_time=feed.memo["published"], note=f"no newer file can be downloaded yet (file {stamp})")
-    if True:
-        published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
-        articles, clusters = await asyncio.to_thread(_gdelt_clusters, r.content, tuple(NEWS_LANGS))
-        # Headlines are machine-translated to English (the owner's wish, 14 Nov 2026); the original is kept beside it.
-        failed = 0
-        for code, google in GOOGLE_LANG.items():
-            arts = [a for c in clusters for a in c["articles"] if a["lang"] == code]
-            english, bad = await translate.to_english(f, [a["title"] for a in arts], google)
-            failed += bad
-            for a in arts:
-                if english.get(a["title"], a["title"]) != a["title"]:
-                    a["title_original"], a["title"], a["translated"] = a["title"], english[a["title"]], True
-        payload = {"file": stamp, "articles": articles, "places": clusters, "published": published, "languages": NEWS_LANGS}
-        feed.memo.update(stamp=stamp, payload=payload, n=len(clusters), published=published)
-        return Result(len(clusters), payload, data_time=published,
-                      note=f"{articles} German and Hindi articles (file {stamp}), headlines machine-translated"
-                           + (f"; {failed} could not be translated and stay in their language" if failed else "")
-                           + "; GDELT releases these about an hour late")
+    """News in every other language GDELT translates, over the last six hours. The headline leading each place
+    with two or more outlets is machine-translated to English now; the rest when a card is opened."""
+    got, held, expected = await news_window.translated.refresh(f)
+    places = news_window.places(news_window.translated)
+    lead: dict[str, list[dict]] = {}
+    for p in places:
+        if p["outlets"] >= 3:          # only the places the list shows; the rest are translated when a card opens
+            a = p["articles"][0]
+            lead.setdefault(a["lang"], []).append(a)
+    failed = 0
+    for lang, arts in lead.items():
+        english, bad = await translate.to_english(f, [a["title"] for a in arts], news_window.GOOGLE.get(lang, "auto"))
+        failed += bad
+        for a in arts:
+            if english.get(a["title"], a["title"]) != a["title"]:
+                a["title_original"], a["title"], a["translated"] = a["title"], english[a["title"]], True
+    payload = {"places": places, "newest": news_window.translated.newest(), "oldest": news_window.translated.oldest(),
+               "files": held, "window_h": news_window.WINDOW // 3600, "languages": news_window.NAMES}
+    n = sum(len(r) for _, r in news_window.translated.files.values())
+    return Result(len(places), payload, data_time=payload["newest"],
+                  note=f"{n:,} articles in {held} of {expected} files of the last 6 hours, all languages GDELT translates"
+                       + (" (still filling)" if held < expected - 2 else "")
+                       + (f"; {failed} headlines could not be translated and stay in their language" if failed else "")
+                       + (f" (Google asked us to slow down; translation pauses {int(translate.blocked() // 60)} more minutes)" if translate.blocked() else "")
+                       + "; GDELT releases these about an hour late")
+
+
+async def unrest(feed: Feed, f: Fetcher) -> Result:
+    """Protests and clashes over the last 24 hours from GDELT's event coding (see unrest.py)."""
+    ev, men, slots = await unrest_window.window.refresh(f)
+    groups = unrest_window.window.groups()
+    newest = max((g["last"] for g in groups), default=None)
+    filling = ev < slots - 4 or men < slots - 4
+    return Result(len(groups), {"groups": groups, "files": ev, "mention_files": men, "slots": slots, "window_h": 24}, data_time=newest,
+                  note=f"{sum(g['outlets'] >= 2 for g in groups)} groups reported by two or more outlets, {sum(g['outlets'] < 2 for g in groups)} by one; "
+                       f"{ev} of {slots} event files and {men} mention files of the last 24 hours"
+                       + (" (still filling)" if filling else "") + "; machine-coded from news reports, not verified")
+
+
+async def navwarn_feed(feed: Feed, f: Fetcher) -> Result:
+    """Navigational warnings that report activity (firings, launches, exercises, threats); see navwarn.py.
+    Two official sources; if one fails the other is still shown and the note names the one that failed."""
+    out, problems, used = [], [], []
+    try:
+        r = await f.get("https://msi.nga.mil/api/publications/broadcast-warn", params={"output": "json", "status": "active"})
+        out += navwarn.parse_nga(r.json())
+        used.append("NGA")
+    except Exception as e:
+        problems.append(f"NGA (US, worldwide) failed: {type(e).__name__} {str(e)[:80]}")
+    try:
+        r = await f.get("https://msi.admiralty.co.uk/RadioNavigationalWarnings")
+        out += navwarn.parse_ukho(r.text)
+        used.append("UKHO")
+    except Exception as e:
+        problems.append(f"UKHO (UK) failed: {type(e).__name__} {str(e)[:80]}")
+    if not used:
+        raise RuntimeError("; ".join(problems))
+    drawn = sum(1 for w in out if w["geoms"])
+    return Result(len(out), {"warnings": out, "sources": used, "problems": problems}, data_time=None,
+                  data_label="warnings in force when fetched",
+                  note=f"{len(out)} activity warnings in force from {' and '.join(used)} ({drawn} with positions)"
+                       + ("; " + "; ".join(problems) if problems else "") + "; lights, buoys and other routine notices left out")
+
+
+async def airspace_feed(feed: Feed, f: Fetcher) -> Result:
+    """Conflict-zone warnings (EASA, FAA) on flight regions, and US temporary flight restrictions; see airspace.py."""
+    m, problems = feed.memo, []
+    if time.time() - m.get("fir_at", 0) > 7 * 86400 or "fir" not in m:
+        m["fir"] = (await f.get(airspace.VATSPY)).json()
+        m["fir_at"] = time.time()
+    zones = []
+    try:
+        czibs = airspace.parse_czib_list((await f.get("https://www.easa.europa.eu/en/domains/air-operations/czibs")).text)
+        pages = m.setdefault("czib_pages", {})
+        for c in czibs:
+            if c["number"] not in pages:                       # a revision gets a new number, so a page is read once
+                await asyncio.sleep(1)
+                pages[c["number"]] = airspace.parse_czib_page((await f.get(c["link"])).text)
+            zones.append({"id": "EASA:" + c["number"], "source": "EASA", **c, **pages[c["number"]]})
+    except Exception as e:
+        problems.append(f"EASA bulletins failed: {type(e).__name__} {str(e)[:80]}")
+    try:
+        for c in airspace.parse_faa((await f.get("https://www.faa.gov/air_traffic/publications/us_restrictions")).text):
+            zones.append({"id": "FAA:" + c["country"], "source": "FAA", "title": c["country"], **c,
+                          "link": "https://www.faa.gov/air_traffic/publications/us_restrictions"})
+    except Exception as e:
+        problems.append(f"FAA list failed: {type(e).__name__} {str(e)[:80]}")
+    shapes = airspace.fir_shapes(m["fir"], {c for z in zones for c in z["firs"]})
+    for z in zones:
+        z["shapes"] = {c: shapes[c] for c in z["firs"] if c in shapes}
+        z["unmapped"] = [c for c in z["firs"] if c not in shapes]
+    tfrs, cache = [], m.setdefault("tfr", {})
+    try:
+        listing = (await f.get("https://tfr.faa.gov/tfrapi/exportTfrList")).json()
+        for t in listing[:120]:
+            nid = t.get("notam_id", "")
+            if nid not in cache:
+                r = await f.client.get("https://tfr.faa.gov/download/detail_" + nid.replace("/", "_") + ".xml")
+                f.wire_bytes += r.num_bytes_downloaded
+                cache[nid] = airspace.parse_tfr_xml(r.content.decode("utf-8-sig", "replace")) if r.status_code == 200 else None
+            if cache[nid]:
+                tfrs.append({"id": "TFR:" + nid, "notam": nid, "type": t.get("type"), "where": t.get("description"), **cache[nid]})
+        for k in [k for k in cache if k not in {t.get("notam_id") for t in listing}]:
+            del cache[k]
+    except Exception as e:
+        problems.append(f"US TFRs failed: {type(e).__name__} {str(e)[:80]}")
+    if not zones and not tfrs:
+        raise RuntimeError("; ".join(problems) or "nothing came back")
+    return Result(len(zones) + len(tfrs), {"zones": zones, "tfrs": tfrs, "problems": problems}, data_label="in force when fetched",
+                  note=f"{sum(z['source'] == 'EASA' for z in zones)} EASA bulletins, {sum(z['source'] == 'FAA' for z in zones)} FAA country entries, {len(tfrs)} US restrictions"
+                       + ("; " + "; ".join(problems) if problems else ""))
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -577,9 +600,15 @@ FEEDS = [
     Feed("launches", "Rocket launches", "Launch Library 2", "https://thespacedevs.com", 900, launches,
          limit_note="15 requests per hour"),
     Feed("news", "News places", "GDELT", "https://www.gdeltproject.org", 120, news, stale_after=3600,
-         limit_note="one new file every 15 minutes"),
-    Feed("news_translated", "News in German and Hindi", "GDELT", "https://www.gdeltproject.org", 300, news_translated, stale_after=3 * H,
-         limit_note="one 8 MB file every 15 minutes, released about an hour late"),
+         limit_note="one new file every 15 minutes; kept 6 hours"),
+    Feed("news_translated", "News in other languages", "GDELT", "https://www.gdeltproject.org", 300, news_translated, stale_after=3 * H,
+         limit_note="one 8 MB file every 15 minutes, released about an hour late; kept 6 hours"),
+    Feed("unrest", "Protests and clashes", "GDELT events", "https://www.gdeltproject.org", 120, unrest, stale_after=3600,
+         limit_note="one small events file and one mentions file every 15 minutes; kept 24 hours"),
+    Feed("navwarn", "Navy warnings at sea", "NGA and UKHO", "https://msi.nga.mil/NavWarnings", 1800, navwarn_feed, stale_after=6 * H,
+         limit_note="official warning lists; asked every 30 minutes"),
+    Feed("airspace", "Airspace warnings and closures", "EASA, FAA", "https://www.easa.europa.eu/en/domains/air-operations/czibs", 3600, airspace_feed,
+         stale_after=12 * H, min_retry=600, limit_note="official lists, asked hourly; flight-region outlines from VATSpy (community, CC BY-SA)"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,
