@@ -633,6 +633,40 @@ His taste: geopolitics, military, the god's-eye feel.
   Latest *clear* 10 m Sentinel-2 needs a free Copernicus Data Space account (not built); Maxar Open Data publishes
   free sharp imagery for major disasters only.
 
+### 2026-11-15, his review of that round, and fixes
+
+His points: satellite view "a lil laggy"; flags for satellites, ships and planes (all flags when joint), and then
+"I meant flags on the name card on the right, not on the map"; no satellite photos visible on cards; MBS's plane
+route "turned around ~100 km"; cloud layer "looks strange, get rid of it"; Copernicus Sentinel-2 "looks off" (do
+not build it); pull Maxar sharp images for disasters; ships and warships often have no picture, show loading /
+not found; wants more interesting ideas (my last list "not super interesting").
+
+- **Route turn-around:** the flown path (OpenSky, up to now) was joined to the aircraft symbol, which for the world
+  snapshot is up to 20 minutes old: the line ran ahead and came back. Now joined only when the symbol is newer;
+  otherwise the path's newest point is marked with its time and the card says why (`posTime()` in `aircraft.js`).
+- **Lag:** `clip()` computed a full 4x4 product and a new array per satellite per frame; now only the needed column.
+  Purpose, spy flag and flags are computed once per data load (`annotate()`), lookups by id use a Map. Unmeasured
+  on his Mac (headless software GL is ~2 fps regardless).
+- **Flags** (`flags.py`, feed `flags`, `static/js/flags.js`): aircraft by ICAO address block (tar1090's flags.js,
+  generated from Annex 10), ships by MMSI MID (Wikidata P2979 + P297, 292 codes), satellites by CelesTrak SATCAT
+  owner code (records.php per family, daily) named from satcat/sources.php (132 codes), joint owners with each
+  partner (ISS: US RU JP CA EU), else UCS country ("USA/Japan" -> both). **Cards only** (next to the name, plus a
+  "Registered in / Flag / Owner" row); map flags were built and removed at his request.
+- **Satellite pictures:** own picture, else the picture of its Wikidata class ("its type"), else its family by name
+  (STARLINK-1234 -> Starlink), each labelled with what it shows. Most catalogued objects have none of their own.
+  Wikimedia rate-limited the sandbox during this work: untested live. Wikimedia requests now send the contact
+  address in the User-Agent when `data/contact.txt` exists, as Wikimedia asks.
+- **Loading / not found** states for ship and satellite pictures (`.pic-wait`). Ship lookups that fail on Commons are
+  not cached, so they retry.
+- **Clouds layer removed.**
+- **Maxar disaster imagery** (`maxar.py`, feed `maxar_events`, `/api/maxar/*`, `static/js/maxar.js`, chip
+  "Disaster imagery", off by default): 55 events from the STAC catalogue on S3; **newest is 2025-12-18 (Morocco
+  floods): Maxar/Vantor has published nothing in 2026 so far.** Files are BigTIFF COGs (17,408 px, JPEG in 512 px
+  pieces, UTM). We read the directory with one range request (`parse_tiff`, no dependency), convert the corners from
+  UTM to lon/lat, and serve each piece by its byte range with the shared JPEG tables put in front (`/api/maxar/tile`);
+  the browser places pieces as image sources by bilinear corners and picks the overview level by screen size.
+  Verified: Cyclone Ditwah, WorldView-3 0.37 m colour, houses visible. WorldView-1 passes are black and white.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

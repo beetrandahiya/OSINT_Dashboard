@@ -81,7 +81,8 @@ def spy(row: dict) -> bool:
 
 
 def compact(ucs: dict[int, dict]) -> dict[str, list]:
-    return {str(k): [code(v), "military" in (v.get("users") or "").lower()] for k, v in ucs.items()}
+    from .flags import ucs_flags
+    return {str(k): [code(v), "military" in (v.get("users") or "").lower(), ucs_flags(v.get("country"))] for k, v in ucs.items()}
 
 
 def save(ucs):

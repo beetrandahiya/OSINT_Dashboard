@@ -1,6 +1,7 @@
 // Ships: Finland's open feed (northern Baltic, no key) plus aisstream.io worldwide once its free key is set.
 // A ship is drawn where it last reported; nothing is moved forward.
 import {ago, esc, local} from './util.js';
+import {shipFlag, emoji} from './flags.js';
 
 const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 10-26z';
 const STATUS = {0: 'Under way', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted in manoeuvring', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Fishing', 8: 'Under sail'};
@@ -22,8 +23,9 @@ async function fillShip() {
   if (!r) { try { r = await fetch('/api/ship/about?' + q).then(x => x.json()); pics.set(q, r); } catch (e) { box.dataset.done = ''; return; } }
   const top = document.getElementById('shippic'), about = document.getElementById('shipabout');
   if (!top || top.dataset.mmsi !== box.dataset.mmsi) return;
-  if (r.image) top.innerHTML = `<div class="photo"><a href="${esc(r.commons || 'https://www.wikidata.org/wiki/' + r.qid)}" target="_blank" rel="noopener"><img src="${esc(r.image.replace('http://', 'https://'))}${r.commons ? '' : '?width=640'}" alt="Picture of this ship" loading="lazy"></a><span>Picture: Wikimedia Commons${r.commons ? ', filed under its IMO number' : ', via Wikidata'}${r.by === 'name' ? ' (matched by name; check it is this ship)' : ''}</span></div>`;
-  if (about) { about.dataset.done = '1'; about.innerHTML = r.qid ? `<section class="pz"><h3>${esc(r.name || 'On Wikidata')}</h3>${r.description ? `<p>${esc(r.description[0].toUpperCase() + r.description.slice(1))}.</p>` : ''}<dl>${r.kinds?.length ? `<dt>Kind</dt><dd>${r.kinds.map(esc).join(', ')}</dd>` : ''}${r.operator ? `<dt>Operator</dt><dd>${esc(r.operator)}</dd>` : ''}${r.country ? `<dt>Flag</dt><dd>${esc(r.country)}</dd>` : ''}${r.built ? `<dt>In service since</dt><dd>${esc(r.built)}</dd>` : ''}</dl>${r.wikipedia ? `<a class="link" href="${esc(r.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}<p class="source">Wikidata, matched by ${r.by === 'imo' ? 'IMO number' : r.by === 'mmsi' ? 'MMSI' : 'name, so it may be another ship of the same name'}.</p></section>` : r.commons ? '' : `<p class="source">No picture found: this ship is not on Wikidata or Wikimedia Commons under its IMO number${box.dataset.mil ? ' or name' : ''}.</p>`; }
+  if (!r.image) top.innerHTML = `<p class="pic-wait">${r.error ? esc(r.error) + '; no picture this time.' : 'No picture found for this ship.'}</p>`;
+  if (r.image) top.innerHTML = `<div class="photo"><a href="${esc(r.commons || 'https://www.wikidata.org/wiki/' + r.qid)}" target="_blank" rel="noopener"><img src="${esc(r.image.replace('http://', 'https://'))}${r.commons ? '' : '?width=640'}" alt="Picture of this ship" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The picture could not be loaded.</p>'"></a><span>Picture: Wikimedia Commons${r.commons ? ', filed under its IMO number' : ', via Wikidata'}${r.by === 'name' ? ' (matched by name; check it is this ship)' : ''}</span></div>`;
+  if (about) { about.dataset.done = '1'; about.innerHTML = r.qid ? `<section class="pz"><h3>${esc(r.name || 'On Wikidata')}</h3>${r.description ? `<p>${esc(r.description[0].toUpperCase() + r.description.slice(1))}.</p>` : ''}<dl>${r.kinds?.length ? `<dt>Kind</dt><dd>${r.kinds.map(esc).join(', ')}</dd>` : ''}${r.operator ? `<dt>Operator</dt><dd>${esc(r.operator)}</dd>` : ''}${r.country ? `<dt>Flag</dt><dd>${esc(r.country)}</dd>` : ''}${r.built ? `<dt>In service since</dt><dd>${esc(r.built)}</dd>` : ''}</dl>${r.wikipedia ? `<a class="link" href="${esc(r.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}<p class="source">Wikidata, matched by ${r.by === 'imo' ? 'IMO number' : r.by === 'mmsi' ? 'MMSI' : 'name, so it may be another ship of the same name'}.</p></section>` : r.commons ? '' : `<p class="source">Looked on Wikidata (by IMO number, MMSI${box.dataset.mil ? ' and name' : ''}) and on Wikimedia Commons (by IMO number); many ships, and most warships, have neither.</p>`; }
 }
 
 const shipsLayer = {
@@ -42,7 +44,7 @@ const shipsLayer = {
   onData(feed, d) { list = d.payload.ships; info = d; },
   render(map) {
     map.getSource('ww-ships').setData({type: 'FeatureCollection', features: list.map(s => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]},
-      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || ''}}))});
+      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || ''}}))});
   },
   count: () => list.length,
   rows: () => [],
@@ -54,10 +56,10 @@ const shipsLayer = {
   detail(id) {
     const s = list.find(x => 'ship:' + x.mmsi === id);
     if (!s) return null;
-    return `<div id="shippic" data-mmsi="${s.mmsi}" data-imo="${s.imo || ''}" data-name="${esc(s.name || '')}" data-mil="${s.kind === 'Military vessel' ? 1 : ''}"></div>
-      <p class="eyebrow">${esc(s.kind || 'Ship')}</p><h2>${esc(s.name || 'MMSI ' + s.mmsi)}</h2>
+    return `<div id="shippic" data-mmsi="${s.mmsi}" data-imo="${s.imo || ''}" data-name="${esc(s.name || '')}" data-mil="${s.kind === 'Military vessel' ? 1 : ''}"><p class="pic-wait">Looking for a picture of this ship…</p></div>
+      <p class="eyebrow">${esc(s.kind || 'Ship')}</p><h2>${esc(s.name || 'MMSI ' + s.mmsi)}${shipFlag(s.mmsi)?.cc ? ` <span class="flag" title="${esc(shipFlag(s.mmsi).name)}">${emoji(shipFlag(s.mmsi).cc)}</span>` : ''}</h2>
       <p class="where">${s.destination ? 'Destination as entered by the crew: ' + esc(s.destination) : 'No destination entered'}</p>
-      <dl><dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
+      <dl>${(() => { const fl = shipFlag(s.mmsi); return fl ? `<dt>Flag</dt><dd>${emoji(fl.cc)} ${esc(fl.name)} <span class="soft">(from its MMSI)</span></dd>` : ''; })()}<dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
       <dt>Speed</dt><dd>${s.speed_kn == null ? 'not reported' : s.speed_kn.toFixed(1) + ' kn <span class="soft">(' + Math.round(s.speed_kn * 1.852) + ' km/h)</span>'}</dd>
       <dt>Course</dt><dd>${s.course == null ? 'not reported' : Math.round(s.course) + '°'}</dd>
       ${s.length_m ? `<dt>Length</dt><dd>${s.length_m} m</dd>` : ''}
@@ -89,7 +91,7 @@ export const warships = {
   onData() {},
   render(map) {
     map.getSource('ww-warships').setData({type: 'FeatureCollection', features: list.filter(s => s.kind === 'Military vessel').map(s => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]},
-      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || ''}}))});
+      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || ''}}))});
   },
   count: () => list.filter(s => s.kind === 'Military vessel').length,
   rows: () => [],

@@ -6,6 +6,7 @@ import {json2satrec} from '../vendor/satellite/io.js';
 import {propagate, gstime} from '../vendor/satellite/propagation.js';
 import {eciToGeodetic, degreesLat, degreesLong, eciToEcf, ecfToLookAngles} from '../vendor/satellite/transforms.js';
 import {ago, esc, local, now, utc} from './util.js';
+import {satFlags, flagText} from './flags.js';
 
 const ISS = 25544, EARTH_KM = 6371;
 let sats = [], baseOmm = [], reconOmm = [], purposes = {}, reconInfo = null, catInfo = null, satInfo = null, launchList = [], launchInfo = null, shown = true, theMap = null, sel = null, following = false, cv = null;
@@ -18,7 +19,7 @@ function where(rec, t) {
 }
 const epoch = s => Date.parse(s.omm.EPOCH + 'Z') / 1000;
 const period = s => 1440 / s.omm.MEAN_MOTION;                      // minutes for one orbit
-const byId = id => sats.find(x => 'sat:' + x.id === id);
+const byId = id => satById.get(id) || sats.find(x => 'sat:' + x.id === id);
 // The usual names for orbits, by the standard definitions: height, the time for one orbit, and how stretched it is.
 function orbit(s) {
   const P = period(s), e = s.omm.ECCENTRICITY, inc = s.omm.INCLINATION, a = Math.cbrt(398600.4418 * (P * 60 / (2 * Math.PI)) ** 2), mean = a - EARTH_KM;
@@ -61,15 +62,28 @@ const classOf = s => { const P = period(s), e = s.omm.ECCENTRICITY, a = Math.cbr
 // What a satellite does (UCS Satellite Database), one word each, with a letter drawn beside it on the globe.
 const WHAT = {imaging: ['I', 'Imaging (cameras)'], radar: ['R', 'Radar imaging'], signals: ['S', 'Signals intelligence'], warning: ['W', 'Missile early warning'],
   weather: ['M', 'Weather'], navigation: ['N', 'Navigation'], comms: ['C', 'Communications'], science: ['X', 'Science'], technology: ['T', 'Technology test'], other: ['?', 'Other']};
+const flagsOf = s => satFlags(s.omm.OWNER, purposes[s.id]?.[2]);
 const what = s => purposes[s.id] || (s.source === 'amateur observers' ? ['classified', true] : null);
 const isSpy = s => { const w = what(s); return !!w && (w[0] === 'classified' || (w[1] && ['imaging', 'radar', 'signals', 'warning'].includes(w[0]))); };
+// What each satellite is, worked out once when the data arrives instead of on every frame.
+const satById = new Map();
+function annotate() {
+  satById.clear();
+  for (const s of sats) { s.w = what(s); s.spy = isSpy(s); s.flags = flagText(flagsOf(s)); satById.set('sat:' + s.id, s); }
+}
+document.addEventListener('ww-flags', () => annotate());
 const isGlobe = () => theMap?.getProjection?.()?.type === 'globe';
 const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 const tint = s => CLASS[s.cls][1 + isDark()];
 let M = null, view = null, drawn = [];
 
 const mul = (A, B) => { const o = new Float64Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let v = 0; for (let k = 0; k < 4; k++) v += A[k * 4 + r] * B[c * 4 + k]; o[c * 4 + r] = v; } return o; };
-function clip(lon, lat, km) { const P = mul(M, theMap.transform.getMatrixForModel([lon, lat], km * 1000)); return [P[12], P[13], P[15]]; }
+// Only the last column of M x model is needed (where the model's origin lands), so compute just that: four dot
+// products instead of a full 4x4 multiplication and a new array per satellite per frame.
+function clip(lon, lat, km) {
+  const T = theMap.transform.getMatrixForModel([lon, lat], km * 1000), a = T[12], b = T[13], c = T[14], d = T[15];
+  return [M[0] * a + M[4] * b + M[8] * c + M[12] * d, M[1] * a + M[5] * b + M[9] * c + M[13] * d, M[3] * a + M[7] * b + M[11] * c + M[15] * d];
+}
 // Once per frame: where the camera is. It sits straight above the map's centre; its distance from the Earth's
 // centre (in Earth radii) follows from how the engine's depth value changes between the ground and one radius up.
 function camera() {
@@ -163,7 +177,7 @@ function drawHeights() {
     const up = place(s.pos.lon, s.pos.lat, s.pos.km); if (!up) continue;
     const big = s.id === ISS || s === picked, col = tint(s);
     if (big) { x.setLineDash([2, 3]); stroke(x, Array.from({length: 13}, (_, i) => [s.pos.lon, s.pos.lat, s.pos.km * i / 12]), col, 1, 0.6); x.setLineDash([]); }
-    const spyish = isSpy(s);
+    const spyish = s.spy;
     x.fillStyle = col; x.strokeStyle = spyish ? red : edge; x.lineWidth = big ? 1.2 : spyish ? 1.4 : 0.6;
     x.beginPath(); x.arc(up[0], up[1], big ? 4.5 : spyish ? 3 : 2, 0, 7); x.fill(); x.stroke();
     if (s === picked) { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(up[0], up[1], 9, 0, 7); x.stroke(); }
@@ -173,13 +187,16 @@ function drawHeights() {
   // what each one does, as a letter beside it, once few enough are in view to read
   if (drawn.length && drawn.length < 160) {
     x.font = '600 9px "SF Pro", -apple-system, system-ui, sans-serif'; x.lineWidth = 2.5;
-    for (const [px, py, id] of drawn) { const sat = byId(id), w = sat && what(sat); if (!w) continue; const L = w[0] === 'classified' ? 'S?' : WHAT[w[0]]?.[0]; if (!L) continue;
-      x.strokeStyle = edge; x.strokeText(L, px + 5, py - 4); x.fillStyle = isSpy(sat) ? red : ink; x.fillText(L, px + 5, py - 4); }
+    for (const [px, py, id] of drawn) {
+      const sat = satById.get(id); if (!sat) continue;
+      const w = sat.w, L = w ? (w[0] === 'classified' ? 'S?' : WHAT[w[0]]?.[0]) : null;
+      if (L) { x.font = '600 9px "SF Pro", -apple-system, system-ui, sans-serif'; x.strokeStyle = edge; x.strokeText(L, px + 5, py - 4); x.fillStyle = sat.spy ? red : ink; x.fillText(L, px + 5, py - 4); }
+    }
   }
   // which colour is which orbit, top of the map
   const used = [...new Set(sats.map(s => s.cls))].filter(c => CLASS[c]); let lx = (box.clientWidth + 420 - 340) / 2 - used.length * 62, ly = 34;
   x.font = '500 12px "SF Pro", -apple-system, system-ui, sans-serif';
-  if (sats.some(isSpy)) { x.strokeStyle = red; x.lineWidth = 1.4; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.stroke(); const t2 = 'Military imaging or signals'; x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += x.measureText(t2).width + 34; }
+  if (sats.some(s => s.spy)) { x.strokeStyle = red; x.lineWidth = 1.4; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.stroke(); const t2 = 'Military imaging or signals'; x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += x.measureText(t2).width + 34; }
   for (const c of used) { x.fillStyle = CLASS[c][1 + dark]; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.fill(); x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(CLASS[c][0], lx + 9, ly); x.fillStyle = ink; x.fillText(CLASS[c][0], lx + 9, ly); lx += x.measureText(CLASS[c][0]).width + 34; }
 }
 
@@ -196,7 +213,7 @@ function tick(map) {
   for (const s of sats) {
     const p = where(s.rec, t); if (!p) continue;
     s.pos = p;
-    feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, spy: isSpy(s), label: s.id === ISS ? 'ISS' : ''}});
+    feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, spy: !!s.spy, label: s.id === ISS ? 'ISS' : ''}});
   }
   map.getSource('ww-sats').setData({type: 'FeatureCollection', features: shown && !isGlobe() ? feats : []});   // dots on the flat map only
   const picked = sel && byId(sel);
@@ -230,12 +247,13 @@ export const satellites = {
   },
   shape(map) { if (!isGlobe() && following) stopFollowing(); tick(map); },   // called when the map switches between flat and globe
   onData(feed, d) {
-    if (feed === 'sat_catalog') { catInfo = d; purposes = d.payload.purpose || {}; return; }
+    if (feed === 'sat_catalog') { catInfo = d; purposes = d.payload.purpose || {}; annotate(); return; }
     if (feed === 'recon_sats') { reconInfo = d; reconOmm = d.payload.omm || []; } else { satInfo = d; baseOmm = d.payload.omm; }
     const keep = new Map(sats.map(s => [s.id, s])), seen = new Set();
     sats = [...baseOmm, ...reconOmm].filter(o => !seen.has(o.NORAD_CAT_ID) && seen.add(o.NORAD_CAT_ID)).map(o => {
       try { const s = {id: o.NORAD_CAT_ID, name: o.OBJECT_NAME, omm: o, rec: json2satrec(o), source: o.SOURCE || 'CelesTrak'}; s.cls = classOf(s); s.pos = keep.get(s.id)?.pos; return s; } catch (e) { return null; }
     }).filter(Boolean);
+    annotate();
   },
   render(map) { tick(map); },
   visible(on) { shown = on; if (!on && following) stopFollowing(); if (theMap?.getSource('ww-sats')) tick(theMap); },
@@ -259,11 +277,12 @@ export const satellites = {
     box.dataset.done = '1';
     const norad = box.dataset.norad;
     let r = satCards.get(norad);
-    if (!r) { try { r = await fetch('/api/satellite/' + norad).then(x => x.json()); satCards.set(norad, r); } catch (e) { box.dataset.done = ''; return; } }
+    if (!r) { try { r = await fetch('/api/satellite/' + norad + '?name=' + encodeURIComponent(box.dataset.name || '')).then(x => x.json()); satCards.set(norad, r); } catch (e) { box.dataset.done = ''; return; } }
     const top = document.getElementById('satwho'), about = document.getElementById('satabout');
     if (!top || top.dataset.norad !== norad) return;
     const wd = r.wikidata || {}, u = r.ucs;
-    if (wd.image) top.innerHTML = `<div class="photo"><a href="https://www.wikidata.org/wiki/${esc(wd.qid)}" target="_blank" rel="noopener"><img src="${esc(wd.image.replace('http://', 'https://'))}?width=640" alt="Picture of this satellite or its type" loading="lazy"></a><span>Picture: Wikimedia Commons, via Wikidata (often an artist's impression or the satellite type)</span></div>`;
+    top.innerHTML = wd.image ? `<div class="photo"><a href="https://www.wikidata.org/wiki/${esc(wd.qid || wd.family_qid || '')}" target="_blank" rel="noopener"><img src="${esc(wd.image)}" alt="Picture" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The picture could not be loaded.</p>'"></a><span>Picture of ${esc(wd.image_of || 'this satellite')}, from Wikimedia Commons via Wikidata. Often an artist's impression.</span></div>`
+      : `<p class="pic-wait">${r.problem ? esc(r.problem) + '; no picture this time.' : 'No picture of this satellite or its type on Wikidata.'}</p>`;
     const rowsHtml = [
       wd.description && `<p class="prof-intro">${esc(wd.description[0].toUpperCase() + wd.description.slice(1))}.</p>`,
       u && `<dt>Does</dt><dd>${esc(u.purpose || '')}${u.detail ? ' · ' + esc(u.detail) : ''}</dd>`,
@@ -291,11 +310,12 @@ export const satellites = {
     if (!s || !s.pos) return null;
     const e = epoch(s), p = s.pos, rad = horizon(p.km), wide = 2 * rad * EARTH_KM, o = orbit(s);
     const w = what(s);
-    return `<div id="satwho" data-norad="${s.id}"></div>
+    return `<div id="satwho" data-norad="${s.id}" data-name="${esc(s.name)}"><p class="pic-wait">Looking for a picture…</p></div>
       <p class="eyebrow">${w ? (w[0] === 'classified' ? 'Classified US satellite' : (w[1] ? 'Military · ' : '') + WHAT[w[0]][1]) : 'Satellite'}</p>
-      <h2>${esc(s.id === ISS ? 'International Space Station' : s.name)}</h2>
+      <h2>${esc(s.id === ISS ? 'International Space Station' : s.name)}${s.flags ? ` <span class="flag">${s.flags}</span>` : ''}</h2>
       <p class="where"><span class="swatch" style="background:${tint(s)}"></span>${o[0]} <span class="sub">${o[1]}; tilted ${s.omm.INCLINATION.toFixed(1)}° to the equator</span></p>
       <dl>
+        ${(() => { const f = flagsOf(s); return f && (f.ccs.length || f.name) ? `<dt>Owner</dt><dd>${flagText(f)} ${esc(f.name || 'per the UCS database')}</dd>` : ''; })()}
         <dt>Over</dt><dd>${Math.abs(p.lat).toFixed(2)}° ${p.lat >= 0 ? 'N' : 'S'}, ${Math.abs(p.lon).toFixed(2)}° ${p.lon >= 0 ? 'E' : 'W'}</dd>
         <dt>Height</dt><dd>${Math.round(p.km).toLocaleString('en-GB')} km</dd>
         <dt>Speed</dt><dd>${p.kms ? (p.kms * 3600).toLocaleString('en-GB', {maximumFractionDigits: 0}) + ' km/h' : 'not available'}</dd>

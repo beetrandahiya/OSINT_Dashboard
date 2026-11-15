@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db, satinfo, translate
+from . import config, db, maxar, satinfo, translate
 from . import news as news_window
 from .collector import Collector
 from .ais import stream as ais_stream
@@ -229,47 +229,78 @@ async def news_place(request):
 _ucs = {"at": 0, "data": {}}
 
 
+def _wm_headers(sparql=False) -> dict:
+    """Wikimedia asks automated clients to say who they are; with a contact address set, it is included."""
+    who = config.contact()
+    h = {"User-Agent": f"WorldWatch/0.1 (personal non-commercial dashboard{'; ' + who if who else ''})"}
+    if sparql:
+        h["Accept"] = "application/sparql-results+json"
+    return h
+
+
+def _commons(url_or_name: str | None) -> str | None:
+    if not url_or_name:
+        return None
+    return url_or_name.replace("http://", "https://") + ("&" if "?" in url_or_name else "?") + "width=640"
+
+
 async def satellite(request):
     """What one satellite is: the UCS row (purpose, operator, users) and Wikidata's entry (picture, description,
-    kind, operator, manufacturer), by catalogue number. Wikidata is asked when a card opens and remembered 30 days."""
+    kind, operator, maker), by catalogue number. When the satellite has no picture of its own, the picture of its
+    type (Wikidata's class) or of its family (by name, e.g. Starlink) is used, and labelled as such."""
     try:
         norad = int(request.path_params["norad"])
     except ValueError:
         return JSONResponse({"error": "not a catalogue number"}, status_code=400)
+    name = (request.query_params.get("name") or "").strip()
     if time.time() - _ucs["at"] > 3600:
         _ucs.update(at=time.time(), data=await asyncio.to_thread(satinfo.load))
-    key, wd = f"satwd:{norad}", None
+    key, wd, problem = f"satwd2:{norad}", None, None
     hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
     if hit:
         wd = hit["body"]
     else:
-        q = f"""SELECT ?s ?sLabel ?sDescription ?img ?typeLabel ?useLabel ?opLabel ?makerLabel ?article WHERE {{
-          ?s wdt:P377 "{norad}". OPTIONAL {{ ?s wdt:P18 ?img }} OPTIONAL {{ ?s wdt:P31 ?type }} OPTIONAL {{ ?s wdt:P366 ?use }}
+        q = f"""SELECT ?s ?sLabel ?sDescription ?img ?typeLabel ?typeImg ?opLabel ?makerLabel ?article WHERE {{
+          ?s wdt:P377 "{norad}". OPTIONAL {{ ?s wdt:P18 ?img }} OPTIONAL {{ ?s wdt:P31 ?type. OPTIONAL {{ ?type wdt:P18 ?typeImg }} }}
           OPTIONAL {{ ?s wdt:P137 ?op }} OPTIONAL {{ ?s wdt:P176 ?maker }}
           OPTIONAL {{ ?article schema:about ?s; schema:isPartOf <https://en.wikipedia.org/> }}
-          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }} LIMIT 40"""
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }} LIMIT 60"""
         try:
-            async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "Accept": "application/sparql-results+json"}) as c:
+            async with httpx.AsyncClient(timeout=25, headers=_wm_headers(True)) as c:
                 r = await c.get("https://query.wikidata.org/sparql", params={"query": q})
-            if r.status_code == 200:
+                if r.status_code != 200:
+                    raise httpx.HTTPError(f"Wikidata answered {r.status_code}")
                 rows = r.json()["results"]["bindings"]
                 v = lambda x, k: x.get(k, {}).get("value")
+                wd = {}
                 if rows:
                     main = rows[0]["s"]["value"]
                     rows = [x for x in rows if x["s"]["value"] == main] or rows   # the ISS number also names its modules
+                    own = next((v(x, "img") for x in rows if v(x, "img")), None)
+                    typ = next(((v(x, "typeImg"), v(x, "typeLabel")) for x in rows if v(x, "typeImg")), (None, None))
                     wd = {"qid": main.rsplit("/", 1)[1], "name": v(rows[0], "sLabel"), "description": v(rows[0], "sDescription"),
-                          "image": next((v(x, "img") for x in rows if v(x, "img")), None),
+                          "image": _commons(own or typ[0]), "image_of": "this satellite" if own else (f"its type, {typ[1]}" if typ[0] else None),
                           "kinds": sorted({v(x, "typeLabel") for x in rows if v(x, "typeLabel")} - {"artificial satellite of the Earth", "satellite"}),
-                          "uses": sorted({v(x, "useLabel") for x in rows if v(x, "useLabel")}),
                           "operators": sorted({v(x, "opLabel") for x in rows if v(x, "opLabel")}),
                           "makers": sorted({v(x, "makerLabel") for x in rows if v(x, "makerLabel")}),
                           "wikipedia": next((v(x, "article") for x in rows if v(x, "article")), None)}
-                else:
-                    wd = {}
-                await asyncio.to_thread(db.lookup_put, key, time.time(), wd)
-        except (httpx.HTTPError, ValueError, KeyError):
-            wd = None
-    return JSONResponse({"norad": norad, "ucs": _ucs["data"].get(norad), "wikidata": wd,
+                # no picture yet: try the family by name (STARLINK-1234 -> Starlink, YAOGAN-30 01 -> Yaogan)
+                family = re.split(r"[-\s(]|\d", name.strip(), maxsplit=1)[0].strip().title() if name else ""
+                if not wd.get("image") and len(family) >= 3 and family.upper() not in ("USA", "OBJECT", "SL", "CZ"):
+                    r = await c.get("https://www.wikidata.org/w/api.php", params={"action": "wbsearchentities", "search": family, "language": "en",
+                                                                                 "type": "item", "limit": 6, "format": "json"})
+                    fam = next((h for h in r.json().get("search", []) if re.search(r"satellite|constellation|spacecraft|space", h.get("description", ""), re.I)), None)
+                    if fam:
+                        r = await c.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": fam["id"], "props": "claims", "format": "json"})
+                        claim = (r.json()["entities"][fam["id"]].get("claims", {}).get("P18") or [{}])[0]
+                        file = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
+                        if file:
+                            wd.update(image=_commons("https://commons.wikimedia.org/wiki/Special:FilePath/" + file.replace(" ", "_")),
+                                      image_of=f"the {fam.get('label', family)} family, not this satellite", family_qid=fam["id"])
+            await asyncio.to_thread(db.lookup_put, key, time.time(), wd)
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            wd, problem = None, f"Wikidata could not be asked ({e})"[:120]
+    return JSONResponse({"norad": norad, "ucs": _ucs["data"].get(norad), "wikidata": wd, "problem": problem,
                          "ucs_kind": satinfo.code(_ucs["data"][norad]) if norad in _ucs["data"] else None})
 
 
@@ -286,7 +317,7 @@ async def ship_about(request):
       OPTIONAL { ?s wdt:P729 ?since } OPTIONAL { ?article schema:about ?s; schema:isPartOf <https://en.wikipedia.org/> }
       SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }"""
     body, by = {}, None
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "Accept": "application/sparql-results+json"}) as c:
+    async with httpx.AsyncClient(timeout=20, headers=_wm_headers(True)) as c:
         async def sparql(where):
             r = await c.get("https://query.wikidata.org/sparql", params={"query": f"SELECT ?s ?sLabel ?sDescription ?img ?typeLabel ?opLabel ?flagLabel ?since ?article WHERE {{ {where} {fields} }} LIMIT 20"})
             return r.json()["results"]["bindings"] if r.status_code == 200 else []
@@ -332,7 +363,7 @@ async def ship_about(request):
                         break
                     cat = subs[0]
             except (httpx.HTTPError, ValueError, KeyError, StopIteration):
-                pass
+                return JSONResponse({**body, "error": "Wikimedia Commons could not be asked"})   # not remembered: try again next time
     await asyncio.to_thread(db.lookup_put, key, time.time(), body)
     return JSONResponse(body)
 
@@ -367,6 +398,117 @@ async def imagery_date(request):
         hit = {"fetched": time.time(), "body": best or {}}
         await asyncio.to_thread(db.lookup_put, key, hit["fetched"], hit["body"])
     return JSONResponse(hit["body"] or {"date": None})
+
+
+_mx_meta: dict[str, tuple[float, dict]] = {}
+
+
+async def _mx_json(c, url):
+    key = "maxar:" + url
+    hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
+    if hit:
+        return hit["body"]
+    r = await c.get(url)
+    r.raise_for_status()
+    body = r.json()
+    await asyncio.to_thread(db.lookup_put, key, time.time(), body)
+    return body
+
+
+async def maxar_acq(request):
+    """The acquisitions (one satellite pass each) of one Maxar event: where, when, how many picture files."""
+    eid = request.query_params.get("event", "")
+    if not re.fullmatch(r"[\w.-]+", eid):
+        return JSONResponse({"error": "no such event"}, status_code=400)
+    base = maxar.BASE + eid + "/"
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT}) as c:
+        try:
+            col = await _mx_json(c, base + "collection.json")
+            out, gate = [], asyncio.Semaphore(6)
+            async def one(href):
+                async with gate:
+                    a = await _mx_json(c, base + href.lstrip("./"))
+                ext = a.get("extent", {})
+                return {"id": a.get("id"), "href": href.lstrip("./"), "bbox": (ext.get("spatial", {}).get("bbox") or [[None] * 4])[0],
+                        "when": ((ext.get("temporal", {}).get("interval") or [[None]])[0][0] or "")[:16], "items": sum(1 for l in a.get("links", []) if l.get("rel") == "item")}
+            out = await asyncio.gather(*(one(l["href"]) for l in col.get("links", []) if l.get("rel") == "child"))
+        except (httpx.HTTPError, ValueError) as e:
+            return JSONResponse({"error": f"Maxar's catalogue could not be read ({type(e).__name__})"}, status_code=502)
+    return JSONResponse({"event": eid, "acquisitions": sorted(out, key=lambda a: a["when"], reverse=True)})
+
+
+async def maxar_items(request):
+    """The picture files of one acquisition: each with its area, time, satellite and file address."""
+    eid, href = request.query_params.get("event", ""), request.query_params.get("acq", "")
+    if not re.fullmatch(r"[\w.-]+", eid) or not re.fullmatch(r"[\w./-]+\.json", href) or ".." in href.replace("../", ""):
+        return JSONResponse({"error": "bad request"}, status_code=400)
+    acq_url = maxar.BASE + eid + "/" + href
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT}) as c:
+        try:
+            acq = await _mx_json(c, acq_url)
+            gate = asyncio.Semaphore(8)
+            async def one(link):
+                url = str(httpx.URL(acq_url).join(link))
+                async with gate:
+                    it = await _mx_json(c, url)
+                vis = (it.get("assets", {}).get("visual") or {}).get("href")
+                pr = it.get("properties", {})
+                return {"id": it.get("id"), "bbox": it.get("bbox"), "when": (pr.get("datetime") or "")[:16], "platform": pr.get("platform"),
+                        "gsd": pr.get("gsd"), "cloud": pr.get("eo:cloud_cover"), "visual": str(httpx.URL(url).join(vis)) if vis else None}
+            items = await asyncio.gather(*(one(l["href"]) for l in acq.get("links", []) if l.get("rel") == "item"))
+        except (httpx.HTTPError, ValueError) as e:
+            return JSONResponse({"error": f"Maxar's catalogue could not be read ({type(e).__name__})"}, status_code=502)
+    return JSONResponse({"items": [i for i in items if i["visual"]]})
+
+
+async def _mx_read(u: str) -> dict:
+    hit = _mx_meta.get(u)
+    if hit and time.time() - hit[0] < 6 * 3600:
+        return hit[1]
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT}) as c:
+        for size in (65536, 262144):
+            r = await c.get(u, headers={"Range": f"bytes=0-{size - 1}"})
+            r.raise_for_status()
+            try:
+                meta = await asyncio.to_thread(maxar.parse_tiff, r.content)
+                break
+            except ValueError as e:
+                if "beyond" not in str(e) or size == 262144:
+                    raise
+    if len(_mx_meta) > 300:
+        for k, _ in sorted(_mx_meta.items(), key=lambda kv: kv[1][0])[:100]:
+            del _mx_meta[k]
+    _mx_meta[u] = (time.time(), meta)
+    return meta
+
+
+async def maxar_meta(request):
+    u = request.query_params.get("u", "")
+    if not maxar.ALLOWED.match(u):
+        return JSONResponse({"error": "not a Maxar Open Data file"}, status_code=400)
+    try:
+        return JSONResponse(maxar.public(await _mx_read(u)), headers={"Cache-Control": "private, max-age=86400"})
+    except (httpx.HTTPError, ValueError) as e:
+        return JSONResponse({"error": f"could not read the file ({e})"[:160]}, status_code=502)
+
+
+async def maxar_tile(request):
+    """One 512-pixel piece of a Maxar picture, as a JPEG, cut straight out of the file."""
+    q = request.query_params
+    u = q.get("u", "")
+    if not maxar.ALLOWED.match(u):
+        return Response(status_code=400)
+    try:
+        meta = await _mx_read(u)
+        off, n, tables = maxar.piece(meta, int(q["l"]), int(q["x"]), int(q["y"]))
+        if not n:
+            return Response(status_code=204)
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT}) as c:
+            r = await c.get(u, headers={"Range": f"bytes={off}-{off + n - 1}"})
+        r.raise_for_status()
+    except (httpx.HTTPError, ValueError, KeyError, IndexError):
+        return Response(status_code=502)
+    return Response(maxar.jpeg(tables, r.content), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=2592000"})
 
 
 async def news_image(request):
@@ -475,6 +617,10 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/satellite/{norad}", satellite),
     Route("/api/imagery/date", imagery_date),
     Route("/api/ship/about", ship_about),
+    Route("/api/maxar/acquisitions", maxar_acq),
+    Route("/api/maxar/items", maxar_items),
+    Route("/api/maxar/meta", maxar_meta),
+    Route("/api/maxar/tile", maxar_tile),
     Route("/api/aircraft/area", area),
     Mount(f"/s/{VERSION}", Forever(directory=STATIC)),
     Mount("/static", StaticFiles(directory=STATIC)),

@@ -5,6 +5,7 @@
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
 import {$, ago, api, esc, local, now} from './util.js';
+import {planeFlag, emoji} from './flags.js';
 
 let view = [], viewInfo = null, mil = [], world = [], info = {}, theMap = null, shown = {aircraft: true, military: true};
 const VIEW_MIN_ZOOM = 5.2;   // below this the screen holds more than adsb.fi's 250-mile circle, so only the world feed is used
@@ -87,7 +88,7 @@ function icons(map, dark) {
 }
 
 const feature = (a, cls, at) => { const [shape, size] = kind(a); return {type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
-  properties: {id: a.hex, track: STILL.has(shape) ? 0 : a.track ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : '')}}; };
+  properties: {id: a.hex, track: STILL.has(shape) ? 0 : a.track ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : ''), cc: planeFlag(a.hex)?.cc || ''}}; };
 const empty = {type: 'FeatureCollection', features: []};
 const SIZE = ['interpolate', ['linear'], ['zoom'], 1, ['*', 0.22, ['get', 's']], 5, ['*', 0.46, ['get', 's']], 9, ['*', 0.8, ['get', 's']]];
 const label = {'text-field': ['step', ['zoom'], '', 6.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5,
@@ -140,14 +141,19 @@ async function loadTrack() {
 setInterval(loadTrack, 45000);
 function noteTrack() {
   const el = $('#tracknote'); if (!el || !flown || flown.hex !== sel) return;
-  el.textContent = flown.points.length > 1 ? `Solid line: the path it has flown, from ${flown.source}.` : `No flown path to draw${flown.note ? ' (' + flown.note + ')' : ''}.`;
+  const h = find(sel), last = flown.points[flown.points.length - 1];
+  el.textContent = flown.points.length > 1 ? `Solid line: the path it has flown, from ${flown.source}.` + (h && last && posTime(h) < last[0] ? ` That path is newer than the position the symbol shows (${ago(posTime(h))}); its newest point, from ${local(last[0])}, is marked.` : '') : `No flown path to draw${flown.note ? ' (' + flown.note + ')' : ''}.`;
 }
 function drawExtras() {
   const map = theMap; if (!map?.getSource('ww-air-extra')) return;
   const feats = [], hit = sel && find(sel), at = hit && position(hit);
   if (hit && flown && flown.hex === sel && flown.points.length > 1) {
-    const pts = flown.points.map(p => [p[1], p[2]]);
-    pts.push(at);                                             // join the path to where the aircraft is drawn now
+    const pts = flown.points.map(p => [p[1], p[2]]), last = flown.points[flown.points.length - 1];
+    // Join the path to the symbol only when the symbol's position is the newer one. The world snapshot can be
+    // 20 minutes old while OpenSky's path runs up to now: joining those drew a line that ran ahead and turned
+    // back to the older symbol. Then the path's own newest point is marked with its time instead.
+    if (posTime(hit) >= last[0]) pts.push(at);
+    else feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [last[1], last[2]]}, properties: {kind: 'airport', label: 'newest ' + local(last[0])}});
     feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: split(pts)}, properties: {kind: 'trail'}});
   }
   if (hit && route && route.for === sel && route.fits) {
@@ -156,6 +162,11 @@ function drawExtras() {
     for (const p of [o, d]) feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {kind: 'airport', label: p.iata || p.city || ''}});
   }
   map.getSource('ww-air-extra').setData({type: 'FeatureCollection', features: feats});
+}
+function posTime(h) {   // when the position the symbol is drawn at was reported
+  if (h.from === 'view') return reportedAt(h.a);
+  if (h.from === 'military') return (info.aircraft_military?.data_time ?? 0) - (h.a.seen_pos_s ?? 0);
+  return h.a.last_contact ?? 0;
 }
 export function select(id) {
   if (id !== sel) { flown = null; route = null; }
@@ -201,10 +212,10 @@ function detail(id) {
       <p class="source">From plane-alert-db, a volunteer-kept list of notable aircraft (ODbL). Its tags are the volunteers' words; a listed aircraft can be flying without the person named on board.</p></section>` : '';
   return `<div class="photo" id="photo" data-hex="${esc(a.hex)}"></div>
     <p class="eyebrow">${v ? 'Government or VIP aircraft' : isMil ? 'Military ' + kind(a)[2].toLowerCase() : kind(a)[2]}</p>
-    <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}</h2>
+    <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}${planeFlag(a.hex) ? ` <span class="flag" title="${esc(planeFlag(a.hex).name)}">${emoji(planeFlag(a.hex).cc)}</span>` : ''}</h2>
     <p class="where" id="route" data-callsign="${esc(a.flight || '')}">${a.flight ? 'Looking up the route' : 'No callsign reported'}</p>
     ${vipBlock}
-    <dl>${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
+    <dl>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${emoji(fl.cc)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
     <p class="source">Position: ${SOURCE[from]}, fetched ${ago(f.fetched)}. ${fresh}</p>
@@ -323,7 +334,7 @@ export const vip = {
   onData(feed, d) { vipInfo = d; vipList = d.payload.aircraft || {}; },
   render(map) {
     map.getSource('ww-air-vip').setData({type: 'FeatureCollection', features: vipNow().map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
-      properties: {id: h.a.hex, label: vipLabel(h) + (h.ground ? ' (on the ground)' : '')}}))});
+      properties: {id: h.a.hex, cc: planeFlag(h.a.hex)?.cc || '', label: vipLabel(h) + (h.ground ? ' (on the ground)' : '')}}))});
   },
   count: () => vipNow().length,
   rows: () => vipNow().filter(h => !h.ground && vipList[h.a.hex].category !== "Don't you know who I am?").map(h => ({id: h.a.hex, time: vipInfo?.fetched || 0, badge: '◆',

@@ -27,6 +27,8 @@ from . import unrest as unrest_window
 from . import navwarn
 from . import airspace
 from . import satinfo
+from . import flags
+from . import maxar
 
 
 @dataclass
@@ -156,6 +158,16 @@ async def satellites(feed: Feed, f: Fetcher) -> Result:
             problems.append(f"{SAT_GROUPS[group]} ({type(e).__name__})")
     if not have:
         raise RuntimeError("CelesTrak answered for none of the satellite families: " + ", ".join(problems))
+    owners = feed.memo.setdefault("owners", {})
+    if time.time() - feed.memo.get("owners_at", 0) > 86400:
+        for group in SAT_GROUPS:
+            await asyncio.sleep(2.5)
+            try:
+                for x in (await f.get("https://celestrak.org/satcat/records.php", params={"GROUP": group, "FORMAT": "json"})).json():
+                    owners[x["NORAD_CAT_ID"]] = x.get("OWNER")
+            except Exception:
+                pass
+        feed.memo["owners_at"] = time.time()
     seen, recs = set(), []
     for group, rows in have.items():
         for r in rows:
@@ -163,6 +175,9 @@ async def satellites(feed: Feed, f: Fetcher) -> Result:
                 seen.add(r["NORAD_CAT_ID"])
                 recs.append(r)
     newest = max(_iso(r["EPOCH"]) for r in recs)
+    for r in recs:
+        if owners.get(r["NORAD_CAT_ID"]):
+            r["OWNER"] = owners[r["NORAD_CAT_ID"]]
     return Result(len(recs), {"omm": recs, "families": {g: len(v) for g, v in have.items()}}, data_time=newest,
                   note="data time is the newest orbit epoch" + (f"; not refreshed this time: {', '.join(problems)}" if problems else ""))
 
@@ -394,6 +409,60 @@ async def recon_sats(feed: Feed, f: Fetcher) -> Result:
     return Result(len(omm), {"omm": omm, "sources": sources}, data_time=max(_iso(o["EPOCH"]) for o in omm),
                   note=", ".join(f"{n} from {k}" for k, n in sources.items()) + ("; " + "; ".join(problems) if problems else "")
                        + ("" if ucs else "; the UCS purpose list has not been loaded yet, so only amateur-tracked classified satellites are here"))
+
+
+async def flag_tables(feed: Feed, f: Fetcher) -> Result:
+    """The official country allocations behind the flags: aircraft address blocks (ICAO Annex 10, via tar1090), ship
+    MMSI country digits (ITU, via Wikidata), and CelesTrak's satellite owner codes."""
+    problems, out = [], {}
+    try:
+        out["icao"] = flags.parse_icao((await f.get("https://raw.githubusercontent.com/wiedehopf/tar1090/master/html/flags.js")).text)
+    except Exception as e:
+        problems.append(f"aircraft table ({type(e).__name__})")
+    try:
+        q = "SELECT ?mid ?c ?cLabel ?iso WHERE { ?c wdt:P2979 ?mid. OPTIONAL { ?c wdt:P297 ?iso } SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". } }"
+        r = await f.get("https://query.wikidata.org/sparql", params={"query": q}, headers={"Accept": "application/sparql-results+json"})
+        out["mid"] = flags.parse_mid(r.json()["results"]["bindings"])
+    except Exception as e:
+        problems.append(f"ship table ({type(e).__name__})")
+    try:
+        out["owners"] = flags.parse_owner_codes((await f.get("https://celestrak.org/satcat/sources.php")).text)
+    except Exception as e:
+        problems.append(f"satellite owner codes ({type(e).__name__})")
+    old = feed.memo.get("last") or {}
+    for k in ("icao", "mid", "owners"):                        # a table that failed this time keeps its last good copy
+        if k not in out and k in old:
+            out[k] = old[k]
+    if not out:
+        raise RuntimeError("; ".join(problems))
+    feed.memo["last"] = out
+    return Result(sum(len(v) for v in out.values()), out, data_label="allocation tables",
+                  note=f"{len(out.get('icao', []))} aircraft address blocks, {len(out.get('mid', {}))} ship flag codes, {len(out.get('owners', {}))} satellite owner codes"
+                       + ("; not refreshed: " + ", ".join(problems) if problems else ""))
+
+
+async def maxar_events(feed: Feed, f: Fetcher) -> Result:
+    """The disasters Maxar has released free imagery for: name, area and dates of each event (see maxar.py)."""
+    cat = (await f.get(maxar.BASE + "catalog.json")).json()
+    kids = [l["href"] for l in cat.get("links", []) if l.get("rel") == "child"]
+    have = feed.memo.setdefault("events", {})
+    for href in kids:
+        eid = href.strip("./").split("/")[0]
+        if eid in have:
+            continue
+        await asyncio.sleep(0.3)
+        try:
+            c = (await f.get(maxar.BASE + eid + "/collection.json")).json()
+        except Exception:
+            continue
+        ext = c.get("extent", {})
+        box = (ext.get("spatial", {}).get("bbox") or [[None] * 4])[0]
+        when = (ext.get("temporal", {}).get("interval") or [[None, None]])[0]
+        have[eid] = {"id": eid, "title": c.get("title") or maxar.quiet_title(eid), "bbox": box, "start": when[0], "end": when[1],
+                     "acquisitions": sum(1 for l in c.get("links", []) if l.get("rel") == "child")}
+    events = sorted(have.values(), key=lambda e: e["end"] or "", reverse=True)
+    return Result(len(events), {"events": events}, data_time=_iso(events[0]["end"].replace(" ", "T")) if events and events[0]["end"] else None,
+                  note=f"{len(events)} events with free sharp imagery; newest pictures {events[0]['end'][:10] if events and events[0]['end'] else 'unknown'}")
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -703,6 +772,10 @@ FEEDS = [
          min_retry=1800, limit_note="one 1.5 MB spreadsheet, fetched weekly; last updated by UCS in May 2023"),
     Feed("recon_sats", "Spy satellites", "CelesTrak, amateur observers", "https://www.mmccants.org/tles/", 12 * H, recon_sats,
          stale_after=3 * 86400, min_retry=1800, limit_note="twice a day; classified orbits come from amateur sightings"),
+    Feed("flags", "Country tables for flags", "ICAO (via tar1090), ITU (via Wikidata), CelesTrak", "https://celestrak.org/satcat/sources.php", 7 * 86400,
+         flag_tables, min_retry=1800, limit_note="three small tables, weekly"),
+    Feed("maxar_events", "Disaster imagery (Maxar Open Data)", "Maxar Open Data (CC BY-NC 4.0)", "https://www.maxar.com/open-data", 86400, maxar_events,
+         min_retry=1800, limit_note="the list of events, daily; pictures are fetched only when you open one"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

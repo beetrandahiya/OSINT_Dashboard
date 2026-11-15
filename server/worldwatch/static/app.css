@@ -134,6 +134,8 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .sky-days { display: flex; gap: 4px; }
 .sky-days button { font: 500 12px var(--font); color: var(--text); background: var(--fill); border: 0; border-radius: 6px; padding: 3px 8px; }
 .sky-days button[aria-pressed="true"] { background: var(--fill-strong); }
+.flag { font-size: 0.85em; margin-left: 4px; letter-spacing: 1px; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.pic-wait { margin: 0 0 12px; padding: 14px 12px; border-radius: 12px; background: var(--fill); color: var(--text-2); font-size: 13px; text-align: center; }
 .notice { white-space: pre-wrap; font: 12px/16px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--fill); border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; max-height: 280px; overflow: auto; }
 .stories { list-style: none; margin: 0; padding: 0; }
 .stories li { display: flex; gap: 10px; padding: 9px 0; border-top: 0.5px solid var(--sep); }
