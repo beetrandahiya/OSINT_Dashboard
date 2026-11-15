@@ -21,26 +21,66 @@ function arc(a, b, n = 48) {
   }
   return out;
 }
-const slice = (pts, a, b) => { const n = pts.length - 1, i0 = Math.max(0, Math.floor(a * n)), i1 = Math.min(n, Math.ceil(b * n)); return pts.slice(i0, i1 + 1); };
+// The streaks are drawn on a canvas over the map, every frame, from positions interpolated along each arc: sending
+// GeoJSON to the map 60 times a second made MapLibre re-tile it in a worker and the heads hopped vertex to vertex.
+let cv = null;
+const isGlobe = () => theMap?.getProjection?.()?.type === 'globe';
+const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+const RAD = Math.PI / 180;
+const unit = ([lon, lat]) => [Math.cos(lat * RAD) * Math.cos(lon * RAD), Math.cos(lat * RAD) * Math.sin(lon * RAD), Math.sin(lat * RAD)];
+// the point a fraction f along a flow's arc, between its vertices
+function along(pts, f) {
+  const n = pts.length - 1, x = Math.max(0, Math.min(1, f)) * n, i = Math.min(n - 1, Math.floor(x)), u = x - i;
+  return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u];
+}
+const rgba = (rgb, a) => `rgba(${rgb},${a.toFixed(3)})`;
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
 
-// The streaks: one per event, travelling source -> target and pulsing on arrival, each on its own phase
 function animate(t) {
   raf = 0;
-  if (!theMap || !on || !flows.length) return;
-  const tails = [], heads = [];
+  if (!theMap || !cv) return;
+  const box = theMap.getContainer(), w = box.clientWidth, h = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  if (!on || !flows.length || reduce.matches) return;
+  const globe = isGlobe(), c = theMap.getCenter(), cu = unit([c.lng, c.lat]);
+  const seen = pt => !globe || (() => { const u = unit(pt); return u[0] * cu[0] + u[1] * cu[1] + u[2] * cu[2] > 0.08; })();
+  const dk = dark(), cols = {strong: hexRgb(dk ? '#ff6961' : '#e0001a'), weak: hexRgb(dk ? '#ff9f0a' : '#c93400'), leak: hexRgb(dk ? '#64d2ff' : '#0071a4')};
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  x.globalCompositeOperation = dk ? 'lighter' : 'source-over';
+  const TAIL = 0.22, STEPS = 22;
   for (const fl of flows) {
-    const p = ((t / fl.period) + fl.phase) % 1;                // 0..1 along the arc, then a short rest at the target
-    const head = Math.min(1, p / 0.8);
-    if (p < 0.8) {
-      const seg = slice(fl.pts, Math.max(0, head - 0.25), head);
-      if (seg.length > 1) tails.push({type: 'Feature', geometry: {type: 'LineString', coordinates: seg}, properties: {kind: fl.kind, strong: fl.strong}});
-      heads.push({type: 'Feature', geometry: {type: 'Point', coordinates: seg[seg.length - 1]}, properties: {kind: fl.kind, strong: fl.strong, pulse: 0}});
-    } else {
-      heads.push({type: 'Feature', geometry: {type: 'Point', coordinates: fl.pts[fl.pts.length - 1]}, properties: {kind: fl.kind, strong: fl.strong, pulse: (p - 0.8) / 0.2}});
+    const p = ((t / fl.period) + fl.phase) % 1, rgb = cols[fl.kind === 'leak' ? 'leak' : fl.strong ? 'strong' : 'weak'];
+    const wide = fl.kind === 'leak' ? 1.4 : fl.strong ? 2.6 : 1.6, ease = q => q < 0.5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2;
+    if (p < 0.82) {
+      const head = ease(p / 0.82), back = Math.max(0, head - TAIL);
+      let prev = null;
+      for (let k = 0; k <= STEPS; k++) {               // the tail: short pieces, fading in towards the head
+        const f = back + (head - back) * k / STEPS, pt = along(fl.pts, f);
+        if (!seen(pt)) { prev = null; continue; }
+        const s = theMap.project(pt);
+        if (prev) {
+          const a = (k / STEPS) ** 1.6;
+          x.strokeStyle = rgba(rgb, 0.22 * a); x.lineWidth = wide * 3.2; x.beginPath(); x.moveTo(prev.x, prev.y); x.lineTo(s.x, s.y); x.stroke();
+          x.strokeStyle = rgba(rgb, 0.95 * a); x.lineWidth = wide * (0.5 + 0.5 * a); x.beginPath(); x.moveTo(prev.x, prev.y); x.lineTo(s.x, s.y); x.stroke();
+        }
+        prev = s;
+      }
+      const hp = along(fl.pts, head);
+      if (seen(hp)) {                                   // a soft glowing head
+        const s = theMap.project(hp), r = wide * 3.4, g = x.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
+        g.addColorStop(0, dk ? 'rgba(255,255,255,0.95)' : rgba(rgb, 1)); g.addColorStop(0.35, rgba(rgb, 0.8)); g.addColorStop(1, rgba(rgb, 0));
+        x.fillStyle = g; x.beginPath(); x.arc(s.x, s.y, r, 0, 2 * Math.PI); x.fill();
+      }
+    } else {                                            // arrival: a ring spreading out and fading
+      const q = (p - 0.82) / 0.18, end = fl.pts[fl.pts.length - 1];
+      if (seen(end)) {
+        const s = theMap.project(end);
+        x.strokeStyle = rgba(rgb, 0.85 * (1 - q) ** 1.5); x.lineWidth = 1.6; x.beginPath(); x.arc(s.x, s.y, 3 + 16 * ease(q), 0, 2 * Math.PI); x.stroke();
+      }
     }
   }
-  theMap.getSource('ww-bgp-tail')?.setData({type: 'FeatureCollection', features: tails});
-  theMap.getSource('ww-bgp-head')?.setData({type: 'FeatureCollection', features: heads});
+  x.globalCompositeOperation = 'source-over';
   raf = requestAnimationFrame(animate);
 }
 const reduce = matchMedia('(prefers-reduced-motion: reduce)');
@@ -60,30 +100,18 @@ export default {
       paint: {'line-width': ['case', ['get', 'strong'], 1.2, 0.8], 'line-opacity': ['case', ['get', 'strong'], 0.35, 0.15]}});
     map.addLayer({id: 'ww-bgp-dot', type: 'circle', source: 'ww-bgp', filter: ['==', ['geometry-type'], 'Point'],
       paint: {'circle-radius': ['case', ['get', 'strong'], 6, 3.5], 'circle-stroke-width': 1.2, 'circle-opacity': ['case', ['get', 'strong'], 1, 0.6]}});
-    // the moving streaks (comet tails fade along each segment: line-progress needs lineMetrics) and their heads
-    map.addSource('ww-bgp-tail', {type: 'geojson', lineMetrics: true, data: {type: 'FeatureCollection', features: []}});
-    map.addSource('ww-bgp-head', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-bgp-tail', type: 'line', source: 'ww-bgp-tail', layout: {'line-cap': 'round'},
-      paint: {'line-width': ['case', ['get', 'strong'], 3, 1.6]}});
-    map.addLayer({id: 'ww-bgp-head', type: 'circle', source: 'ww-bgp-head',
-      paint: {'circle-radius': ['+', ['case', ['get', 'strong'], 3.5, 2], ['*', ['get', 'pulse'], 14]], 'circle-blur': 0.6,
-        'circle-opacity': ['-', 1, ['get', 'pulse']], 'circle-stroke-width': 0}});
+    cv = document.createElement('canvas');
+    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1';
+    map.getContainer().appendChild(cv);
     theMap = map;
   },
-  visible(v) { on = v; for (const id of ['ww-bgp-tail', 'ww-bgp-head']) theMap?.getLayer(id) && theMap.setLayoutProperty(id, 'visibility', v ? 'visible' : 'none'); if (v && !raf && !reduce.matches) raf = requestAnimationFrame(animate); },
+  visible(v) { on = v; if (!raf) raf = requestAnimationFrame(animate); },
   paint(map, dark) {
     const c = this.color[+dark], soft = dark ? '#aeaeb2' : '#8e8e93';
     map.setPaintProperty('ww-bgp-line', 'line-color', ['case', ['get', 'strong'], c, soft]);
     map.setPaintProperty('ww-bgp-leak', 'line-color', dark ? '#64d2ff' : '#0071a4');
     map.setPaintProperty('ww-bgp-dot', 'circle-color', ['case', ['get', 'strong'], c, soft]);
     map.setPaintProperty('ww-bgp-dot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
-    const leak = dark ? '#64d2ff' : '#0071a4', weak = dark ? '#ff9f0a' : '#c93400';
-    const col = ['case', ['==', ['get', 'kind'], 'leak'], leak, ['get', 'strong'], c, weak];
-    map.setPaintProperty('ww-bgp-head', 'circle-color', col);
-    // each tail fades from transparent at its back to full colour at the head (line-progress runs 0..1 along a segment)
-    const grad = rgb => ['interpolate', ['linear'], ['line-progress'], 0, `rgba(${rgb},0)`, 1, `rgba(${rgb},0.95)`];
-    const hex2 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
-    map.setPaintProperty('ww-bgp-tail', 'line-gradient', grad(hex2(c)));     // gradients cannot depend on data: one colour, hijack red
   },
   onData(feed, x) { d = x.payload; info = x; },
   render(map = theMap) {
@@ -105,13 +133,13 @@ export default {
     let k = 0;
     for (const h of [...d.hijacks].sort((a, b) => strong(b) - strong(a))) {
       for (const v of h.victim_countries) if (h.hijacker.at && v.at && v.cc !== h.hijacker.cc && flows.length < 120)
-        flows.push({pts: arc(h.hijacker.at, v.at), kind: 'hijack', strong: strong(h), period: 2600 + (k * 397) % 1900, phase: (k++ * 0.618) % 1});
+        flows.push({pts: arc(h.hijacker.at, v.at), kind: 'hijack', strong: strong(h), period: 3200 + (k * 397) % 2200, phase: (k++ * 0.618) % 1});
     }
     for (const l of d.leaks) {
       const pts = l.countries.map(c => c.at).filter(Boolean);
-      for (let i = 0; i + 1 < pts.length && flows.length < 120; i++) flows.push({pts: arc(pts[i], pts[i + 1]), kind: 'leak', strong: false, period: 3400 + (k * 271) % 1700, phase: (k++ * 0.618) % 1});
+      for (let i = 0; i + 1 < pts.length && flows.length < 120; i++) flows.push({pts: arc(pts[i], pts[i + 1]), kind: 'leak', strong: false, period: 4200 + (k * 271) % 2000, phase: (k++ * 0.618) % 1});
     }
-    if (!raf && on && !reduce.matches) raf = requestAnimationFrame(animate);
+    if (!raf && on) raf = requestAnimationFrame(animate);
   },
   count: () => d.hijacks.filter(strong).length,
   rows: () => d.hijacks.filter(strong).map(h => ({id: 'bgp:' + h.id, time: h.start, badge: '⇄', strong: (h.score ?? 0) >= 12,

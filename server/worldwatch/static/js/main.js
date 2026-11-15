@@ -202,6 +202,7 @@ function renderDetail() {
   el.hidden = !picked;
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
+  if (key === detailKey && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
   const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + html;
   el.classList.toggle('min', detailMin);

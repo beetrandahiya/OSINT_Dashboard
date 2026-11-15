@@ -1205,3 +1205,21 @@ Agent's research findings worth keeping:
   per ship in `lookups`. The card shows them only when Wikimedia has no picture, each linked to its page with the
   site's name, and says the pictures belong to their photographers. Thumbnails load from Brave's image proxy.
   **Untested with a real key** (none here); without a key the card keeps the search links.
+
+### 2026-11-15 night, his notes: Brave works, hijack streaks jerky, Windy cams "not alive"
+
+- **Brave ship photos work on his Mac.**
+- **Hijack streaks** were jerky: every frame sent all streaks to MapLibre as GeoJSON (re-tiled in a worker) and heads
+  hopped from vertex to vertex. Now drawn on a canvas over the map (`animate()` in `netwatch.js`): positions
+  interpolated along the arc, eased, a two-pass fading tail, radial-gradient head, additive blending in dark mode, an
+  expanding ring on arrival; globe points behind the Earth hidden by a dot product with the map centre. 32 fps in
+  headless software GL; unmeasured on his GPU. The `ww-bgp-tail/head` map layers are gone.
+- **Cards with video were restarted every few seconds**: any feed update (aircraft every 10 s) redrew the open card, which
+  reloaded embedded video, HLS streams and players. A layer can now say `still: true` and its open card is not redrawn
+  for the same item (`renderDetail` in `main.js`); cameras use it.
+- **Windy**: the API's `player.live` (embed of the camera's live stream; only cameras that stream have it) was second to
+  `player.day` (today's time-lapse), so every card showed a time-lapse. Now: live stream when there is one (green dot
+  on the map, "Live" in the card), otherwise the newest still, asked again every minute (links expire after 10 min on
+  the free tier), with "Play today's time-lapse" as a button. Most Windy webcams are still-picture cameras uploading
+  every few minutes; that is their nature, not a bug. Whether the free tier returns `live` at all is **untested** (no key
+  here; docs schema has it). Tested with made-up Windy answers only.

@@ -704,7 +704,7 @@ def _windy_cam(w: dict) -> dict:
     return {"id": "windy:" + str(w.get("webcamId")), "src": "windy", "name": w.get("title"), "lat": loc.get("latitude"), "lon": loc.get("longitude"),
             "area": ", ".join(x for x in (loc.get("city"), loc.get("country")) if x) or None, "status": w.get("status"),
             "updated": w.get("lastUpdatedOn"), "preview": im.get("preview") or im.get("thumbnail") or im.get("icon"),
-            "page": (w.get("urls") or {}).get("detail"), "player": ((w.get("player") or {}).get("day") or (w.get("player") or {}).get("live"))}
+            "page": (w.get("urls") or {}).get("detail"), "live": (w.get("player") or {}).get("live"), "day": (w.get("player") or {}).get("day")}
 
 
 async def windy_cams(request):

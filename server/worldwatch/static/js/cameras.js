@@ -19,6 +19,7 @@ const imgUrl = (c, u) => c.src === 'sg' ? '/api/cam/image?sg=' + encodeURICompon
 export default {
   id: 'cameras', title: 'Cameras', color: ['#0071a4', '#64d2ff'], feeds: {cameras: 21600}, defaultOff: true,
   layers: ['ww-cams', 'ww-cams-windy'],
+  still: true,
   about: () => 'Public cameras: road and traffic cameras of London, New York, California, Singapore, Hong Kong and Finland, and, with a free key, Windy\'s public webcams worldwide (from zoom 3).',
   addTo(map) {
     map.addSource('ww-cams', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -27,7 +28,8 @@ export default {
     // Windy's public webcams worldwide (free key): asked for the box on screen from zoom 5, up to 50 at a time
     map.addSource('ww-cams-windy', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-cams-windy', type: 'circle', source: 'ww-cams-windy', minzoom: 3,
-      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 10, 6, 14, 8], 'circle-stroke-width': 1.2}});
+      layout: {'circle-sort-key': ['case', ['get', 'live'], 1, 0]},
+      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, ['case', ['get', 'live'], 5, 3.5], 10, ['case', ['get', 'live'], 8, 6], 14, 9], 'circle-stroke-width': ['case', ['get', 'live'], 2, 1.2]}});
     let busy = false, again = false;
     const pull = async () => {
       if (map.getZoom() < 3 || map.getLayoutProperty('ww-cams', 'visibility') === 'none') return;
@@ -40,7 +42,7 @@ export default {
         if (r.cams?.length || !r.error) {
           windy = r.cams || [];
           for (const c of windy) byId.set(c.id, c);
-          map.getSource('ww-cams-windy').setData({type: 'FeatureCollection', features: windy.map(c => ({type: 'Feature', geometry: {type: 'Point', coordinates: [c.lon, c.lat]}, properties: {id: c.id}}))});
+          map.getSource('ww-cams-windy').setData({type: 'FeatureCollection', features: windy.map(c => ({type: 'Feature', geometry: {type: 'Point', coordinates: [c.lon, c.lat]}, properties: {id: c.id, live: !!c.live}}))});
         }
       } catch (e) { /* next move asks again */ }
       busy = false;
@@ -53,7 +55,7 @@ export default {
   paint(map, dark) {
     map.setPaintProperty('ww-cams', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-cams', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
-    map.setPaintProperty('ww-cams-windy', 'circle-color', dark ? '#5ac8fa' : '#0a84ff');
+    map.setPaintProperty('ww-cams-windy', 'circle-color', ['case', ['get', 'live'], dark ? '#30d158' : '#248a3d', dark ? '#5ac8fa' : '#0a84ff']);
     map.setPaintProperty('ww-cams-windy', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData(feed, d) { info = d; cams = d.payload.cameras || []; byId = new Map([...cams, ...windy].map(c => [c.id, c])); },
@@ -68,11 +70,17 @@ export default {
   detail(id) {
     const c = byId.get(id); if (!c) return null;
     if (c.src === 'windy') {
-      return `<p class="eyebrow">Public webcam · Windy</p><h2>${esc(c.name || 'Webcam')}</h2><p class="where">${esc(c.area || '')}</p>
-        ${c.player ? `<iframe class="windy-player" src="${esc(c.player)}" title="Windy webcam player" loading="lazy" allow="autoplay; fullscreen"></iframe>` : ''}
-        <div id="windycam" data-wid="${esc(c.id.slice(6))}" ${c.player ? 'hidden' : ''}>${c.preview ? `<a href="${esc(c.page || 'https://www.windy.com/webcams')}" target="_blank" rel="noopener"><img class="windy-pic" src="${esc(c.preview)}" alt="Webcam picture"></a>` : '<p class="pic-wait">Loading the picture…</p>'}</div>
-        <p class="soft">${c.updated ? 'Picture updated ' + ago(Date.parse(c.updated) / 1000) + '. ' : ''}${c.status && c.status !== 'active' ? 'Windy lists this camera as ' + esc(c.status) + '. ' : ''}The free Windy key gives small pictures only.</p>
-        <p class="links">${c.page ? `<a class="link" href="${esc(c.page)}" target="_blank" rel="noopener">This webcam on Windy</a>` : ''}${c.player ? ` <a class="link" href="${esc(c.player)}" target="_blank" rel="noopener">Today's time-lapse</a>` : ''}</p>
+      // a live stream plays right here; otherwise the camera's newest still, asked again every minute while open
+      // (Windy cameras without a stream upload a picture every few minutes), with today's time-lapse one click away
+      const pic = c.preview ? `<img class="windy-pic" src="${esc(c.preview)}" alt="Webcam picture">` : '<p class="pic-wait">Loading the picture…</p>';
+      return `<p class="eyebrow">Public webcam · Windy${c.live ? ' · <span class="live-dot">Live</span>' : ''}</p><h2>${esc(c.name || 'Webcam')}</h2><p class="where">${esc(c.area || '')}</p>
+        ${c.live ? `<iframe class="windy-player" src="${esc(c.live)}" title="Windy live stream" allow="autoplay; fullscreen"></iframe>`
+          : `<div id="windycam" data-wid="${esc(c.id.slice(6))}">${pic}</div>
+             <p class="soft" id="windystamp">${c.updated ? 'Newest picture taken ' + ago(Date.parse(c.updated) / 1000) + '. ' : ''}This camera sends still pictures, not a stream; checked again every minute while this card is open.</p>
+             ${c.day ? `<p class="links"><button class="link" type="button" id="windyday" data-src="${esc(c.day)}">Play today's time-lapse</button></p>` : ''}`}
+        ${c.status && c.status !== 'active' ? `<p class="soft">Windy lists this camera as ${esc(c.status)}.</p>` : ''}
+        <p class="links">${c.page ? `<a class="link" href="${esc(c.page)}" target="_blank" rel="noopener">This webcam on Windy</a>` : ''}</p>
+        <p class="soft">Green dots on the map have a live stream; blue ones send pictures every few minutes. The free Windy key gives small pictures only.</p>
         ${windyNote ? `<p class="source">${esc(windyNote)}</p>` : ''}
         <p class="source">Webcams provided by <a class="link" href="https://windy.com" target="_blank" rel="noopener">Windy.com</a> — <a class="link" href="https://www.windy.com/webcams/add" target="_blank" rel="noopener">add a webcam</a>. Public webcams their owners chose to share on Windy.</p>`;
     }
@@ -92,12 +100,22 @@ export default {
   async fill(id) {
     clearInterval(timer);
     const wc = document.getElementById('windycam');
-    if (wc && !wc.dataset.done) {        // Windy's picture links expire after ~10 minutes: ask for a fresh one
-      wc.dataset.done = '1';
-      try {
-        const c = await fetch('/api/cam/windy/' + wc.dataset.wid).then(r => r.json());
-        if (document.getElementById('windycam') === wc && c.preview) wc.innerHTML = `<a href="${esc(c.page || 'https://www.windy.com/webcams')}" target="_blank" rel="noopener"><img class="windy-pic" src="${esc(c.preview)}" alt="Webcam picture"></a>`;
-      } catch (e) { /* the list's picture stays */ }
+    if (wc) {
+      const day = document.getElementById('windyday');
+      if (day) day.onclick = () => { wc.innerHTML = `<iframe class="windy-player" src="${esc(day.dataset.src)}" title="Windy time-lapse" allow="autoplay; fullscreen"></iframe>`; day.remove(); clearInterval(timer); document.getElementById('windystamp')?.remove(); };
+      // picture links expire after ~10 minutes and the camera uploads new pictures: ask Windy again now and every minute
+      const fresh = async () => {
+        if (!document.body.contains(wc) || wc.querySelector('iframe')) { clearInterval(timer); return; }
+        try {
+          const c = await fetch('/api/cam/windy/' + wc.dataset.wid).then(r => r.json());
+          if (!c.preview || !document.body.contains(wc) || wc.querySelector('iframe')) return;
+          const n = new Image(); n.onload = () => { wc.innerHTML = `<img class="windy-pic" src="${esc(n.src)}" alt="Webcam picture">`; };
+          n.src = c.preview;
+          const st = document.getElementById('windystamp');
+          if (st && c.updated) st.textContent = `Newest picture taken ${ago(Date.parse(c.updated) / 1000)}. This camera sends still pictures, not a stream; checked again every minute while this card is open.`;
+        } catch (e) { /* keep the picture we have */ }
+      };
+      fresh(); timer = setInterval(fresh, 60000);
       return;
     }
     const wrap = document.getElementById('camwrap'); if (!wrap) return;
