@@ -186,26 +186,18 @@ def _positions(collector) -> dict[str, dict]:
 
 
 def _flag_of(collector, hex_: str) -> str | None:
-    """Country of registration from the ICAO address block (feed "flags")."""
+    """Country of registration from the ICAO address block (feed "flags"). Blocks nest (the UK's holds Bermuda's), so
+    the smallest block holding the address wins; a binary search missed parent blocks."""
     p, _ = _feed(collector, "flags")
     rows = (p or {}).get("icao") or []
     try:
-        n = int(hex_, 16)
+        n = int(re.sub(r"[^0-9a-fA-F]", "", hex_ or ""), 16)
     except ValueError:
         return None
-    lo, hi = 0, len(rows) - 1
-    while lo <= hi:
-        m = (lo + hi) // 2
-        if n < rows[m][0]:
-            hi = m - 1
-        elif n > rows[m][1]:
-            lo = m + 1
-        else:
-            return rows[m][2]
-    return None
+    best = min((r for r in rows if r[0] <= n <= r[1]), key=lambda r: r[1] - r[0], default=None)
+    return best[2] if best else None
 
 
-# ---------------------------------------------------------------- country dossier
 def _in(iso: str, place: str, lon, lat) -> bool:
     """A GDELT place in the country: inside the outline or within 25 km of it, unless the place's own last part
     names another country ("Tulcea, Tulcea, Romania" is 5 km from Ukraine and stays Romanian)."""

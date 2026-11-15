@@ -361,3 +361,5 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 #camwrap { display: grid; gap: 8px; }
 #camwrap .cam-pic img { width: 100%; border-radius: 10px; display: block; }
 .cam-video { width: 100%; border-radius: 10px; margin-top: 8px; background: #000; }
+.windy-pic { max-width: 100%; border-radius: 10px; display: block; }   /* Windy: never stretched beyond its size (their terms) */
+.windy-player { width: 100%; aspect-ratio: 16 / 10; border: 0; border-radius: 10px; background: #000; }

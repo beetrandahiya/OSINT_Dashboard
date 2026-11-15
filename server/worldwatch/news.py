@@ -16,6 +16,7 @@ import json
 import re
 import time
 import zipfile
+from urllib.parse import urlparse
 from email.utils import parsedate_to_datetime
 
 from . import config
@@ -363,3 +364,52 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
                     "place": best, "places": [best] + [p for p in places if p is not best][:5], "outlets": len(h["articles"]), "articles": arts[:10]})
     out.sort(key=lambda x: -x["outlets"])
     return out
+
+
+_SKIP_SPIKE = re.compile(r"/(sports?|football|soccer|cricket|rugby|nfl|nba|nhl|mlb|tennis|golf|boxing|ufc|mma|f1|motorsports?|basketball|baseball|hockey|"
+                         r"entertainment|bollywood|hollywood|celebrit(y|ies)|showbiz|gossip|movies?|films?|tv|music|lifestyle|horoscopes?)(/|-|$)", re.I)
+
+
+def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
+    """Places where the news suddenly picked up: in the newest hour, at least `min_heads` different headlines (copies of
+    one agency story count once) from `min_outlets` outlets, and at least `factor` times the place's own hourly rate in
+    the hours before (up to five). Each series is compared with its own past: the translated one runs about an hour
+    behind the English one, and after a restart one series can hold fewer hours than the other. A series with less
+    than two hours before its newest hour is left out."""
+    used, by = [], {}
+    for name, win in (("English", english), ("other languages", translated)):
+        newest, oldest = win.newest(), win.oldest()
+        if not newest or not oldest:
+            continue
+        cut = newest - 3600
+        base_h = min(5.0, (cut - oldest) / 3600)
+        if base_h < 2:
+            continue
+        used.append({"series": name, "newest": newest, "baseline_h": round(base_h, 1)})
+        for published, row in win.articles():
+            place, lat, lon, outlet, title, url, lang, img = row[:8]
+            if "(General)" in place or _SKIP_SPIKE.search(urlparse(url).path):
+                continue                                     # region-wide pins; sport and showbiz pages
+            c = by.setdefault(place, {"place": place, "lat": lat, "lon": lon, "now": {}, "before": 0.0, "outlets": set(), "seen_before": set()})
+            h = _headline(title)
+            if published > cut:
+                c["outlets"].add(outlet)
+                if h not in c["now"] or (c["now"][h]["lang"] != "eng" and lang == "eng"):
+                    c["now"][h] = {"outlet": outlet, "title": title, "url": url, "lang": lang, "image": img, "time": published}
+            elif published > cut - base_h * 3600 and (name, h) not in c["seen_before"]:
+                c["seen_before"].add((name, h))
+                c["before"] += 1 / base_h                    # this series' hourly rate of different headlines
+    if not used:
+        return {"spikes": [], "series": [], "note": "fewer than two hours of news before the newest hour: no baseline yet"}
+    out = []
+    for c in by.values():
+        n, rate = len(c["now"]), c["before"]
+        if n >= min_heads and len(c["outlets"]) >= min_outlets and n >= factor * max(rate, 0.5):
+            arts = sorted(c["now"].values(), key=lambda a: (a["lang"] != "eng", -(a["image"] is not None), -a["time"]))
+            out.append({"place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
+                        "rate_before": round(rate, 1), "times": round(n / max(rate, 0.5), 1), "first": min(a["time"] for a in arts),
+                        "articles": arts[:10]})
+    out.sort(key=lambda s: -s["times"])
+    return {"spikes": out, "series": used, "newest": max(u["newest"] for u in used), "baseline_h": min(u["baseline_h"] for u in used),
+            "rule": f"newest hour of each news series: >= {min_heads} different headlines from >= {min_outlets} outlets and >= {factor:g}x the place's own hourly rate in the hours before ("
+                    + ", ".join(f"{u['series']}: {u['baseline_h']} h" for u in used) + ")"}

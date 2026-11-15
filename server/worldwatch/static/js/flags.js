@@ -26,8 +26,11 @@ export function emoji(cc) {
 export function planeFlag(hex) {
   if (!T?.icao || !hex) return null;
   if (hexCache.has(hex)) return hexCache.get(hex);
-  const n = parseInt(hex, 16); let lo = 0, hi = T.icao.length - 1, hit = null;
-  while (lo <= hi) { const m = (lo + hi) >> 1, r = T.icao[m]; if (n < r[0]) hi = m - 1; else if (n > r[1]) lo = m + 1; else { hit = {cc: r[2], name: r[3]}; break; } }
+  // Blocks nest (the UK's contains Bermuda's, Gibraltar's...), so a binary search could miss the parent block and leave
+  // e.g. RAF aircraft without a flag. 205 blocks: scan them all and take the smallest that holds the address.
+  const clean = String(hex).replace(/[^0-9a-f]/gi, ''); if (clean.length !== 6) { hexCache.set(hex, null); return null; }
+  const n = parseInt(clean, 16); let hit = null, size = Infinity;
+  for (const r of T.icao) if (n >= r[0] && n <= r[1] && r[1] - r[0] < size) { size = r[1] - r[0]; hit = {cc: r[2], name: r[3]}; }
   hexCache.set(hex, hit); return hit;
 }
 export function shipFlag(mmsi) {

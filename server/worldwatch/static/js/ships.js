@@ -32,7 +32,7 @@ function drawTrail() {
   trailMap.getSource('ww-ship-trail').setData({type: 'FeatureCollection', features: pts.length > 1 ? [{type: 'Feature', geometry: {type: 'LineString', coordinates: pts}, properties: {}}] : []});
 }
 setInterval(() => { if (trailFor.ships || trailFor.warships) loadTrail(); }, 60000);
-async function fillShip() {
+export async function fillShip() {
   const box = document.getElementById('shippic'); if (!box || box.dataset.done) return;
   box.dataset.done = '1';
   const q = new URLSearchParams({mmsi: box.dataset.mmsi, imo: box.dataset.imo, name: box.dataset.name, mil: box.dataset.mil}).toString();

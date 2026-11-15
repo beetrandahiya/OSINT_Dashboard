@@ -21,7 +21,7 @@ from typing import Any, Awaitable, Callable
 
 import httpx
 
-from . import config, translate
+from . import config, db, translate
 from . import news as news_window
 from . import unrest as unrest_window
 from . import navwarn
@@ -30,7 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
-from . import geo, travel, courts, frontline, sites, cablefaults, cams
+from . import geo, travel, courts, frontline, sites, cablefaults, cams, sanctions
 from . import radar as cfradar          # the name "radar" is the rain-radar feed below
 
 
@@ -653,6 +653,51 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def sanctioned(feed: Feed, f: Fetcher) -> Result:
+    """Sanctioned and shadow-fleet ships and sanctioned aircraft from OpenSanctions' bulk files (see sanctions.py), weekly.
+    Registrations are turned into transponder addresses with hexdb.io (remembered 90 days, 1.2 s apart)."""
+    ua = {"User-Agent": config.USER_AGENT}
+    vessels = await asyncio.to_thread(sanctions.parse_maritime, (await f.get(sanctions.MARITIME, headers=ua, timeout=120)).text)
+    from .lookup import people as lookup_people
+    await lookup_people._dataset_titles(f.client)        # list codes -> titles, cached a week, for the cards
+    tmp = config.DATA / "opensanctions-targets.csv.part"
+    async with f.client.stream("GET", sanctions.TARGETS, headers=ua, timeout=300) as r:   # 79 MB: to disk, then read row by row
+        r.raise_for_status()
+        with open(tmp, "wb") as out:
+            async for chunk in r.aiter_bytes():
+                out.write(chunk)
+        f.wire_bytes += r.num_bytes_downloaded
+
+    def read_planes():
+        with open(tmp, newline="", encoding="utf-8", errors="replace") as fh:
+            return sanctions.parse_planes(fh)
+    try:
+        planes = await asyncio.to_thread(read_planes)
+    finally:
+        tmp.unlink(missing_ok=True)
+    hexes, asked, found = {}, 0, 0
+    for p in planes:
+        for reg in p["regs"]:
+            key = "hexdb:" + sanctions.norm_reg(reg)
+            hit = await asyncio.to_thread(db.lookup_get, key, 90 * 86400)
+            if hit is None and asked < 400:
+                asked += 1
+                await asyncio.sleep(1.2)
+                try:
+                    rr = await f.client.get("https://hexdb.io/reg-hex", params={"reg": reg}, headers=ua, timeout=15)
+                    v = rr.text.strip() if rr.status_code == 200 and re.fullmatch(r"[0-9A-Fa-f]{6}", rr.text.strip()) else ""
+                    await asyncio.to_thread(db.lookup_put, key, time.time(), {"hex": v})
+                    hit = {"body": {"hex": v}}
+                except httpx.HTTPError:
+                    continue
+            if hit and hit["body"].get("hex"):
+                hexes[sanctions.norm_reg(reg)] = hit["body"]["hex"].lower()
+                found += 1
+    return Result(len(vessels["imo"]) + len(planes), {"vessels": vessels, "planes": planes, "hexes": hexes}, data_time=time.time(), data_label="lists read",
+                  note=f"{len(vessels['imo']):,} sanctioned or shadow-fleet ships by IMO, {len(vessels['mmsi']):,} by MMSI; {len(planes)} sanctioned aircraft, "
+                       f"{len(hexes)} of their registrations with a known transponder address; OpenSanctions (non-commercial)")
+
+
 async def cameras(feed: Feed, f: Fetcher) -> Result:
     """Public road and traffic cameras from six official open sources (see cams.py); lists daily, pictures on demand.
     A source that fails keeps its last list from this run."""
@@ -1210,9 +1255,11 @@ FEEDS = [
     Feed("usni_fleet", "US carriers (USNI Fleet Tracker)", "USNI News", "https://news.usni.org/category/fleet-tracker", 6 * H, usni_fleet,
          stale_after=10 * 86400, min_retry=1800, limit_note="a weekly article, read through its RSS feed"),
     Feed("ems", "Disaster maps and pictures (Copernicus EMS)", "Copernicus Emergency Management Service", "https://rapidmapping.emergency.copernicus.eu", 3600, ems,
-         stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
+         stale_after=None, min_retry=600, limit_note="hourly; new activations only come when a disaster is mapped, so an old newest date is not a fault; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("sanctioned", "Sanctioned ships and aircraft", "OpenSanctions", "https://www.opensanctions.org",
+         7 * 86400, sanctioned, min_retry=3600, limit_note="two bulk files once a week (about 85 MB, read row by row); matched against live positions on request"),
     Feed("cameras", "Public cameras", "TfL, NYC DOT, Caltrans, LTA Singapore, HK Transport Dept, Fintraffic", "https://tfl.gov.uk",
          86400, cameras, min_retry=1800, limit_note="camera lists once a day (~20 MB, mostly Caltrans); pictures only when a card opens"),
     Feed("cf_radar", "Internet hijacks, leaks and outage notes", "Cloudflare Radar", "https://radar.cloudflare.com",

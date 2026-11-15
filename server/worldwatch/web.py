@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import cams, config, db, maxar, patterns, satinfo, sites, translate
+from . import cams, config, db, maxar, patterns, sanctions, satinfo, sites, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -647,6 +647,100 @@ async def area(request):
 _CAM_IMG: dict = {}
 
 
+WINDY = "https://api.windy.com/webcams/api/v3/webcams"
+_WINDY_BOX: dict = {}
+
+
+def _windy_cam(w: dict) -> dict:
+    loc, im = w.get("location") or {}, (w.get("images") or {}).get("current") or {}
+    return {"id": "windy:" + str(w.get("webcamId")), "src": "windy", "name": w.get("title"), "lat": loc.get("latitude"), "lon": loc.get("longitude"),
+            "area": ", ".join(x for x in (loc.get("city"), loc.get("country")) if x) or None, "status": w.get("status"),
+            "updated": w.get("lastUpdatedOn"), "preview": im.get("preview") or im.get("thumbnail") or im.get("icon"),
+            "page": (w.get("urls") or {}).get("detail"), "player": ((w.get("player") or {}).get("day") or (w.get("player") or {}).get("live"))}
+
+
+async def windy_cams(request):
+    """Public webcams worldwide from Windy (free key in data/windy-key.txt), for the box on screen: up to 50, the
+    free tier's page size. Picture links expire after ~10 minutes, so the card asks again (windy_cam)."""
+    key = config.windy_key()
+    if not key:
+        return JSONResponse({"error": "not set up: no Windy key in data/windy-key.txt", "cams": []})
+    q = request.query_params
+    try:
+        n, e, s_, w = (round(float(q[k]), 2) for k in ("n", "e", "s", "w"))
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "n, e, s, w needed"}, status_code=400)
+    box = f"{n},{e},{s_},{w}"
+    hit = _WINDY_BOX.get(box)
+    if hit and time.time() - hit[0] < 300:
+        return JSONResponse(hit[1])
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "x-windy-api-key": key}) as c:
+            r = await c.get(WINDY, params={"bbox": box, "limit": 50, "include": "location,images,urls,player", "sortKey": "popularity"})
+            if r.status_code in (401, 403):
+                return JSONResponse({"error": "Windy refused the key", "cams": []})
+            r.raise_for_status()
+            d = r.json()
+    except (httpx.HTTPError, ValueError) as ex:
+        return JSONResponse({"error": f"Windy did not answer ({type(ex).__name__})", "cams": []})
+    body = {"cams": [_windy_cam(x) for x in d.get("webcams", []) if (x.get("location") or {}).get("latitude") is not None], "total": d.get("total")}
+    if len(_WINDY_BOX) > 100:
+        _WINDY_BOX.clear()
+    _WINDY_BOX[box] = (time.time(), body)
+    return JSONResponse(body)
+
+
+async def windy_cam(request):
+    key = config.windy_key()
+    wid = request.path_params["wid"]
+    if not key or not wid.isdigit():
+        return JSONResponse({"error": "not set up or bad id"}, status_code=400)
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "x-windy-api-key": key}) as c:
+            r = await c.get(f"{WINDY}/{wid}", params={"include": "location,images,urls,player"})
+            r.raise_for_status()
+            return JSONResponse(_windy_cam(r.json()), headers={"Cache-Control": "no-store"})
+    except (httpx.HTTPError, ValueError) as ex:
+        return JSONResponse({"error": f"Windy did not answer ({type(ex).__name__})"}, status_code=502)
+
+
+async def news_spikes(request):
+    """Places where the news suddenly picked up in the newest hour (news.spikes), worked out from our own windows."""
+    q = request.query_params
+    kw = {k: float(q[k]) if k == "factor" else int(q[k]) for k in ("min_heads", "min_outlets", "factor") if q.get(k, "").replace(".", "", 1).isdigit()}
+    return JSONResponse(await asyncio.to_thread(news_window.spikes, **kw), headers={"Cache-Control": "no-store"})
+
+
+async def sanctioned_live(request):
+    """Sanctioned / shadow-fleet ships and sanctioned aircraft our feeds see right now (sanctions.py)."""
+    st = collector.states.get("sanctioned")
+    lists = (st.payload if st else None) or {}
+    if not lists:
+        return JSONResponse({"ships": [], "aircraft": [], "note": "the sanctions lists have not been read yet"})
+    ships = list({x["mmsi"]: x for x in [*((collector.states["ships"].payload or {}).get("ships", []) if collector.states.get("ships") else []),
+                                        *ais_stream.ships()]}.values())
+    planes = {}
+    for name in ("aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view"):
+        fs = collector.states.get(name)
+        dt = (fs.data_time or 0) if fs else 0
+        for a in ((fs.payload or {}).get("aircraft", []) if fs else []):
+            if a.get("lat") is None or not a.get("hex"):
+                continue
+            t = a.get("last_contact") or dt - (a.get("seen_pos_s") or 0)
+            old = planes.get(a["hex"])
+            if not old or t > old["time"]:
+                planes[a["hex"]] = {**a, "time": t, "reg": a.get("reg") or (old or {}).get("reg")}
+    sh = await asyncio.to_thread(sanctions.match_ships, ships, lists.get("vessels", {"imo": {}, "mmsi": {}}))
+    ac = await asyncio.to_thread(sanctions.match_planes, list(planes.values()), lists.get("planes", []), lists.get("hexes", {}))
+    from .lookup import store as lookup_store
+    titles = (lookup_store.cache_get("os-datasets", 30 * 86400) or {}).get("body") or {}
+    for x in sh:
+        x["lists"] = [{"code": c, "title": (titles.get(c) or [c])[0], "publisher": (titles.get(c) or [None, None])[1], "country": (titles.get(c) or [None, None, None])[2]} for c in x["lists"]]
+        x["risk"] = [sanctions.RISK_WORDS.get(r, r) for r in x["risk"]]
+    return JSONResponse({"ships": sh, "aircraft": ac, "lists_read": st.fetched, "ships_seen": len(ships), "aircraft_seen": len(planes)},
+                        headers={"Cache-Control": "no-store"})
+
+
 async def camera_image(request):
     """A public camera's current picture, fetched by our server (so the camera operator sees this server, not the
     browser), only from the six camera hosts we list; cached 30 s. Singapore's picture addresses change every minute,
@@ -661,7 +755,7 @@ async def camera_image(request):
             if not cams.IMAGE_HOSTS.match(u):
                 return JSONResponse({"error": "not a camera address we know"}, status_code=400)
             hit = _CAM_IMG.get(u)
-            if hit and time.time() - hit[0] < 30:
+            if hit and time.time() - hit[0] < (2 if "nyctmc" in u else 15):     # NYC publishes a new still every second or two
                 body, ctype = hit[1], hit[2]
             else:
                 r = await c.get(u)
@@ -770,6 +864,10 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/sites/areas", military_areas),
     Route("/api/cable/{cid}", cable_about),
     Route("/api/cam/image", camera_image),
+    Route("/api/sanctioned/live", sanctioned_live),
+    Route("/api/news/spikes", news_spikes),
+    Route("/api/cam/windy", windy_cams),
+    Route("/api/cam/windy/{wid}", windy_cam),
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
     Route("/api/news/place", news_place),

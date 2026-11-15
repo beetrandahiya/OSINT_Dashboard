@@ -1164,3 +1164,32 @@ Agent's research findings worth keeping:
   Transport Department (1,013), Fintraffic weather cameras (813, several views). Pictures go through our server, allowlist
   `cams.IMAGE_HOSTS`, cached 30 s; card refreshes every 30 s while open. Need free keys, not built: Ontario/Alberta 511,
   511.org (Bay Area), Windy webcams (worldwide). Norway/Iceland endpoints guessed wrong (404), not found yet.
+
+### 2026-11-15 night, sanctioned ships/aircraft, breaking-news spikes, Windy prep, his notes (built, waiting for review)
+
+- **Sanctioned ships & aircraft** (`sanctions.py`, feed `sanctioned` weekly, `/api/sanctioned/live`, `sanctioned.js`):
+  OpenSanctions maritime CSV (5 MB; vessels tagged `sanction` or `mare.shadow`; detentions alone dropped) -> 2,139 by IMO,
+  1,467 by MMSI; full `targets.simple.csv` (79 MB, streamed to `data/opensanctions-targets.csv.part`, read row by row,
+  deleted) -> 342 `Airplane` entities; their registrations -> transponder addresses via `hexdb.io/reg-hex` (remembered 90
+  days in `lookups`, 1.2 s apart; 217 known). Live match on request: ships by IMO then MMSI (Digitraffic + aisstream),
+  aircraft by registration (feeds that report it) or address. List codes -> titles via the OpenSanctions catalogue (the feed
+  fills `os-datasets`). First sandbox match: 28 shadow-fleet/sanctioned ships in the Finnish feed alone (e.g. KUNTSIT,
+  listed as TIGER 6 - renamed ships are why the card shows "listed as").
+- **Breaking-news spikes** (`news.spikes`, `/api/news/spikes`, `spikes.js`, chip "Breaking"): per news series (English /
+  translated, which lags ~1 h; after a restart the series hold different spans), newest hour vs the place's own hourly
+  rate in the hours before (max 5, min 2 needed). Defaults: >= 8 different headlines (agency copies once) from >= 8
+  outlets and >= 3x. Lower thresholds (4/4) flagged 35-53 places of pure noise; first combined baseline was wrong (mixed
+  series). GDELT "(General)" region pins and sport/showbiz URLs left out. Often empty on quiet hours; that is correct.
+- **Windy webcams** (code ready, untested: no key here): `config.windy_key()` reads `data/windy-key.txt`;
+  `/api/cam/windy?n&e&s&w` (bbox, limit 50 = free page size, cached 5 min per box), `/api/cam/windy/{id}` for fresh picture
+  links (they expire after ~10-15 min). Camera layer asks from zoom 5; card embeds Windy's player when given, else the
+  preview linked to Windy, plus their required credit line. Free tier: offset max 1000, small images only.
+- **His notes**: Hisar Cantonment (between Satrod and Hansi) is in neither OSM nor Wikidata with a position (Wikidata
+  Q5772355 has no coordinates and is typed military unit); the area he saw is OSM's unnamed landuse=military south of Hisar.
+  **RAF aircraft without a flag**: the address-block lookup was a binary search, but blocks nest (UK block holds Bermuda,
+  Gibraltar...), so parent blocks were missed. Now the smallest containing block wins, in `flags.js` and `dossier._flag_of`.
+  **Cameras play in the card**: TfL clip and Caltrans HLS autoplay (muted); stills refresh at each operator's own rate (NYC
+  3 s, proxy cache 2 s for NYC, 15 s others). **Hijacks animated** like Kaspersky's cybermap: great-circle arcs, comet tails
+  (`line-gradient` on a lineMetrics source) and arrival pulses, one per event with its own phase, max 120, only while the
+  layer is on, off under Reduce Motion; card says streaks show direction, not live traffic.
+  **Copernicus EMS** no longer marked late (activations are irregular); USNI stays late (it really stopped publishing).

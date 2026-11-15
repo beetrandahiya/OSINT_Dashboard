@@ -47,3 +47,13 @@ def cloudflare_token() -> str | None:
         if f.exists() and f.read_text().strip():
             return f.read_text().strip()   # data/ first; keys/ is committed to the repo at the owner's request (2026-11-15)
     return None
+
+
+def windy_key() -> str | None:
+    """A free Windy Webcams API key (api.windy.com/keys), for public webcams worldwide. data/windy-key.txt or
+    WW_WINDY_KEY. Never in git."""
+    import os
+    if os.environ.get("WW_WINDY_KEY"):
+        return os.environ["WW_WINDY_KEY"].strip()
+    f = DATA / "windy-key.txt"
+    return (f.read_text().strip() or None) if f.exists() else None
