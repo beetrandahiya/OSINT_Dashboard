@@ -171,8 +171,8 @@ def merge_military(wd_csv: str, osm_csv: str, mirta: dict) -> dict:
 
 
 # ---------------------------------------------------------------- nuclear
-def gem_plants(geo: dict) -> list[dict]:
-    plants = {}
+def gem_plants(geo: dict, dates: dict | None = None) -> list[dict]:
+    plants, dates = {}, dates or {}
     for f in geo.get("features", []):
         p = f.get("properties", {})
         st = (p.get("status") or "").lower()
@@ -183,6 +183,8 @@ def gem_plants(geo: dict) -> list[dict]:
             "country": p.get("all-countries") or p.get("country-area1"), "exact": p.get("location-accuracy") == "exact", "url": p.get("url"),
             "owner": p.get("owner") or None, "operator": p.get("operator") or None, "units": {}, "mw": {}, "types": set()})
         g["units"][st] = g["units"].get(st, 0) + 1
+        g.setdefault("reactors", []).append({"unit": str(p.get("unit-name") or ""), "status": st, "mw": p.get("capacity"),
+                                              **dates.get(p.get("unit-id") or "", {})})
         try:
             g["mw"][st] = g["mw"].get(st, 0) + float(p.get("capacity") or 0)
         except (TypeError, ValueError):
@@ -192,6 +194,7 @@ def gem_plants(geo: dict) -> list[dict]:
     out = []
     for g in plants.values():
         g["types"] = sorted(g["types"])
+        g.get("reactors", []).sort(key=lambda r: [int(x) if x.isdigit() else x for x in re.findall(r"\d+|\D+", r["unit"] or "")])
         order = ["operating", "construction", "pre-construction", "announced", "mothballed", "retired"]
         g["status"] = next((s for s in order if s in g["units"]), next(iter(g["units"]), "unknown"))
         out.append(g)
@@ -245,10 +248,67 @@ def gem_url(config_js: str) -> str | None:
     return m.group(0) if m else None
 
 
+def load_dates() -> tuple[dict, str]:
+    """A spreadsheet in data/ wins over the extract shipped with the code; the newest file by name."""
+    from . import config
+    files = sorted(config.DATA.glob("*Nuclear-Power-Tracker*.xlsx"))
+    if files:
+        try:
+            return gnpt_dates_from_xlsx(files[-1].read_bytes()), files[-1].name
+        except Exception:
+            pass
+    from pathlib import Path
+    body = json.loads((Path(__file__).parent / "gnpt_dates.json").read_text())
+    return body["units"], "extract of the " + body["release"] + " release shipped with the code"
+
+
 def build(parts: dict) -> dict:
     """For a child process: everything from the raw answers."""
+    parts["gem_dates"], dates_from = load_dates()
     mil = merge_military(parts.get("wd_bases") or "", parts.get("osm") or "", parts.get("mirta") or {})
     tests, explosions = test_sites(mil.pop("explosions"))
     return {"military": mil["sites"], "military_counts": mil["counts"],
-            "plants": gem_plants(parts.get("gem") or {}), "facilities": wd_nuclear(parts.get("wd_nuclear") or ""),
-            "tests": tests, "explosions": explosions}
+            "plants": gem_plants(parts.get("gem") or {}, parts.get("gem_dates") or {}), "facilities": wd_nuclear(parts.get("wd_nuclear") or ""),
+            "tests": tests, "explosions": explosions, "dates_from": dates_from}
+
+
+# ---------------------------------------------------------------- dates per reactor from GEM's spreadsheet
+# The map file has no dates. GEM's spreadsheet (the download behind their form, CC BY 4.0) does. A small extract of
+# it ships with the code (gnpt_dates.json); a newer spreadsheet dropped into data/ ("*Nuclear-Power-Tracker*.xlsx")
+# takes over. Joined to the map file by GEM's unit id.
+DATE_COLS = {"Construction Start Date": "construction", "First Criticality Date": "criticality", "First Grid Connection": "grid",
+             "Commercial Operation Date": "commercial", "Retirement Date": "retired", "Retirement Year": "retired_year",
+             "Planned Retirement": "planned_retirement", "Cancellation Year": "cancelled_year", "Data Center PPA": "datacenter_ppa",
+             "Date Last Researched": "researched"}
+
+
+def gnpt_dates_from_xlsx(raw: bytes) -> dict:
+    import html as _html
+    import zipfile as _zip
+    z = _zip.ZipFile(io.BytesIO(raw))
+    wb = z.read("xl/workbook.xml").decode("utf-8")
+    sheets = re.findall(r'<sheet [^>]*name="([^"]+)"', wb)
+    idx = sheets.index("Data") + 1 if "Data" in sheets else 2
+    ss = [_html.unescape("".join(re.findall(r"<t[^>]*>(.*?)</t>", si, re.S))) for si in re.findall(r"<si>(.*?)</si>", z.read("xl/sharedStrings.xml").decode("utf-8"), re.S)]
+    rows = re.findall(r"<row[^>]*>(.*?)</row>", z.read(f"xl/worksheets/sheet{idx}.xml").decode("utf-8"), re.S)
+
+    def cells(r):
+        return {ref: (ss[int(v)] if 't="s"' in a else v) for ref, a, v in re.findall(r'<c r="([A-Z]+)\d+"([^>]*)>(?:<f>.*?</f>)?<v>(.*?)</v>', r, re.S)}
+    head = {v.strip(): k for k, v in cells(rows[0]).items()}
+    out = {}
+    for r in rows[1:]:
+        c = cells(r)
+        uid = c.get(head.get("GEM unit ID", "?"))
+        if not uid:
+            continue
+        rec = {}
+        for col, key in DATE_COLS.items():
+            v = (c.get(head.get(col, "?")) or "").strip()
+            if re.fullmatch(r"\d{5}(\.\d+)?", v):            # an Excel serial day
+                from datetime import datetime, timedelta
+                v = (datetime(1899, 12, 30) + timedelta(days=float(v))).strftime("%Y-%m-%d")
+            if v and v.lower() not in ("not found", "n/a", "unknown", "nan"):
+                rec[key] = v[:10] if re.match(r"\d{4}-\d\d-\d\d", v) else v[:40]
+        if rec:
+            out[uid] = rec
+    return out

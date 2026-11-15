@@ -353,3 +353,7 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .pill { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 7px; border-radius: 8px; background: var(--fill); vertical-align: 1px; }
 .pill.hot { background: #ff3b3022; color: #d70015; }
 @media (prefers-color-scheme: dark) { .pill.hot { color: #ff6961; } }
+/* nuclear plant reactor table */
+table.units { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+table.units th { text-align: left; font-weight: 600; color: var(--text-2); padding: 2px 6px 4px 0; border-bottom: .5px solid var(--sep); }
+table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); vertical-align: top; }

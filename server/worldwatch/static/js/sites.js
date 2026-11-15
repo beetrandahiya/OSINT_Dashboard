@@ -127,6 +127,11 @@ export const nuclear = {
           ${p.types.length ? `<dt>Type</dt><dd>${p.types.map(esc).join(', ')}</dd>` : ''}
           ${p.operator ? `<dt>Operator</dt><dd>${esc(p.operator)}</dd>` : ''}${p.owner ? `<dt>Owner</dt><dd>${esc(p.owner)}</dd>` : ''}
           <dt>Location</dt><dd>${p.exact ? 'exact' : 'approximate (as Global Energy Monitor marks it)'}</dd></dl>
+        ${(p.reactors || []).length ? `<section class="pz"><h3>Reactors</h3><table class="units"><tr><th>Unit</th><th>Status</th><th>MW</th><th>Construction</th><th>Grid</th><th>Commercial</th><th>Retired</th></tr>
+          ${p.reactors.map(r => `<tr><td>${esc(r.unit || '–')}${r.datacenter_ppa === 'Y' ? ' <span class="pill" title="Has a power purchase agreement with a data centre">data centre</span>' : ''}</td><td>${esc(STATUS[r.status] || r.status)}</td><td>${r.mw ? Math.round(r.mw).toLocaleString('en-GB') : '–'}</td>
+            <td>${esc((r.construction || '–').slice(0, 7))}</td><td>${esc((r.grid || '–').slice(0, 7))}</td><td>${esc((r.commercial || '–').slice(0, 7))}</td>
+            <td>${esc((r.retired || r.retired_year || (r.planned_retirement ? 'planned ' + r.planned_retirement : '') || (r.cancelled_year ? 'cancelled ' + r.cancelled_year : '') || '–').slice(0, 16))}</td></tr>`).join('')}</table>
+          <p class="source">Dates per reactor from Global Energy Monitor's spreadsheet (${esc(d.dates_from || '')}); a dash means none recorded.</p></section>` : ''}
         ${look(p.lon, p.lat)} ${spyPass(p.lat, p.lon)}
         ${p.url ? `<a class="link" href="${esc(p.url)}" target="_blank" rel="noopener">Global Energy Monitor wiki</a>` : ''}${footer()}`;
     }

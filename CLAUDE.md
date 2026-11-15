@@ -1091,3 +1091,12 @@ Agent's research findings worth keeping:
   all have public map files that update by themselves, checked 2026-11-15) and other strategic layers (refineries,
   PeeringDB data centres, critical minerals, dams, chokepoint traffic). **Owner: nuclear only from GEM, nothing else;
   critical minerals "interesting but not that needed".** Do not re-propose these unless he asks.
+- **GEM spreadsheet received (2026-11-15, August 2026 release, 1,825 units).** Release notes: published about once a year
+  (Q1 2023, Q4 2023, Q3 2024, Q3 2025, Aug 2026). Because `data/` is not in git, a small extract ships with the code:
+  `server/worldwatch/gnpt_dates.json` (185 KB, CC BY 4.0, credited in the file): per GEM unit ID the construction start,
+  first criticality, grid connection, commercial operation, retirement / planned retirement / cancellation, "Data Center
+  PPA" (14 units) and date last researched. `sites.load_dates()`: a newer `data/*Nuclear-Power-Tracker*.xlsx` wins over
+  the extract (read with zipfile, `gnpt_dates_from_xlsx`). Plant cards show a reactor table (units sorted naturally).
+- Cloudflare Radar token: steps given to the owner (Account > Radar > Read, custom token, no IP filter, no expiry),
+  file `data/cloudflare-token.txt`. Not built yet: hijack/leak layer and "cable cut" outages wait for his token; read the
+  Radar API reference for the BGP and annotation endpoints first (the getting-started docs do not describe them).
