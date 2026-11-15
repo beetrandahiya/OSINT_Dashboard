@@ -1126,3 +1126,35 @@ Agent's research findings worth keeping:
   (unpushed, so rewritten); the file stays uncommitted until the owner allows it on GitHub (unblock link given to him)
   or puts it in `data/` on his Mac. Never disguise a secret to get past push protection. He then allowed it on GitHub
   and the token was committed and pushed (2026-11-15).
+
+### 2026-11-15 late, his review round (screenshots + feed report) and fixes
+
+- **Cloudflare token revoked**: GitHub's secret scanning reported it to Cloudflare minutes after the push (401 on his Mac,
+  "Invalid API Token" here). Removed from the repo (`keys/` deleted). Lesson: a token pushed to GitHub dies; keys go in
+  `data/` only. He needs a new token in `data/cloudflare-token.txt` (repo-root `data/`). Until then `cf_radar` shows grey.
+- **Military bases**: RAF Langtoft (a closed radar station with no end date, operator or start date in Wikidata) showed in
+  an empty field. A Wikidata base now needs an operator, a merge with OSM, OSM's wikidata tag pointing at it, or any OSM
+  military object within ~5 km (~60 km for ranges/training areas; launch sites exempt): 508 dropped, nearly all closed
+  airfields/stations. **Hisar**: Wikidata's "Hisar Military Station" (Q5772355) is typed military unit with no
+  coordinates; OSM has only an unnamed landuse=military area south of the city. Added all 96,309 OSM military areas
+  (landuse=military, centroids, `data/military-areas.json`, served by viewport via `/api/sites/areas`, from zoom 7).
+- **Military aircraft** 60 km behind: they came from adsb.lol every 5 min. Now adsb.fi `/api/v2/mil` every 30 s through
+  the shared adsb.fi gate (`adsbfi_get`), adsb.lol as fallback.
+- **Satellite flags**: spy satellites had no owner code (only the 5 CelesTrak families were looked up). `recon_sats` now
+  reads owners from CelesTrak's `pub/satcat.csv` (6.8 MB, weekly); amateur-tracked "USA nnn" get US. 285/285 have owners.
+  Military aircraft flags: all 110 live military hexes resolve server-side and every flag file exists; could not
+  reproduce; asked him for an example.
+- **Warship rings** now a real distance (400 km region, 10 km port), exponential zoom interpolation.
+- **Leaders**: Zelensky in Moscow (from "Zelensky says Moscow..."). An abroad placement now needs >= 2 different
+  headlines naming the leader (first or last name) with "in/to/arrives in/visits <city>" or "<city> visit/talks/summit"
+  (`_travel_headlines`). Dots/ring jumped on zoom: now one symbol layer at the true place with `icon-offset` in screen
+  pixels (no recomputation on move), own selection ring layer `ww-leaders-sel`; `main.js` skips the shared ring when a
+  layer's `ring()` returns 0.
+- **Cables**: all drawn again, grey; red = named in fault news, green = restored. Card shows owners, length, landing
+  points, suppliers, year from `submarinecablemap.com/api/v3/cable/{id}.json` via `/api/cable/{id}` (cached a week).
+- **Tanker/orbit cards**: planespotters photo (same `#photo` filler) and registration flag; "no photo" stated.
+- **Loading bar** also while raster tiles (photo, live photo, sharp, rain, lightning) load, until the map is idle.
+- **Ship photos**: the sites Google shows (ShipSpotting, MarineTraffic, VesselFinder) hold photographers' pictures and
+  forbid automated copying; no free image-search API exists. Cards now link "Search photos of it" and ShipSpotting by IMO.
+- He asked next for **public cameras, "all the ones you can safely do"** (open road/weather webcams, keyed public
+  services; never private/unsecured cameras).

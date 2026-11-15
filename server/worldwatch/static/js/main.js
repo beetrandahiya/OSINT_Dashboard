@@ -46,12 +46,24 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
     const r = t.getBoundingClientRect(), inset = 14;            // stay inside the panel's rounded corners
     Object.assign(bar.style, {left: r.left + inset + 'px', top: r.top + 1 + 'px', width: Math.max(0, r.width - inset * 2) + 'px'});
   };
-  const show = () => { if (open) place(); bar.hidden = open === 0; };
+  let tiles = false;                          // picture layers (photo, live photo, sharp photo, rain, lightning) loading tiles
+  const show = () => { if (open || tiles) place(); bar.hidden = !(open || tiles); };
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (!url.includes('/api/') || url.includes('/api/status')) return real(input, init);   // the status poll is constant; not "loading"
     open++; clearTimeout(t); t = setTimeout(show, 250);
-    return real(input, init).finally(() => { open = Math.max(0, open - 1); if (!open) { clearTimeout(t); bar.hidden = true; } });
+    return real(input, init).finally(() => { open = Math.max(0, open - 1); if (!open) { clearTimeout(t); show(); } });
+  };
+  // called once the map exists: tiles of raster sources count as loading until the map is idle again
+  window.wwWatchTiles = map => {
+    let tt = null;
+    map.on('dataloading', e => {
+      if (e.dataType !== 'source' || !e.tile || !String(e.sourceId).startsWith('ww-')) return;
+      const src = map.getSource(e.sourceId);
+      if (!src || (src.type !== 'raster' && src.type !== 'image')) return;
+      if (!tiles) { clearTimeout(tt); tt = setTimeout(() => { tiles = !map.areTilesLoaded(); show(); }, 250); }
+    });
+    map.on('idle', () => { clearTimeout(tt); tiles = false; show(); });
   };
 }
 // ---- every panel can be minimised; the choice is remembered on this computer ----
@@ -66,6 +78,7 @@ minimiser('markets-mini', 'marketsbar', 'ww-min-markets');
 let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
 
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
+window.wwWatchTiles?.(map);
 
 let on = Object.fromEntries(LAYERS.map(l => [l.id, !l.defaultOff]));
 try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); } catch (e) { /* private window */ }
@@ -159,7 +172,8 @@ function renderList() {
 
 function ring() {
   const l = picked && byId[picked.layer], at = l?.locate(picked.id);
-  map.getSource('ww-pick')?.setData({type: 'FeatureCollection', features: at ? [{type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {r: l.ring(picked.id)}}] : []});
+  const r = at ? l.ring(picked.id) : 0;   // a layer that draws its own selection returns 0 (it can still be flown to)
+  map.getSource('ww-pick')?.setData({type: 'FeatureCollection', features: at && r ? [{type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {r}}] : []});
   return at;
 }
 
@@ -185,7 +199,7 @@ function renderDetail() {
   el.hidden = !picked;
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
-  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout', '#mxacq'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout', '#mxacq', '#cableabout'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + html;
   el.classList.toggle('min', detailMin);
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;

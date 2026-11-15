@@ -265,6 +265,28 @@ def _headline(t: str) -> str:
     return re.sub(r"\W+", " ", t).strip()
 
 
+_TRAVEL_BEFORE = r"(?:in|to|at|arrives?(?: in| at)?|arrived(?: in| at)?|lands?(?: in)?|landed(?: in)?|visits?|visited|visiting|reaches|reached|heads? to|flies to|flew to)"
+_TRAVEL_AFTER = r"(?:visit|trip|talks|summit|meeting|meet|tour|stopover|arrival)"
+
+
+def _travel_headlines(titles: list[str], name: str, place: str) -> int:
+    """How many headlines name the person (surname) and say they are at the place."""
+    parts = _norm(name).split()
+    city = _norm(place.split(",")[0])
+    if not city or not parts:
+        return 0
+    # family name last (Modi) or first (Xi Jinping): either, as a whole word
+    who = re.compile(r"\b(" + "|".join(re.escape(x) for x in {parts[-1], parts[0]} if len(x) >= 2) + r")\b")
+    before = re.compile(rf"\b{_TRAVEL_BEFORE}\s+(?:the\s+)?{re.escape(city)}\b")
+    after = re.compile(rf"\b{re.escape(city)}(?:'s)?\s+{_TRAVEL_AFTER}")
+    n = 0
+    for t in titles:
+        t = _norm(t)
+        if who.search(t) and (before.search(t) or after.search(t)):
+            n += 1
+    return n
+
+
 def leaders_today(leaders: list[dict]) -> list[dict]:
     """For each leader: the places the news put them in the last six hours, counted by distinct outlets. For each
     article naming a leader, the place is the city mentioned nearest to their name in the text (GDELT gives the
@@ -301,8 +323,10 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
                     where = (row[0], row[1], row[2])
                 for l in names[n]:
                     h = hits.setdefault(l["qid"], {"leader": l, "places": {}, "articles": {}})
-                    pl = h["places"].setdefault(where[0], {"place": where[0], "lat": where[1], "lon": where[2], "outlets": set(), "heads": set(), "last": 0})
+                    pl = h["places"].setdefault(where[0], {"place": where[0], "lat": where[1], "lon": where[2], "outlets": set(), "heads": set(), "last": 0, "titles": []})
                     pl["outlets"].add(row[3])
+                    if _headline(row[4]) not in pl["heads"] and len(pl["titles"]) < 30:
+                        pl["titles"].append(row[4])
                     pl["heads"].add(_headline(row[4]))
                     pl["last"] = max(pl["last"], published)
                     old = h["articles"].get(row[3])
@@ -315,13 +339,27 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
         # leading place needs at least two different headlines from two outlets.
         places = sorted(({**p, "outlets": len(p["outlets"]), "headlines": len(p["heads"])} for p in h["places"].values()),
                         key=lambda p: (-p["headlines"], -p["outlets"]))
+        l = h["leader"]
+        # A place abroad needs headlines that put them there: being mentioned near a city is not being in it ("Zelensky
+        # says Moscow ..." had put him in Moscow). At least two different headlines must name the leader and say "in /
+        # to / arrives in / visits <city>" or "<city> visit / talks / summit". Places at home keep the plain rule.
+        best = None
+        for p in places:
+            if p["headlines"] < 2 or p["outlets"] < 2:
+                break                                    # sorted: nothing further down qualifies either
+            if not _abroad(p["place"], l["country"]):
+                best = p
+                break
+            if _travel_headlines(p["titles"], l["name"], p["place"]) >= 2:
+                best = p
+                break
         for p in places:
             del p["heads"]
-        if places[0]["headlines"] < 2 or places[0]["outlets"] < 2:
+            p.pop("titles", None)
+        if not best:
             continue
-        arts = sorted(h["articles"].values(), key=lambda a: (a["place"] != places[0]["place"], -(a["image"] is not None), -a["time"]))
-        l = h["leader"]
-        out.append({"abroad": _abroad(places[0]["place"], l["country"]), "qid": l["qid"], "name": l["name"], "role": l["role"], "country": l["country"], "home": [l["lon"], l["lat"]],
-                    "place": places[0], "places": places[:6], "outlets": len(h["articles"]), "articles": arts[:10]})
+        arts = sorted(h["articles"].values(), key=lambda a: (a["place"] != best["place"], -(a["image"] is not None), -a["time"]))
+        out.append({"abroad": _abroad(best["place"], l["country"]), "qid": l["qid"], "name": l["name"], "role": l["role"], "country": l["country"], "home": [l["lon"], l["lat"]],
+                    "place": best, "places": [best] + [p for p in places if p is not best][:5], "outlets": len(h["articles"]), "articles": arts[:10]})
     out.sort(key=lambda x: -x["outlets"])
     return out

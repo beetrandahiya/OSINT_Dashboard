@@ -55,6 +55,12 @@ SELECT ?o ?v ?name ?op ?wd (geof:centroid(?w) AS ?c) WHERE {
  ?o osmkey:military ?v . VALUES ?v {"base" "airfield" "naval_base" "radar" "launchpad" "ammunition" "nuclear_explosion_site"}
  OPTIONAL{?o osmkey:name ?name} OPTIONAL{?o osmkey:operator ?op} OPTIONAL{?o osmkey:wikidata ?wd}
  ?o geo:hasGeometry/geo:asWKT ?w }"""
+OSM_AREAS = """PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+SELECT ?o ?name ?wd (geof:centroid(?w) AS ?c) WHERE { ?o osmkey:landuse "military" .
+ OPTIONAL{?o osmkey:name ?name} OPTIONAL{?o osmkey:wikidata ?wd} ?o geo:hasGeometry/geo:asWKT ?w }"""
+BIG_SITE = re.compile(r"range|proving|test site|training|polygon|firing|bombing", re.I)
 OSM_KIND = {"base": "base", "airfield": "air", "naval_base": "naval", "radar": "radar", "launchpad": "space", "ammunition": "ammo"}
 
 WD_NUCLEAR = """SELECT ?i (SAMPLE(?l) AS ?label) (SAMPLE(?c) AS ?coord) (GROUP_CONCAT(DISTINCT ?tl;separator="|") AS ?types)
@@ -107,9 +113,26 @@ def _csv(text: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------- military
-def merge_military(wd_csv: str, osm_csv: str, mirta: dict) -> dict:
-    """-> {"sites": [[lon, lat, kind, name, source, ref, country, operator]], "counts": {...}}"""
+def merge_military(wd_csv: str, osm_csv: str, mirta: dict, areas_csv: str = "") -> dict:
+    """-> {"sites": [[lon, lat, kind, name, source, ref, country, operator]], "areas": [...], "counts": {...}}
+    A Wikidata base without an end date can still be long gone (RAF Langtoft, a Cold War radar station, has no end date,
+    no operator and no start date). So a Wikidata base is kept only if it has an operator, or is merged with an
+    OpenStreetMap object, or OpenStreetMap shows something military within ~5 km today (~60 km for ranges and
+    training areas, whose map outline can be huge); launch sites are always kept."""
     sites, by_qid, dropped_closed = [], {}, 0
+    osm_pts = []
+    for text in (osm_csv, areas_csv):
+        for r in _csv(text):
+            pt = _point(r.get("c"))
+            if pt:
+                osm_pts.append(pt)
+    grid = {(round(x * 20), round(y * 20)) for x, y in osm_pts}          # 0.05 degree cells
+
+    def on_map(lon, lat, cells):
+        cx, cy = round(lon * 20), round(lat * 20)
+        return any((cx + dx, cy + dy) in grid for dx in range(-cells, cells + 1) for dy in range(-cells, cells + 1))
+    no_sign = 0
+    osm_wd = {(r.get("wd") or "").strip() for text in (osm_csv, areas_csv) for r in _csv(text) if r.get("wd")}   # items OSM links to exist on the map
     for r in _csv(wd_csv):
         pt = _point(r.get("coord"))
         if not pt:
@@ -124,6 +147,10 @@ def merge_military(wd_csv: str, osm_csv: str, mirta: dict) -> dict:
         if kind == "radar" and "Q133288241" not in types and not MILITARY_WORDS.search(name + " " + ops):
             continue                                    # "radar station" also covers weather radars
         q = _qid(r["i"])
+        if grid and kind != "space" and not ops and not on_map(pt[0], pt[1], 12 if (kind == "training" or BIG_SITE.search(name)) else 1):
+            if q not in osm_wd:
+                no_sign += 1
+                continue
         by_qid[q] = len(sites)
         sites.append([pt[0], pt[1], kind, name or q, "wikidata", q, (r.get("country") or "").split("|")[0] or None, ops.replace("|", ", ") or None])
     n_wd = len(sites)
@@ -166,8 +193,14 @@ def merge_military(wd_csv: str, osm_csv: str, mirta: dict) -> dict:
         c = (p.get("siteReportingComponent") or "").lower().replace(" ", "")
         sites.append([round(lon, 5), round(lat, 5), "base", p.get("siteName") or p.get("featureName"), "mirta", p.get("featureName"), "US", comp.get(c, c.upper() or None)])
         added_mirta += 1
-    return {"sites": sites, "explosions": explosions,
-            "counts": {"wikidata": n_wd, "osm": n_osm, "osm_merged": merged, "mirta": added_mirta, "closed_left_out": dropped_closed}}
+    areas = []
+    for r in _csv(areas_csv):
+        pt = _point(r.get("c"))
+        if pt:
+            areas.append([pt[0], pt[1], (r.get("name") or None), r["o"].split("openstreetmap.org/")[-1]])
+    return {"sites": sites, "explosions": explosions, "areas": areas,
+            "counts": {"wikidata": n_wd, "osm": n_osm, "osm_merged": merged, "mirta": added_mirta, "closed_left_out": dropped_closed,
+                       "no_sign_left_out": no_sign, "areas": len(areas)}}
 
 
 # ---------------------------------------------------------------- nuclear
@@ -265,8 +298,9 @@ def load_dates() -> tuple[dict, str]:
 def build(parts: dict) -> dict:
     """For a child process: everything from the raw answers."""
     parts["gem_dates"], dates_from = load_dates()
-    mil = merge_military(parts.get("wd_bases") or "", parts.get("osm") or "", parts.get("mirta") or {})
+    mil = merge_military(parts.get("wd_bases") or "", parts.get("osm") or "", parts.get("mirta") or {}, parts.get("osm_areas") or "")
     tests, explosions = test_sites(mil.pop("explosions"))
+    save_areas(mil.pop("areas"))
     return {"military": mil["sites"], "military_counts": mil["counts"],
             "plants": gem_plants(parts.get("gem") or {}, parts.get("gem_dates") or {}), "facilities": wd_nuclear(parts.get("wd_nuclear") or ""),
             "tests": tests, "explosions": explosions, "dates_from": dates_from}
@@ -312,3 +346,43 @@ def gnpt_dates_from_xlsx(raw: bytes) -> dict:
         if rec:
             out[uid] = rec
     return out
+
+
+# ---------------------------------------------------------------- military areas (OSM landuse=military), served by viewport
+AREAS_FILE = None
+
+
+def _areas_path():
+    from . import config
+    return config.DATA / "military-areas.json"
+
+
+def save_areas(areas: list) -> None:
+    if areas:
+        p = _areas_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(areas, separators=(",", ":")))
+
+
+_AREAS: list | None = None
+
+
+def areas_in(w: float, s: float, e: float, n: float, limit=4000) -> list:
+    global _AREAS
+    if _AREAS is None:
+        try:
+            _AREAS = json.loads(_areas_path().read_text())
+        except (OSError, ValueError):
+            return []
+    out = []
+    for a in _AREAS:
+        if s <= a[1] <= n and ((w <= a[0] <= e) if w <= e else (a[0] >= w or a[0] <= e)):
+            out.append(a)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def reload_areas():
+    global _AREAS
+    _AREAS = None

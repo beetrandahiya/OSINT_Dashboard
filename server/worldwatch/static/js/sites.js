@@ -3,7 +3,7 @@
 import {ago, esc, spyPass} from './util.js';
 import {flagImg} from './flags.js';
 
-let d = null, info = null;
+let d = null, info = null, areas = [];
 const MIL = {air: ['A', 'Air base'], naval: ['N', 'Naval base'], base: ['B', 'Military base'], radar: ['R', 'Military radar'],
   sigint: ['S', 'Listening (signals intelligence) station'], missile: ['M', 'Missile base or launch facility'], space: ['L', 'Launch site'],
   ammo: ['D', 'Ammunition depot'], training: ['T', 'Training area']};
@@ -22,7 +22,8 @@ function onSites(x) { d = x.payload; info = x; if (theMap) nuclear.render(theMap
 
 export const bases = {
   id: 'bases', title: 'Military bases', color: ['#6e4f2d', '#c8a37a'], feeds: {sites: 21600}, defaultOff: true,
-  layers: ['ww-bases', 'ww-bases-k', 'ww-bases-name'],
+  layers: ['ww-milarea', 'ww-bases', 'ww-bases-k', 'ww-bases-name'],
+  visible(on) { if (on) this.pull?.(); },
   about: () => 'Military bases, radar and listening stations, missile and launch sites, from Wikidata, OpenStreetMap and the US DoD.',
   addTo(map) {
     map.addSource('ww-bases', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -30,6 +31,26 @@ export const bases = {
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, ['match', ['get', 'kind'], ['missile', 'sigint'], 3, 1.8], 6, 6, 10, 9], 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0, 6, 1]}});
     map.addLayer({id: 'ww-bases-k', type: 'symbol', source: 'ww-bases', minzoom: 6,
       layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 9, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
+    // OpenStreetMap's military areas (landuse=military): 96,000 worldwide, so only the ones on screen, from zoom 7
+    map.addSource('ww-milarea', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addLayer({id: 'ww-milarea', type: 'circle', source: 'ww-milarea', minzoom: 7,
+      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 7], 'circle-opacity': 0.25, 'circle-stroke-width': 1.4, 'circle-stroke-opacity': 0.9}});
+    let busy = false, again = false;
+    const pull = async () => {
+      if (map.getZoom() < 7 || map.getLayoutProperty('ww-bases', 'visibility') === 'none') return;
+      if (busy) { again = true; return; }
+      busy = true;
+      const b = map.getBounds();
+      try {
+        const r = await fetch(`/api/sites/areas?w=${b.getWest()}&s=${b.getSouth()}&e=${b.getEast()}&n=${b.getNorth()}`).then(x => x.json());
+        areas = r.areas || [];
+        map.getSource('ww-milarea').setData({type: 'FeatureCollection', features: areas.map((a, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [a[0], a[1]]}, properties: {id: 'marea:' + i}}))});
+      } catch (e) { /* the next move asks again */ }
+      busy = false;
+      if (again) { again = false; pull(); }
+    };
+    map.on('moveend', pull);
+    this.pull = pull;
     map.addLayer({id: 'ww-bases-name', type: 'symbol', source: 'ww-bases', minzoom: 7.5, filter: ['has', 'name'],
       layout: {'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true},
       paint: {'text-halo-width': 1.2}});
@@ -37,6 +58,8 @@ export const bases = {
   paint(map, dark) {
     map.setPaintProperty('ww-bases', 'circle-color', ['match', ['get', 'kind'], ['missile', 'sigint'], dark ? '#ff6961' : '#c4161c', 'radar', dark ? '#ffb340' : '#b25000', this.color[+dark]]);
     map.setPaintProperty('ww-bases', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    map.setPaintProperty('ww-milarea', 'circle-color', this.color[+dark]);
+    map.setPaintProperty('ww-milarea', 'circle-stroke-color', this.color[+dark]);
     map.setPaintProperty('ww-bases-name', 'text-color', dark ? '#e5e5ea' : '#3a3a3c');
     map.setPaintProperty('ww-bases-name', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
   },
@@ -48,10 +71,21 @@ export const bases = {
   },
   count: () => d ? d.military.length : 0,
   rows: () => [],
-  owns: id => String(id).startsWith('base:'),
-  locate(id) { const s = d?.military[+id.slice(5)]; return s && [s[0], s[1]]; },
+  owns: id => /^(base|marea):/.test(String(id)),
+  locate(id) {
+    if (String(id).startsWith('marea:')) { const a = areas[+id.slice(6)]; return a && [a[0], a[1]]; }
+    const s = d?.military[+id.slice(5)]; return s && [s[0], s[1]];
+  },
   ring: () => 10,
   detail(id) {
+    if (String(id).startsWith('marea:')) {
+      const a = areas[+id.slice(6)]; if (!a) return null;
+      return `<p class="eyebrow">Military area</p><h2>${esc(a[2] || 'Unnamed military area')}</h2>
+        <dl><dt>Where</dt><dd>${Math.abs(a[1]).toFixed(4)}° ${a[1] >= 0 ? 'N' : 'S'}, ${Math.abs(a[0]).toFixed(4)}° ${a[0] >= 0 ? 'E' : 'W'} <span class="soft">(centre of the mapped area)</span></dd>
+          <dt>Source</dt><dd>${SRC.osm(a[3])}</dd></dl>
+        <p class="soft">Land OpenStreetMap's mappers marked as military use (landuse=military): barracks, cantonments, depots, ranges. Many have no name on the map.</p>
+        ${look(a[0], a[1])} ${spyPass(a[1], a[0])}${footer()}`;
+    }
     const s = d?.military[+id.slice(5)]; if (!s) return null;
     const [lon, lat, kind, name, src, ref, cc, op, osm] = s;
     return `<p class="eyebrow">${esc(MIL[kind]?.[1] || 'Military site')}</p>

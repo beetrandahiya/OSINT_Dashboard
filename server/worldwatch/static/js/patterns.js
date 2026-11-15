@@ -1,6 +1,8 @@
 // Military aircraft flying orbits (surveillance, airborne warning, drones, tankers on their tracks) and tankers in
 // the air. Worked out on our server from the positions it received (patterns.py); derived, and said so.
 import {ago, esc, spyPass} from './util.js';
+import {planeFlag, flagImg} from './flags.js';
+const flagOf = a => { const f = planeFlag(a.hex); return f ? ' ' + flagImg(f.cc, f.name) : ''; };
 
 let data = {orbits: [], tankers: [], now: 0, fetched: null}, maps = [];
 const dur = s => { const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
@@ -17,7 +19,7 @@ function start(layer, map) {
   if (!started) { started = true; load(); setInterval(load, 120000); }
 }
 
-const SOURCE = `Worked out by this server from military positions published by adsb.lol (every 5 minutes) and kept for 3 hours.`;
+const SOURCE = `Worked out by this server from military positions published by adsb.fi (every 30 seconds) and kept for 3 hours.`;
 
 export const orbits = {
   id: 'orbits', title: 'Orbits (military)', color: ['#8944ab', '#da8fff'], feeds: {}, local: true,
@@ -60,7 +62,8 @@ export const orbits = {
   detail(id) {
     const o = data.orbits.find(x => 'orbit:' + x.hex === id);
     if (!o) return null;
-    return `<p class="eyebrow">Orbit · derived from positions</p><h2>${esc(name(o))}</h2>
+    return `<div class="photo" id="photo" data-hex="${esc(o.hex)}"><p class="pic-wait">Looking for a photo…</p></div>
+      <p class="eyebrow">Orbit · derived from positions</p><h2>${esc(name(o))}${flagOf(o)}</h2>
       <p class="where">${esc(o.role || (o.type ? 'type ' + o.type : 'military aircraft'))}${o.reg ? ' · ' + esc(o.reg) : ''}</p>
       <dl>
         <dt>Pattern</dt><dd>${o.turns} full turns in the last 2 hours, all within ${o.radius_km} km of one centre</dd>
@@ -69,7 +72,7 @@ export const orbits = {
       </dl>
       ${o.kind === 'isr' ? '<p class="soft">This type is built for surveillance, signals intelligence or airborne warning. Orbiting is how it works; what it watches is not published.</p>' : o.kind === 'tanker' ? '<p class="soft">A tanker flying a track: other aircraft refuel from it there.</p>' : '<p class="soft">The type is not one of the known surveillance or tanker types; training, holding before landing and search patterns look the same.</p>'}
       ${spyPass(o.lat, o.lon)}
-      <p class="source">${SOURCE} An orbit is counted when the heading changes add up to at least one and a half turns and every position of the last 2 hours stays within 120 km of their centre. Positions 5 minutes apart can miss a tight orbit. Read ${ago(data.fetched)}.</p>`;
+      <p class="source">${SOURCE} An orbit is counted when the heading changes add up to at least one and a half turns and every position of the last 2 hours stays within 120 km of their centre. Positions 30 seconds apart. Read ${ago(data.fetched)}.</p>`;
   },
 };
 
@@ -108,7 +111,8 @@ export const tankers = {
     if (!t) return null;
     const o = data.orbits.find(x => x.hex === t.hex);
     const near = data.tankers.filter(u => u !== t && Math.hypot((u.lon - t.lon) * Math.cos(t.lat * Math.PI / 180), u.lat - t.lat) * 111 < 500);
-    return `<p class="eyebrow">Tanker in the air</p><h2>${esc(name(t))}</h2><p class="where">${esc(t.role)}${t.reg ? ' · ' + esc(t.reg) : ''}</p>
+    return `<div class="photo" id="photo" data-hex="${esc(t.hex)}"><p class="pic-wait">Looking for a photo…</p></div>
+      <p class="eyebrow">Tanker in the air</p><h2>${esc(name(t))}${flagOf(t)}</h2><p class="where">${esc(t.role)}${t.reg ? ' · ' + esc(t.reg) : ''}</p>
       <dl><dt>Now</dt><dd>${alt(t)}${t.gs_kt ? ', ' + Math.round(t.gs_kt) + ' kt' : ''}</dd>
         <dt>Flying a track</dt><dd>${o ? `yes, ${o.turns} turns, on station ${dur(data.now - o.since)}` : 'not detected'}</dd>
         <dt>Other tankers within 500 km</dt><dd>${near.length ? near.map(u => esc(name(u))).join(', ') : 'none'}</dd></dl>

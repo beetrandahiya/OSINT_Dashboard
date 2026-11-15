@@ -177,7 +177,7 @@ export function select(id) {
 const ft = v => v == null ? 'not reported' : v === 'ground' ? 'on the ground' : `${Number(v).toLocaleString('en-GB')} ft <span class="soft">(${(v * 0.3048 / 1000).toFixed(1)} km)</span>`;
 const kt = v => v == null ? 'not reported' : `${Math.round(v)} kt <span class="soft">(${Math.round(v * 1.852)} km/h)</span>`;
 const ACCURACY = {11: 'within 3 m', 10: 'within 10 m', 9: 'within 30 m', 8: 'within 93 m', 7: 'within 185 m', 6: 'within 556 m', 5: 'within 926 m', 4: 'within 1.9 km', 3: 'within 3.7 km', 2: 'within 7.4 km', 1: 'within 18.5 km', 0: 'not stated'};
-const SOURCE = {view: 'adsb.fi', military: 'adsb.lol', world: 'OpenSky Network'};
+const SOURCE = {view: 'adsb.fi', military: 'adsb.fi', world: 'OpenSky Network'};
 
 function detail(id) {
   const hit = find(id);
@@ -250,7 +250,8 @@ async function fillPhoto() {
   const hex = el.dataset.hex;
   if (!photos.has(hex)) { try { photos.set(hex, (await api('/api/photo/' + hex)).photo || null); } catch (e) { return; } }
   const ph = photos.get(hex), now2 = $('#photo');
-  if (!ph || !now2 || now2.dataset.hex !== hex) return;
+  if (!now2 || now2.dataset.hex !== hex) return;
+  if (!ph) { now2.innerHTML = '<p class="pic-wait">No photo of this aircraft on planespotters.net.</p>'; return; }
   now2.innerHTML = `<a href="${esc(ph.link)}" target="_blank" rel="noopener"><img src="${esc(ph.src)}" alt="Photo of this aircraft" loading="lazy"></a><span>Photo: ${esc(ph.photographer)}, planespotters.net</span>`;
 }
 
@@ -290,7 +291,7 @@ export const civil = {
 };
 
 export const military = {
-  id: 'military', title: 'Military', color: ['#af52de', '#da8fff'], feeds: {aircraft_military: 60}, layers: ['ww-air-mil'],
+  id: 'military', title: 'Military', color: ['#af52de', '#da8fff'], feeds: {aircraft_military: 30}, layers: ['ww-air-mil'],
   addTo(map) { map.addLayer(symbol('ww-air-mil', 'ww-air-mil')); },
   paint(map, dark) { civil.paint(map, dark); },
   onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; },

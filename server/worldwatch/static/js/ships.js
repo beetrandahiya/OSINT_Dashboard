@@ -4,6 +4,7 @@ import {ago, esc, local} from './util.js';
 import {shipFlag, flagImg} from './flags.js';
 
 const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 10-26z';
+const RING_KM = {region: 400, port: 10};   // how far "in the Arabian Sea" or "in port at Sasebo" can mean, drawn to scale
 const STATUS = {0: 'Under way', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted in manoeuvring', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Fishing', 8: 'Under sail'};
 let list = [], info = null;
 
@@ -39,8 +40,14 @@ async function fillShip() {
   if (!r) { try { r = await fetch('/api/ship/about?' + q).then(x => x.json()); pics.set(q, r); } catch (e) { box.dataset.done = ''; return; } }
   const top = document.getElementById('shippic'), about = document.getElementById('shipabout');
   if (!top || top.dataset.mmsi !== box.dataset.mmsi) return;
-  if (!r.image) top.innerHTML = `<p class="pic-wait">${r.error ? esc(r.error) + '; no picture this time.' : 'No picture found for this ship.'}</p>`;
-  if (r.image) top.innerHTML = `<div class="photo"><a href="${esc(r.commons || 'https://www.wikidata.org/wiki/' + r.qid)}" target="_blank" rel="noopener"><img src="${esc(r.image.replace('http://', 'https://'))}${r.commons ? '' : '?width=640'}" alt="Picture of this ship" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The picture could not be loaded.</p>'"></a><span>Picture: Wikimedia Commons${r.commons ? ', filed under its IMO number' : ', via Wikidata'}${r.by === 'name' ? ' (matched by name; check it is this ship)' : ''}</span></div>`;
+  // the photo sites (ShipSpotting, MarineTraffic, VesselFinder) hold photographers' pictures and forbid automated copying,
+  // so the card links to the same searches a person would do
+  const nm = box.dataset.name, imo = box.dataset.imo;
+  const sq = encodeURIComponent(imo ? `"${nm}" IMO ${imo}` : `"${nm}" ship`);
+  const more = `<p class="links"><a class="link" href="https://www.google.com/search?tbm=isch&q=${sq}" target="_blank" rel="noopener">Search photos of it</a>
+    ${imo ? `<a class="link" href="https://www.shipspotting.com/photos/gallery?imo=${encodeURIComponent(imo)}" target="_blank" rel="noopener">ShipSpotting photos (IMO ${esc(imo)})</a>` : ''}</p>`;
+  if (!r.image) top.innerHTML = `<p class="pic-wait">${r.error ? esc(r.error) + '; no picture this time.' : 'No free picture of this ship on Wikimedia Commons or Wikidata.'}</p>${more}`;
+  if (r.image) top.innerHTML = `<div class="photo"><a href="${esc(r.commons || 'https://www.wikidata.org/wiki/' + r.qid)}" target="_blank" rel="noopener"><img src="${esc(r.image.replace('http://', 'https://'))}${r.commons ? '' : '?width=640'}" alt="Picture of this ship" loading="lazy" onerror="this.closest('.photo').outerHTML='<p class=pic-wait>The picture could not be loaded.</p>'"></a><span>Picture: Wikimedia Commons${r.commons ? ', filed under its IMO number' : ', via Wikidata'}${r.by === 'name' ? ' (matched by name; check it is this ship)' : ''}</span></div>${more}`;
   if (about) { about.dataset.done = '1'; about.innerHTML = r.qid ? `<section class="pz"><h3>${esc(r.name || 'On Wikidata')}</h3>${r.description ? `<p>${esc(r.description[0].toUpperCase() + r.description.slice(1))}.</p>` : ''}<dl>${r.kinds?.length ? `<dt>Kind</dt><dd>${r.kinds.map(esc).join(', ')}</dd>` : ''}${r.operator ? `<dt>Operator</dt><dd>${esc(r.operator)}</dd>` : ''}${r.country ? `<dt>Flag</dt><dd>${esc(r.country)}</dd>` : ''}${r.built ? `<dt>In service since</dt><dd>${esc(r.built)}</dd>` : ''}</dl>${r.wikipedia ? `<a class="link" href="${esc(r.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}<p class="source">Wikidata, matched by ${r.by === 'imo' ? 'IMO number' : r.by === 'mmsi' ? 'MMSI' : 'name, so it may be another ship of the same name'}.</p></section>` : r.commons ? '' : `<p class="source">Looked on Wikidata (by IMO number, MMSI${box.dataset.mil ? ' and name' : ''}) and on Wikimedia Commons (by IMO number); many ships, and most warships, have neither.</p>`; }
 }
 
@@ -105,7 +112,9 @@ function fleetFeatures() {
   for (const x of fleetShips()) {
     const k = x.lat + ',' + x.lon, n = seen[k] = (seen[k] || 0) + 1;     // ships in the same region are spread a little so each can be clicked
     const lon = x.lon + (n - 1) * 1.6, lat = x.lat - (n - 1) * 0.8;
-    out.push({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]}, properties: {id: 'usni:' + x.hull, label: x.name.replace('USS ', '') + ' (' + x.hull + ')', r: x.placed === 'port' ? 8 : 34, carrier: x.hull.startsWith('CVN')}});
+    out.push({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]}, properties: {id: 'usni:' + x.hull, label: x.name.replace('USS ', '') + ' (' + x.hull + ')', carrier: x.hull.startsWith('CVN'),
+      // ring radius in pixels at zoom 0 for a real distance (Web Mercator, 512-pixel world): it then doubles with each zoom step
+      r0: (x.placed === 'port' ? RING_KM.port : RING_KM.region) * 1000 / (78271.517 * Math.cos(lat * Math.PI / 180))}});
   }
   return out;
 }
@@ -122,7 +131,7 @@ export const warships = {
   addTo(map) {
     map.addSource('ww-warships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addSource('ww-usni', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-usni-ring', type: 'circle', source: 'ww-usni', paint: {'circle-radius': ['get', 'r'], 'circle-opacity': 0.06, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.6}});
+    map.addLayer({id: 'ww-usni-ring', type: 'circle', source: 'ww-usni', paint: {'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['get', 'r0'], 20, ['*', ['get', 'r0'], 1048576]], 'circle-opacity': 0.06, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.6}});
     map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': 'ww-warship', 'icon-size': ['case', ['get', 'carrier'], 0.75, 0.6], 'icon-allow-overlap': true,
       'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.8], 'text-anchor': 'top', 'text-optional': true}});
     map.addLayer({id: 'ww-warships', type: 'symbol', source: 'ww-warships', layout: {'icon-image': 'ww-warship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
@@ -158,7 +167,7 @@ export const warships = {
     if (!x) return null;
     return `<div id="shippic" data-mmsi="${esc(x.hull)}" data-imo="" data-name="${esc(x.name)}" data-mil="1"><p class="pic-wait">Looking for a picture of this ship…</p></div>
       <p class="eyebrow">US Navy ${esc(x.kind)} · USNI Fleet Tracker</p><h2>${esc(x.name)} <span class="soft">${esc(x.hull)}</span> ${flagImg('us', 'United States')}</h2>
-      <p class="where">${x.placed === 'port' ? 'In port: ' + esc(x.port) : 'Somewhere in ' + esc(x.region) + ' (the marker is the middle of that region, not its position)'}</p>
+      <p class="where">${x.placed === 'port' ? 'In port: ' + esc(x.port) : 'Somewhere in ' + esc(x.region) + ' (the marker is the middle of that region, not its position; the ring is drawn ' + RING_KM.region + ' km around it as a reminder, not as a boundary)'}</p>
       ${x.said.length ? `<section class="pz"><h3>What USNI reported</h3>${x.said.map(t => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
       ${x.placed === 'port' ? `<button class="btn" data-sharpat="${x.lon},${x.lat}">Look at the port in the sharp photo</button><p class="source">The sharp photo is not live: it is from the date shown on its chip, so this ship may or may not be in it. Nobody publishes current pictures of warships for free.</p>` : ''}
       ${fleet.graphic ? `<a href="${esc(fleet.link)}" target="_blank" rel="noopener"><img class="news-hero" src="/api/news/image?u=${encodeURIComponent(fleet.graphic)}" alt="USNI's map of the fleet" onerror="this.remove()"></a>` : ''}

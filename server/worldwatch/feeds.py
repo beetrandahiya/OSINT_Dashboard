@@ -131,10 +131,32 @@ async def aircraft_near(feed: Feed, f: Fetcher) -> Result:
     return Result(len(ac), {"aircraft": ac}, data_time=d["now"] / 1000)
 
 
+async def adsbfi_get(client: httpx.AsyncClient, path: str) -> httpx.Response:
+    """Any adsb.fi request, through the same 1.2-second gate as the area queries."""
+    global _adsbfi_last
+    async with _adsbfi_lock:
+        wait = 1.2 - (time.monotonic() - _adsbfi_last)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            r = await client.get("https://opendata.adsb.fi/api/" + path)
+        finally:
+            _adsbfi_last = time.monotonic()
+    r.raise_for_status()
+    return r
+
+
 async def aircraft_military(feed: Feed, f: Fetcher) -> Result:
-    d = (await f.get("https://api.adsb.lol/v2/mil")).json()
+    """Military aircraft every 30 s from adsb.fi's military list (positions were up to 5 minutes, ~60 km, old when this
+    came from adsb.lol every 5 minutes); adsb.lol when adsb.fi does not answer."""
+    try:
+        r = await adsbfi_get(f.client, "v2/mil")
+        f.wire_bytes += r.num_bytes_downloaded
+        d, src = r.json(), "adsb.fi"
+    except Exception:
+        d, src = (await f.get("https://api.adsb.lol/v2/mil")).json(), "adsb.lol (adsb.fi did not answer)"
     ac = _readsb_aircraft(d)
-    return Result(len(ac), {"aircraft": ac}, data_time=d["now"] / 1000)
+    return Result(len(ac), {"aircraft": ac, "source": src}, data_time=d["now"] / 1000, note=f"from {src}")
 
 
 async def aircraft_world(feed: Feed, f: Fetcher) -> Result:
@@ -432,6 +454,25 @@ async def recon_sats(feed: Feed, f: Fetcher) -> Result:
         problems.append(f"amateur list failed ({type(e).__name__})")
     if not omm:
         raise RuntimeError("; ".join(problems) or "no orbits")
+    # owner codes (for flags) from CelesTrak's full catalogue, weekly; classified "USA nnn" payloads are not in it, but
+    # the "USA" designation is the US government's own naming for its military satellites
+    if time.time() - feed.memo.get("satcat_at", 0) > 7 * 86400 or not feed.memo.get("owners"):
+        try:
+            text = (await f.get("https://celestrak.org/pub/satcat.csv", timeout=90)).text
+            want = {o["NORAD_CAT_ID"] for o in omm}
+            import csv
+            feed.memo["owners"] = {int(r["NORAD_CAT_ID"]): r["OWNER"] for r in csv.DictReader(io.StringIO(text))
+                                   if r.get("NORAD_CAT_ID", "").isdigit() and int(r["NORAD_CAT_ID"]) in want and r.get("OWNER")}
+            feed.memo["satcat_at"] = time.time()
+            del text
+        except Exception as e:
+            problems.append(f"CelesTrak catalogue for owners failed ({type(e).__name__})")
+    owners = feed.memo.get("owners", {})
+    for o in omm:
+        if owners.get(o["NORAD_CAT_ID"]):
+            o["OWNER"] = owners[o["NORAD_CAT_ID"]]
+        elif o.get("SOURCE") == "amateur observers" and o["OBJECT_NAME"].upper().startswith("USA"):
+            o["OWNER"] = "US"
     hist = await asyncio.to_thread(satinfo.record_history, omm)
     moves = satinfo.manoeuvres(hist, {o["NORAD_CAT_ID"]: o["OBJECT_NAME"] for o in omm})
     days = (time.time() - hist["_started"]) / 86400
@@ -692,8 +733,8 @@ async def sites_feed(feed: Feed, f: Fetcher) -> Result:
     async def sparql(q):
         r = await f.get(sites.WDQS, params={"query": q}, headers={**ua, "Accept": "text/csv"}, timeout=120)
         return r.text
-    async def qlever():
-        r = await f.client.post(sites.QLEVER, data={"query": sites.OSM_MIL}, headers={**ua, "Accept": "text/csv"}, timeout=120)
+    async def qlever(q=sites.OSM_MIL):
+        r = await f.client.post(sites.QLEVER, data={"query": q}, headers={**ua, "Accept": "text/csv"}, timeout=120)
         f.wire_bytes += r.num_bytes_downloaded
         r.raise_for_status()
         return r.text
@@ -706,16 +747,18 @@ async def sites_feed(feed: Feed, f: Fetcher) -> Result:
     await get("wd_bases", "Wikidata bases", sparql(sites.WD_BASES))
     await get("wd_nuclear", "Wikidata nuclear", sparql(sites.WD_NUCLEAR))
     await get("osm", "OpenStreetMap via QLever", qlever())
+    await get("osm_areas", "OpenStreetMap military areas via QLever", qlever(sites.OSM_AREAS))
     await get("mirta", "US DoD MIRTA", _json(f, sites.MIRTA, ua))
     await get("gem", "Global Energy Monitor", gem())
     if not parts.get("wd_bases") and not parts.get("osm"):
         raise RuntimeError("; ".join(problems) or "no source answered")
     d = await asyncio.to_thread(_in_child, sites.build, {k: v for k, v in parts.items() if k != "gem_url"})
     d["gem_url"] = parts.get("gem_url")
+    sites.reload_areas()
     c = d["military_counts"]
     return Result(len(d["military"]) + len(d["plants"]) + len(d["facilities"]), d, data_time=time.time(), data_label="read",
                   note=f"{len(d['military']):,} military sites (Wikidata {c['wikidata']:,}, OpenStreetMap {c['osm']:,}, US DoD {c['mirta']}; "
-                       f"{c['closed_left_out']:,} closed left out); {len(d['plants'])} nuclear power plants, {len(d['facilities'])} other nuclear facilities, "
+                       f"{c['closed_left_out']:,} closed and {c.get('no_sign_left_out', 0):,} with no sign on today's map left out; {c.get('areas', 0):,} military areas shown when zoomed in); {len(d['plants'])} nuclear power plants, {len(d['facilities'])} other nuclear facilities, "
                        f"{len(d['tests'])} test sites" + ("; failed: " + ", ".join(problems) if problems else ""))
 
 
@@ -1096,8 +1139,8 @@ FEEDS = [
          limit_note="limit 1 request per second, shared with the area you are looking at"),
     Feed("aircraft_view", "Aircraft where you are looking", "adsb.fi", "https://adsb.fi", 10, None,
          limit_note="fetched on request, at most every 8 seconds, only while a page is zoomed in"),
-    Feed("aircraft_military", "Military aircraft", "adsb.lol", "https://adsb.lol", 300, aircraft_military, stale_after=900,
-         limit_note="500 requests per day without a key"),
+    Feed("aircraft_military", "Military aircraft", "adsb.fi (adsb.lol as fallback)", "https://adsb.fi", 30, aircraft_military, stale_after=300,
+         limit_note="every 30 s through the shared adsb.fi gate (one request a second at most)"),
     Feed("aircraft_world", "Aircraft worldwide", "OpenSky Network", "https://opensky-network.org", 1200, aircraft_world, stale_after=3600,
          limit_note="every 20 minutes: the free daily allowance is shared with flight-path lookups"),
     Feed("satellites", "Satellites and ISS", "CelesTrak", "https://celestrak.org", 2 * H, satellites, stale_after=3 * 86400, min_retry=1800,

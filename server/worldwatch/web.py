@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db, maxar, patterns, satinfo, translate
+from . import config, db, maxar, patterns, satinfo, sites, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -644,6 +644,38 @@ async def area(request):
     return JSONResponse({**_area["body"], "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
+async def cable_about(request):
+    """A cable's owners, length, landing points, suppliers and year in service, from TeleGeography's cable map. A week."""
+    cid = request.path_params["cid"]
+    if not re.fullmatch(r"[a-z0-9-]{1,120}", cid):
+        return JSONResponse({"error": "bad id"}, status_code=400)
+    key = "cable:" + cid
+    hit = await asyncio.to_thread(db.lookup_get, key, 7 * 86400)
+    if hit:
+        return JSONResponse(hit["body"])
+    try:
+        async with httpx.AsyncClient(timeout=15, headers={"User-Agent": config.USER_AGENT}) as c:
+            r = await c.get(f"https://www.submarinecablemap.com/api/v3/cable/{cid}.json")
+            r.raise_for_status()
+            d = r.json()
+    except (httpx.HTTPError, ValueError) as e:
+        return JSONResponse({"error": f"TeleGeography did not answer ({type(e).__name__})"}, status_code=502)
+    body = {k: d.get(k) for k in ("name", "length", "owners", "suppliers", "rfs", "rfs_year", "is_planned", "url", "notes")}
+    body["landing_points"] = [{"name": p.get("name"), "country": p.get("country")} for p in d.get("landing_points", [])]
+    await asyncio.to_thread(db.lookup_put, key, time.time(), body)
+    return JSONResponse(body)
+
+
+async def military_areas(request):
+    """OpenStreetMap's military areas (landuse=military) inside the box on screen; the page asks only when zoomed in."""
+    q = request.query_params
+    try:
+        w, s_, e, n = (float(q[k]) for k in ("w", "s", "e", "n"))
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "w, s, e, n needed"}, status_code=400)
+    return JSONResponse({"areas": await asyncio.to_thread(sites.areas_in, w, s_, e, n)}, headers={"Cache-Control": "no-store"})
+
+
 async def flight_patterns(request):
     """Orbiting military aircraft and tankers in the air, worked out from the positions we received (patterns.py)."""
     st = collector.states.get("aircraft_military")
@@ -704,6 +736,8 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/route/{callsign}", route),
     Route("/api/trail/{hex}", trail),
     Route("/api/aircraft/patterns", flight_patterns),
+    Route("/api/sites/areas", military_areas),
+    Route("/api/cable/{cid}", cable_about),
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
     Route("/api/news/place", news_place),

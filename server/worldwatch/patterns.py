@@ -9,7 +9,7 @@ plus the Munich feed every 20 s), kept 3 hours (`Collector.trails`). Derived, an
   tanker in air-force use (KC-46/KC-767 "B762", A330 MRTT "A332", A310 MRTT "A310", KC-390 "E390"). The A330 and
   767 types also exist as government transports; the card says so.
 Aircraft in the VIP list (plane-alert-db: government and head-of-state planes) are never counted as tankers.
-With samples 5 minutes apart a tight orbit can be missed; more loops show with more points.
+Samples 30 seconds apart.
 """
 import math
 
