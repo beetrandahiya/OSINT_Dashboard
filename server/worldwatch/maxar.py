@@ -12,7 +12,7 @@ import struct
 import time
 
 BASE = "https://maxar-opendata.s3.amazonaws.com/events/"
-ALLOWED = re.compile(r"^https://maxar-opendata\.s3\.amazonaws\.com/events/[\w./-]+\.tif$")
+ALLOWED = re.compile(r"^https://(maxar-opendata\.s3\.amazonaws\.com/events|rapidmapping-viewer\.s3\.eu-west-1\.amazonaws\.com)/[\w./-]+\.tif$")
 
 
 # ---------- UTM to longitude/latitude (WGS 84, standard series) ----------
@@ -78,19 +78,21 @@ def parse_tiff(head: bytes) -> dict:
             e = head[start + ent * i: start + ent * (i + 1)]
             tag, typ = struct.unpack(bo + "HH", e[:4])
             count = struct.unpack(bo + ("Q" if big else "I"), e[4:step])[0]
-            if tag in (256, 257, 254, 259, 277, 322, 323, 324, 325, 347, 33550, 33922, 34735):
+            if tag in (256, 257, 254, 259, 277, 317, 322, 323, 324, 325, 347, 33550, 33922, 34735, 284):
                 tags[tag] = values(typ, count, e[step:])
         nxt = start + ent * cnt
         off = struct.unpack(bo + ("Q" if big else "I"), head[nxt:nxt + (8 if big else 4)])[0]
         if 33550 in tags:
             geo = {"scale": tags[33550], "tie": tags[33922], "keys": tags.get(34735, [])}
         is_mask = tags.get(254, [0])[0] & 4
-        if is_mask or tags.get(259, [0])[0] != 7:                  # JPEG pieces only; the transparency mask is skipped
-            continue
-        levels.append({"w": tags[256][0], "h": tags[257][0], "tw": tags[322][0], "th": tags[323][0],
+        comp = tags.get(259, [0])[0]
+        if is_mask or comp not in (7, 8, 32946) or 322 not in tags or tags.get(284, [1])[0] != 1:
+            continue                                               # JPEG or Deflate pieces only; masks skipped
+        levels.append({"w": tags[256][0], "h": tags[257][0], "tw": tags[322][0], "th": tags[323][0], "comp": 8 if comp == 32946 else comp,
+                       "spp": tags.get(277, [3])[0], "pred": tags.get(317, [1])[0],
                        "offsets": tags[324], "counts": tags[325], "tables": bytes(tags[347]) if 347 in tags else b""})
     if not levels or not geo:
-        raise ValueError("not a georeferenced JPEG GeoTIFF")
+        raise ValueError("not a tiled, georeferenced JPEG or Deflate GeoTIFF")
     keys = geo["keys"]
     epsg = None
     for i in range(4, len(keys), 4):
@@ -108,6 +110,8 @@ def parse_tiff(head: bytes) -> dict:
             return utm_to_ll(x, y, epsg - 32700, False)
         if epsg == 4326:
             return x, y
+        if epsg in (3857, 900913, 3785):                           # Web Mercator: exact inverse
+            return x / 20037508.342789244 * 180, math.degrees(2 * math.atan(math.exp(y / 6378137.0)) - math.pi / 2)
         raise ValueError(f"unsupported projection EPSG:{epsg}")
     corners = [ll(0, 0), ll(full["w"], 0), ll(full["w"], full["h"]), ll(0, full["h"])]   # NW, NE, SE, SW
     return {"levels": levels, "corners": [[round(a, 7), round(b, 7)] for a, b in corners], "epsg": epsg, "res_m": round(sx, 3)}
@@ -118,11 +122,29 @@ def public(meta: dict) -> dict:
             "levels": [{"w": l["w"], "h": l["h"], "tw": l["tw"], "th": l["th"]} for l in meta["levels"]]}
 
 
-def piece(meta: dict, level: int, x: int, y: int) -> tuple[int, int, bytes]:
+def piece(meta: dict, level: int, x: int, y: int) -> tuple[int, int, dict]:
     lv = meta["levels"][level]
     across = math.ceil(lv["w"] / lv["tw"])
     i = y * across + x
-    return lv["offsets"][i], lv["counts"][i], lv["tables"]
+    return lv["offsets"][i], lv["counts"][i], lv
+
+
+def png_from_deflate(lv: dict, data: bytes) -> bytes:
+    """A Deflate-compressed TIFF piece -> PNG, without touching pixels in Python: TIFF's horizontal predictor (2) is
+    the same arithmetic as PNG's "Sub" row filter, so each row only needs a filter byte in front (1 = Sub, or 0 = None
+    when the file has no predictor) before compressing again."""
+    import zlib
+    raw = zlib.decompress(data)
+    spp, w, h = lv["spp"], lv["tw"], lv["th"]
+    row = w * spp
+    f = b"\x01" if lv["pred"] == 2 else b"\x00"
+    body = b"".join(f + raw[r * row:(r + 1) * row] for r in range(h))
+    def chunk(kind, payload):
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    color = {1: 0, 2: 4, 3: 2, 4: 6}[spp]
+    # black (0,0,0) is the files' no-data border: PNG's tRNS chunk makes that one colour transparent, at no cost
+    trns = chunk(b"tRNS", b"\x00\x00\x00\x00\x00\x00") if color == 2 else b""
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, color, 0, 0, 0)) + trns + chunk(b"IDAT", zlib.compress(body, 1)) + chunk(b"IEND", b"")
 
 
 def jpeg(tables: bytes, data: bytes) -> bytes:

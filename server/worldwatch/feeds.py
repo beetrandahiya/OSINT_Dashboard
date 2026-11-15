@@ -282,9 +282,12 @@ async def navwarn_feed(feed: Feed, f: Fetcher) -> Result:
 async def airspace_feed(feed: Feed, f: Fetcher) -> Result:
     """Conflict-zone warnings (EASA, FAA) on flight regions, and US temporary flight restrictions; see airspace.py."""
     m, problems = feed.memo, []
-    if time.time() - m.get("fir_at", 0) > 7 * 86400 or "fir" not in m:
-        m["fir"] = (await f.get(airspace.VATSPY)).json()
+    if time.time() - m.get("fir_at", 0) > 7 * 86400 or "fir_raw" not in m:
+        # kept compressed (~0.5 MB): parsed, the 2.3 MB file took tens of MB of memory for the whole week
+        import zlib
+        m["fir_raw"] = zlib.compress((await f.get(airspace.VATSPY)).content, 6)
         m["fir_at"] = time.time()
+        m.pop("fir_shapes", None)
     zones = []
     try:
         czibs = airspace.parse_czib_list((await f.get("https://www.easa.europa.eu/en/domains/air-operations/czibs")).text)
@@ -302,7 +305,11 @@ async def airspace_feed(feed: Feed, f: Fetcher) -> Result:
                           "link": "https://www.faa.gov/air_traffic/publications/us_restrictions"})
     except Exception as e:
         problems.append(f"FAA list failed: {type(e).__name__} {str(e)[:80]}")
-    shapes = airspace.fir_shapes(m["fir"], {c for z in zones for c in z["firs"]})
+    want = frozenset(c for z in zones for c in z["firs"])
+    if m.get("fir_shapes", (None,))[0] != want:            # parse the boundaries only when the set of regions changes
+        import zlib
+        m["fir_shapes"] = (want, await asyncio.to_thread(_in_child, airspace.fir_shapes_raw, m["fir_raw"], set(want)))
+    shapes = m["fir_shapes"][1]
     for z in zones:
         z["shapes"] = {c: shapes[c] for c in z["firs"] if c in shapes}
         z["unmapped"] = [c for c in z["firs"] if c not in shapes]
@@ -356,13 +363,22 @@ async def vip_aircraft(feed: Feed, f: Fetcher) -> Result:
                   note=f"{len(out)} government, head-of-state and VIP aircraft out of the list's {text.count(chr(10)) - 1:,}")
 
 
+def _in_child(fn, *args):
+    """Run a heavy one-off parse in a short-lived child process: Python keeps memory it has used, so a 25 MB parse
+    in the server would stay in the server for good. In a child, the memory goes back when it exits."""
+    import concurrent.futures
+    import multiprocessing
+    with concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        return pool.submit(fn, *args).result(timeout=300)
+
+
 async def sat_catalog(feed: Feed, f: Fetcher) -> Result:
     """What each satellite does (UCS Satellite Database). The full rows are kept on disk for satellite cards;
     the map gets one word per satellite."""
-    ucs = await asyncio.to_thread(satinfo.parse_ucs, (await f.get(satinfo.UCS_URL)).content)
-    await asyncio.to_thread(satinfo.save, ucs)
-    return Result(len(ucs), {"purpose": satinfo.compact(ucs)}, data_label="UCS database, last updated May 2023",
-                  note=f"{len(ucs):,} satellites with a stated purpose; {sum(satinfo.spy(v) for v in ucs.values())} are military imaging, radar, signals or early-warning")
+    raw = (await f.get(satinfo.UCS_URL)).content
+    compact, n, spies = await asyncio.to_thread(_in_child, satinfo.parse_save_compact, raw)
+    return Result(n, {"purpose": compact}, data_label="UCS database, last updated May 2023",
+                  note=f"{n:,} satellites with a stated purpose; {spies} are military imaging, radar, signals or early-warning")
 
 
 async def recon_sats(feed: Feed, f: Fetcher) -> Result:
@@ -370,9 +386,12 @@ async def recon_sats(feed: Feed, f: Fetcher) -> Result:
     tracked by amateur observers (McCants' classfd.tle)."""
     ucs = satinfo.load()
     if not ucs:                                    # first start: the purpose list decides which orbits to keep
-        ucs = await asyncio.to_thread(satinfo.parse_ucs, (await f.get(satinfo.UCS_URL)).content)
-        await asyncio.to_thread(satinfo.save, ucs)
+        raw = (await f.get(satinfo.UCS_URL)).content
+        await asyncio.to_thread(_in_child, satinfo.parse_save_compact, raw)
+        ucs = satinfo.load()
     want = {k for k, v in ucs.items() if satinfo.spy(v)}
+    had_ucs = bool(ucs)
+    del ucs
     omm, problems, sources = [], [], {}
     try:
         import csv
@@ -411,7 +430,7 @@ async def recon_sats(feed: Feed, f: Fetcher) -> Result:
         raise RuntimeError("; ".join(problems) or "no orbits")
     return Result(len(omm), {"omm": omm, "sources": sources}, data_time=max(_iso(o["EPOCH"]) for o in omm),
                   note=", ".join(f"{n} from {k}" for k, n in sources.items()) + ("; " + "; ".join(problems) if problems else "")
-                       + ("" if ucs else "; the UCS purpose list has not been loaded yet, so only amateur-tracked classified satellites are here"))
+                       + ("" if had_ucs else "; the UCS purpose list has not been loaded yet, so only amateur-tracked classified satellites are here"))
 
 
 async def flag_tables(feed: Feed, f: Fetcher) -> Result:
@@ -475,6 +494,116 @@ async def usni_fleet(feed: Feed, f: Fetcher) -> Result:
     placed = sum(1 for s in d["ships"] if s["lat"] is not None)
     return Result(len(d["ships"]), d, data_time=d["published"],
                   note=f"{d['title']}: {len(d['ships'])} carriers and amphibious assault ships, {placed} placed by region or port (approximate)")
+
+
+_EMS = "https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/"
+_EMS_COG = "https://rapidmapping-viewer.s3.eu-west-1.amazonaws.com/"
+
+
+def _wkt_rings(w: str | None) -> list:
+    """Polygon rings from WKT (POLYGON / MULTIPOLYGON), outer rings only, thinned to at most 200 points each."""
+    if not w:
+        return []
+    rings = []
+    for body in re.findall(r"\(\(([^()]+)\)", w):
+        pts = [[round(float(a), 5), round(float(b), 5)] for a, b in (p.split()[:2] for p in body.split(",") if p.strip())]
+        if len(pts) >= 3:
+            rings.append(pts[::max(1, len(pts) // 200)] + [pts[0]])
+    return rings
+
+
+async def ems(feed: Feed, f: Fetcher) -> Result:
+    """Copernicus Emergency Management Service, rapid mapping: maps of current disasters made from fresh satellite
+    pictures (often 0.3-1.5 m), with counts of affected buildings and land. Activations of the last 120 days."""
+    lst = (await f.get(_EMS + "public-activations-info/", params={"limit": 40})).json().get("results", [])
+    cut = time.time() - 120 * 86400
+    keep, memo = [], feed.memo.setdefault("detail", {})
+    for a in lst:
+        t = _iso(a.get("eventTime") or a.get("activationTime") or "")
+        if t and t < cut:
+            continue
+        code = a["code"]
+        old = memo.get(code)
+        if not old or (not a.get("closed") and time.time() - old[0] > 6 * 3600) or old[1].get("lastUpdate") != a.get("lastUpdate"):
+            await asyncio.sleep(0.5)
+            try:
+                d = (await f.get(_EMS + "public-activations/", params={"code": code})).json()
+                d = d["results"][0] if "results" in d else d
+            except Exception:
+                continue
+            aois = []
+            for ao in d.get("aois", []):
+                prods = []
+                for pr in ao.get("products", []):
+                    cogs = [_EMS_COG + l["name"] for l in pr.get("layers", []) if l.get("format") == "cog" and "ORTHO" in l["name"]]
+                    imgs = [{"sensor": i.get("sensorName"), "time": i.get("acquisitionTime"), "res": i.get("resolutionClass"), "file": i.get("fileName")}
+                            for i in pr.get("images", [])]
+                    built = {k: v for k, v in ((pr.get("stats") or {}).get("Built-up") or {}).items() if isinstance(v, dict)}
+                    prods.append({"type": pr.get("type"), "monitoring": pr.get("monitoringNumber"), "images": imgs, "cogs": cogs,
+                                  "built": built, "delivered": ((pr.get("version") or {}).get("deliveryTime") or "")[:16],
+                                  "download": pr.get("downloadPath")})
+                aois.append({"name": ao.get("name"), "number": ao.get("number"), "rings": _wkt_rings(ao.get("extent")), "products": prods})
+            m = re.search(r"POINT \(([-\d.]+) ([-\d.]+)\)", d.get("centroid") or "")
+            memo[code] = (time.time(), {"code": code, "name": d.get("name"), "category": d.get("category"), "countries": d.get("countries"),
+                                        "eventTime": d.get("eventTime"), "activationTime": d.get("activationTime"), "closed": d.get("closed"),
+                                        "lastUpdate": a.get("lastUpdate"), "lon": float(m.group(1)) if m else None, "lat": float(m.group(2)) if m else None,
+                                        "rings": _wkt_rings(d.get("extent")), "aois": aois, "report": d.get("reportLink"), "gdacs": d.get("gdacsId")})
+        keep.append(memo[code][1])
+    with_pics = sum(1 for k in keep if any(p["cogs"] for ao in k["aois"] for p in ao["products"]))
+    newest = max((_iso(k["eventTime"]) for k in keep if k.get("eventTime")), default=None)
+    return Result(len(keep), {"activations": keep}, data_time=newest,
+                  note=f"{len(keep)} activations in the last 120 days, {with_pics} with satellite pictures we can show")
+
+
+# Regions where GPS jamming and spoofing are commonly reported; each is a 250-mile circle asked from adsb.fi.
+JAM_REGIONS = {"Baltic and Kaliningrad": (55.5, 20.5), "Gulf of Finland": (60.0, 27.5), "Belarus and Ukraine border": (52.0, 30.5),
+               "Black Sea": (44.0, 34.0), "Caucasus": (41.5, 45.0), "Eastern Mediterranean": (34.5, 33.5), "Israel and Lebanon": (32.5, 35.3),
+               "Iraq and Syria": (34.5, 41.5), "Persian Gulf": (26.5, 52.0), "Red Sea": (20.0, 39.0), "Libya": (31.5, 16.0),
+               "Northern Norway and Kola": (69.0, 29.0), "India and Pakistan border": (31.0, 73.5), "Myanmar": (21.0, 96.0), "Korean peninsula": (38.0, 127.0)}
+
+
+async def gps_live(feed: Feed, f: Fetcher) -> Result:
+    """GPS interference in the last hour, worked out by us from live aircraft in those regions, the way GPSJAM does
+    it for a whole day: per hexagon, the share of aircraft whose broadcast position accuracy is poor (NACp below 8,
+    i.e. worse than 93 m). Only the sampled regions are covered. A derived picture, not a measurement of jammers."""
+    import h3
+    seen = feed.memo.setdefault("seen", {})          # (hex cell, aircraft) -> [time, bad]
+    asked, failed = 0, []
+    for name, (lat, lon) in JAM_REGIONS.items():
+        try:
+            d, n = await adsbfi_area(f.client, lat, lon, 250)
+            f.wire_bytes += n
+            asked += 1
+        except Exception:
+            failed.append(name)
+            continue
+        now = time.time()
+        for a in _readsb_aircraft(d):
+            if a["nac_p"] is None or a["alt_ft"] in (None, "ground"):
+                continue
+            cell = h3.latlng_to_cell(a["lat"], a["lon"], 4)
+            seen[(cell, a["hex"])] = [now, a["nac_p"] < 8]
+    cut = time.time() - 3600
+    for k in [k for k, v in seen.items() if v[0] < cut]:
+        del seen[k]
+    cells: dict[str, list] = {}
+    for (cell, _), (t, bad) in seen.items():
+        c = cells.setdefault(cell, [0, 0])
+        c[1 if bad else 0] += 1
+    feats = []
+    for cell, (good, bad) in cells.items():
+        total = good + bad
+        if total < 3 or bad / total <= 0.02:
+            continue
+        ring = [[lon, lat] for lat, lon in h3.cell_to_boundary(cell)]
+        ring.append(ring[0])
+        feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]},
+                      "properties": {"id": "gpsl:" + cell, "good": good, "bad": bad, "level": "high" if bad / total > 0.10 else "some"}})
+    if not asked:
+        raise RuntimeError("adsb.fi answered for none of the regions")
+    return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
+                  data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
+                  + (f"; not answered: {', '.join(failed)}" if failed else ""))
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -790,6 +919,10 @@ FEEDS = [
          min_retry=1800, limit_note="the list of events, daily; pictures are fetched only when you open one"),
     Feed("usni_fleet", "US carriers (USNI Fleet Tracker)", "USNI News", "https://news.usni.org/category/fleet-tracker", 6 * H, usni_fleet,
          stale_after=10 * 86400, min_retry=1800, limit_note="a weekly article, read through its RSS feed"),
+    Feed("ems", "Disaster maps and pictures (Copernicus EMS)", "Copernicus Emergency Management Service", "https://rapidmapping.emergency.copernicus.eu", 3600, ems,
+         stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
+    Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
+         stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

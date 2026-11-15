@@ -5,7 +5,7 @@
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
 import {$, ago, api, esc, local, now} from './util.js';
-import {planeFlag, emoji} from './flags.js';
+import {planeFlag, flagImg} from './flags.js';
 
 let view = [], viewInfo = null, mil = [], world = [], info = {}, theMap = null, shown = {aircraft: true, military: true};
 const VIEW_MIN_ZOOM = 5.2;   // below this the screen holds more than adsb.fi's 250-mile circle, so only the world feed is used
@@ -213,10 +213,10 @@ function detail(id) {
       <p class="source">From plane-alert-db, a volunteer-kept list of notable aircraft (ODbL). Its tags are the volunteers' words; a listed aircraft can be flying without the person named on board.</p></section>` : '';
   return `<div class="photo" id="photo" data-hex="${esc(a.hex)}"></div>
     <p class="eyebrow">${v ? 'Government or VIP aircraft' : isMil ? 'Military ' + kind(a)[2].toLowerCase() : kind(a)[2]}</p>
-    <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}${planeFlag(a.hex) ? ` <span class="flag" title="${esc(planeFlag(a.hex).name)}">${emoji(planeFlag(a.hex).cc)}</span>` : ''}</h2>
+    <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}${planeFlag(a.hex) ? ' ' + flagImg(planeFlag(a.hex).cc, planeFlag(a.hex).name) : ''}</h2>
     <p class="where" id="route" data-callsign="${esc(a.flight || '')}">${a.flight ? 'Looking up the route' : 'No callsign reported'}</p>
     ${vipBlock}
-    <dl>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${emoji(fl.cc)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
+    <dl>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
     <p class="source">Position: ${SOURCE[from]}, fetched ${ago(f.fetched)}. ${fresh}</p>

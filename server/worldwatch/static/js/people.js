@@ -75,11 +75,14 @@ export const leadersToday = {
     try {
       const d = await fetch('/api/people/today', {cache: 'no-store'}).then(r => r.json());
       todayInfo = d; today = d.today || [];
-      const feats = [];
-      for (const t of today) {
-        const at = [t.place.lon, t.place.lat];
-        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id: 'today:' + t.qid, name: t.name, n: t.outlets}});
-        if (t.abroad) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: [t.home, at]}, properties: {id: 'today:' + t.qid}});
+      // One marker per place: leaders reported at the same city share it (they used to sit exactly on top of each
+      // other, so a click opened whichever was drawn first).
+      const feats = [], byPlace = new Map();
+      for (const t of today) { const k = t.place.place; byPlace.set(k, [...(byPlace.get(k) || []), t]); }
+      for (const [place, ts] of byPlace) {
+        const at = [ts[0].place.lon, ts[0].place.lat];
+        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id: 'todayp:' + place, name: ts.map(t => t.name).join('\n'), n: ts.reduce((a, t) => a + t.outlets, 0)}});
+        for (const t of ts) if (t.abroad) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: [t.home, at]}, properties: {id: 'todayp:' + place}});
       }
       this.map.getSource('ww-leaders').setData({type: 'FeatureCollection', features: feats});
       if (!today.length) setTimeout(() => this.load(), 60000);
@@ -96,16 +99,22 @@ export const leadersToday = {
   onData() {}, render() {},
   count: () => today.length,
   rows: () => today.filter(t => t.abroad).map(t => ({
-    id: 'today:' + t.qid, time: t.place.last, badge: '★', title: `${t.name} reported in ${t.place.place.split(',')[0]}`,
+    id: 'todayp:' + t.place.place, time: t.place.last, badge: '★', title: `${t.name} reported in ${t.place.place.split(',')[0]}`,
     thumb: img(t.articles.find(a => a.image)?.image), meta: `${t.role}, ${t.country} · ${t.place.outlets} outlets`})),
-  owns: id => String(id).startsWith('today:'),
-  locate(id) { const t = today.find(x => 'today:' + x.qid === id); return t && [t.place.lon, t.place.lat]; },
+  owns: id => String(id).startsWith('todayp:'),
+  locate(id) { const t = today.find(x => 'todayp:' + x.place.place === id); return t && [t.place.lon, t.place.lat]; },
   ring: () => 13,
-  act(name) { if (name === 'profile' && chosen) openProfile(chosen); },
+  act(name) { if (name.startsWith('profile:')) openProfile(name.slice(8)); },
   detail(id) {
-    const t = today.find(x => 'today:' + x.qid === id);
-    if (!t) return null;
-    chosen = t.qid;
+    const here = today.filter(x => 'todayp:' + x.place.place === id);
+    if (!here.length) return null;
+    if (here.length > 1) return `<p class="eyebrow">Leaders in the news · last ${todayInfo?.window_h || 6} hours</p>
+      <h2>${esc(here[0].place.place.split(',')[0])}</h2><p class="where">${here.length} leaders reported here</p>
+      ${here.map(t => `<section class="pz"><h3>${esc(t.name)}</h3><p class="soft">${esc(t.role)}, ${esc(t.country)} · ${t.place.headlines} headlines, ${t.place.outlets} outlets${t.abroad ? ' · outside their country' : ''}</p>
+        ${t.articles[0] ? `<p><a class="link" href="${esc(t.articles[0].url)}" target="_blank" rel="noopener">${esc(t.articles[0].title)}</a></p>` : ''}
+        <button class="btn" data-act="profile:${esc(t.qid)}">Open the full profile</button></section>`).join('')}
+      <p class="source">Source: GDELT news of the last ${todayInfo?.window_h || 6} hours. Each article's place is the city mentioned nearest to the leader's name. Where the news reported them, not where they are.</p>`;
+    const t = here[0];
     const abroad = t.abroad;
     return `<p class="eyebrow">Leader in the news · last ${todayInfo?.window_h || 6} hours</p>
       <h2>${esc(t.name)}</h2>
@@ -115,9 +124,9 @@ export const leadersToday = {
         ${t.places.length > 1 ? `<dt>Also placed at</dt><dd>${t.places.slice(1).map(p => `${esc(p.place.split(',')[0])} <span class="soft">(${p.outlets})</span>`).join(', ')}</dd>` : ''}
         <dt>Articles naming them</dt><dd>${t.outlets} outlets</dd>
       </dl>
-      <button class="btn" data-act="profile">Open the full profile</button>
+      <button class="btn" data-act="profile:${esc(t.qid)}">Open the full profile</button>
       <ol class="stories">${t.articles.map(a => `<li>${a.image ? `<img src="${esc(img(a.image))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span class="st">
         <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><span class="by">${esc(a.outlet)} · ${esc(a.place.split(',')[0])} · ${ago(a.time)}</span></span></li>`).join('')}</ol>
-      <p class="source">Source: GDELT news of the last ${todayInfo?.window_h || 6} hours and Wikidata's list of current leaders. An article counts when GDELT found the leader's name in it; its place is the first city it mentions, usually where it was filed. Copies of one agency story count as one headline, and a place needs two different headlines. So this is where the news reported them, not where they are: a story filed in a capital about a leader abroad lands in the capital.</p>`;
+      <p class="source">Source: GDELT news of the last ${todayInfo?.window_h || 6} hours and Wikidata's list of current leaders. An article counts when GDELT found the leader's name in it; its place is the city mentioned nearest to the name in the text (GDELT records where each name and place appears). Copies of one agency story count as one headline, and a place needs two different headlines. So this is where the news reported them, not where they are, and it can still be wrong when a name and a city sit close together by chance.</p>`;
   },
 };

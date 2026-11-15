@@ -147,3 +147,10 @@ def omm_from_csv_row(r: dict) -> dict:
     for k in NUM:
         o[k] = float(r.get(k) or 0)
     return o
+
+
+def parse_save_compact(raw: bytes):
+    """For a child process: parse the spreadsheet, save the full rows to disk, return what the map needs."""
+    ucs = parse_ucs(raw)
+    save(ucs)
+    return compact(ucs), len(ucs), sum(1 for v in ucs.values() if spy(v))

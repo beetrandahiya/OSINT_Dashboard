@@ -259,6 +259,7 @@ async def people_today(request):
     hit = store.cache_get("leaders", 30 * 86400)
     if not hit:
         return JSONResponse({"today": [], "note": "the list of leaders has not been loaded yet", "now": time.time()})
+    news_window.set_watch(l["name"] for l in hit["body"])
     body = await asyncio.to_thread(news_window.leaders_today, hit["body"])
     return JSONResponse({"today": body, "window_h": news_window.WINDOW // 3600, "newest": news_window.english.newest(), "now": time.time()},
                         headers={"Cache-Control": "no-store"})

@@ -253,9 +253,8 @@ async def satellite(request):
     except ValueError:
         return JSONResponse({"error": "not a catalogue number"}, status_code=400)
     name = (request.query_params.get("name") or "").strip()
-    if time.time() - _ucs["at"] > 3600:
-        _ucs.update(at=time.time(), data=await asyncio.to_thread(satinfo.load))
-    key, wd, problem = f"satwd2:{norad}", None, None
+    ucs_row = await asyncio.to_thread(lambda: satinfo.load().get(norad))   # read per request: holding all 7,551 rows cost ~10 MB
+    key, wd, problem = f"satwd3:{norad}", None, None
     hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
     if hit:
         wd = hit["body"]
@@ -267,10 +266,13 @@ async def satellite(request):
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }} LIMIT 60"""
         try:
             async with httpx.AsyncClient(timeout=25, headers=_wm_headers(True)) as c:
-                r = await c.get("https://query.wikidata.org/sparql", params={"query": q})
-                if r.status_code != 200:
-                    raise httpx.HTTPError(f"Wikidata answered {r.status_code}")
-                rows = r.json()["results"]["bindings"]
+                try:
+                    r = await c.get("https://query.wikidata.org/sparql", params={"query": q})
+                    rows = r.json()["results"]["bindings"] if r.status_code == 200 else []
+                    if r.status_code != 200:
+                        problem = f"Wikidata answered {r.status_code}"
+                except (httpx.HTTPError, ValueError, KeyError) as e:
+                    rows, problem = [], f"Wikidata could not be asked ({type(e).__name__})"
                 v = lambda x, k: x.get(k, {}).get("value")
                 wd = {}
                 if rows:
@@ -297,11 +299,37 @@ async def satellite(request):
                         if file:
                             wd.update(image=_commons("https://commons.wikimedia.org/wiki/Special:FilePath/" + file.replace(" ", "_")),
                                       image_of=f"the {fam.get('label', family)} family, not this satellite", family_qid=fam["id"])
-            await asyncio.to_thread(db.lookup_put, key, time.time(), wd)
+                # still nothing: NASA's image library (free, mostly public domain), accepted only when the picture's
+                # title names this satellite or its family
+                if not wd.get("image") and name:
+                    for q in dict.fromkeys([re.sub(r"\s*\(.*\)", "", name).strip(), family]):
+                        if not q or len(q) < 3:
+                            continue
+                        r = await c.get("https://images-api.nasa.gov/search", params={"q": q, "media_type": "image"})
+                        key_q = re.sub(r"[\s_-]+", " ", q.lower())
+                        hit = next((i for i in (r.json().get("collection", {}).get("items") or [])[:25]
+                                    if key_q in re.sub(r"[\s_-]+", " ", (i.get("data") or [{}])[0].get("title", "").lower())), None)
+                        if hit:
+                            d0 = hit["data"][0]
+                            wd.update(image=next((l["href"] for l in hit.get("links", []) if l.get("render") == "image"), None),
+                                      image_of=f"NASA's picture \"{d0.get('title')}\" ({(d0.get('date_created') or '')[:4]})",
+                                      image_link="https://images.nasa.gov/details/" + d0.get("nasa_id", ""))
+                            break
+            if not problem:                                  # remember only complete answers
+                await asyncio.to_thread(db.lookup_put, key, time.time(), wd)
         except (httpx.HTTPError, ValueError, KeyError) as e:
-            wd, problem = None, f"Wikidata could not be asked ({e})"[:120]
-    return JSONResponse({"norad": norad, "ucs": _ucs["data"].get(norad), "wikidata": wd, "problem": problem,
-                         "ucs_kind": satinfo.code(_ucs["data"][norad]) if norad in _ucs["data"] else None})
+            problem = (problem or "") + f"; a picture source could not be asked ({type(e).__name__})"
+    return JSONResponse({"norad": norad, "ucs": ucs_row, "wikidata": wd, "problem": problem if not (wd or {}).get("image") else None,
+                         "ucs_kind": satinfo.code(ucs_row) if ucs_row else None})
+
+
+async def ship_trail(request):
+    """The positions the worldwide ship stream heard from one ship since this server started (up to 30 points)."""
+    try:
+        mmsi = int(request.path_params["mmsi"])
+    except ValueError:
+        return JSONResponse({"error": "not an MMSI"}, status_code=400)
+    return JSONResponse({"mmsi": mmsi, "points": ais_stream.trail(mmsi), "since": ais_stream.t0})
 
 
 async def ship_about(request):
@@ -309,7 +337,7 @@ async def ship_about(request):
     rarely have an IMO number, by name. Remembered 30 days."""
     q = request.query_params
     imo, mmsi, name, mil = (q.get("imo") or "").strip(), (q.get("mmsi") or "").strip(), (q.get("name") or "").strip(), q.get("mil") == "1"
-    key = f"ship:{imo}:{mmsi}:{name.lower() if mil else ''}"
+    key = f"ship2:{imo}:{mmsi}:{name.lower()}"
     hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
     if hit:
         return JSONResponse(hit["body"])
@@ -364,6 +392,20 @@ async def ship_about(request):
                     cat = subs[0]
             except (httpx.HTTPError, ValueError, KeyError, StopIteration):
                 return JSONResponse({**body, "error": "Wikimedia Commons could not be asked"})   # not remembered: try again next time
+        # last: a Wikimedia Commons file whose title carries the ship's name (warships are often filed by name)
+        if not body.get("image") and len(name) >= 4:
+            try:
+                q = name.title() + (" ship" if not mil else "")
+                r = await c.get("https://commons.wikimedia.org/w/api.php", params={"action": "query", "list": "search", "srnamespace": 6,
+                                                                                   "srsearch": q, "srlimit": 8, "format": "json"})
+                low = name.lower()
+                file = next((h["title"] for h in r.json().get("query", {}).get("search", []) if low in h["title"].lower()), None)
+                if file:
+                    r = await c.get("https://commons.wikimedia.org/w/api.php", params={"action": "query", "titles": file, "prop": "imageinfo", "iiprop": "url", "iiurlwidth": 640, "format": "json"})
+                    info = (next(iter(r.json()["query"]["pages"].values())).get("imageinfo") or [{}])[0]
+                    body.update(image=info.get("thumburl") or info.get("url"), commons=info.get("descriptionurl"), by=body.get("by") or "name")
+            except (httpx.HTTPError, ValueError, KeyError, StopIteration):
+                return JSONResponse({**body, "error": "Wikimedia Commons could not be asked"})
     await asyncio.to_thread(db.lookup_put, key, time.time(), body)
     return JSONResponse(body)
 
@@ -500,7 +542,7 @@ async def maxar_tile(request):
         return Response(status_code=400)
     try:
         meta = await _mx_read(u)
-        off, n, tables = maxar.piece(meta, int(q["l"]), int(q["x"]), int(q["y"]))
+        off, n, lv = maxar.piece(meta, int(q["l"]), int(q["x"]), int(q["y"]))
         if not n:
             return Response(status_code=204)
         async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT}) as c:
@@ -508,7 +550,37 @@ async def maxar_tile(request):
         r.raise_for_status()
     except (httpx.HTTPError, ValueError, KeyError, IndexError):
         return Response(status_code=502)
-    return Response(maxar.jpeg(tables, r.content), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=2592000"})
+    if lv["comp"] == 8:
+        try:
+            body = await asyncio.to_thread(maxar.png_from_deflate, lv, r.content)
+        except Exception:
+            return Response(status_code=502)
+        return Response(body, media_type="image/png", headers={"Cache-Control": "private, max-age=2592000"})
+    return Response(maxar.jpeg(lv["tables"], r.content), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=2592000"})
+
+
+_eum_times: dict[str, tuple[float, str | None]] = {}
+
+
+async def eumetsat_time(request):
+    """The newest image time of an EUMETSAT layer, so every map tile asks for the same moment (tiles fetched a minute
+    apart otherwise show different pictures, which looked like lightning moving when zooming)."""
+    layer = request.query_params.get("layer", "mtg_fd:li_afa")
+    if not re.fullmatch(r"[a-z_]+:[a-z0-9_]+", layer):
+        return JSONResponse({"error": "bad layer"}, status_code=400)
+    hit = _eum_times.get(layer)
+    if not hit or time.time() - hit[0] > 60:
+        t = hit[1] if hit else None
+        ns, name = layer.split(":")
+        try:
+            async with httpx.AsyncClient(timeout=10, headers={"User-Agent": config.USER_AGENT}) as c:
+                r = await c.get(f"https://view.eumetsat.int/geoserver/{ns}/{name}/ows", params={"service": "WMS", "version": "1.3.0", "request": "GetCapabilities"})
+            m = re.search(r'<Dimension name="time" default="([^"]+)"', r.text)
+            t = m.group(1) if m else t
+        except httpx.HTTPError:
+            pass
+        hit = _eum_times[layer] = (time.time(), t)
+    return JSONResponse({"time": hit[1]})
 
 
 async def news_image(request):
@@ -595,6 +667,10 @@ def page(name):
 
 @contextlib.asynccontextmanager
 async def lifespan(app):
+    from .lookup import store as lookup_store
+    hit = lookup_store.cache_get("leaders", 30 * 86400)          # who to keep in the news rows, before the news feeds start
+    if hit:
+        news_window.set_watch(l["name"] for l in hit["body"])
     await collector.start()
     ais_stream.start()
     yield
@@ -617,7 +693,9 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/news/image", news_image),
     Route("/api/satellite/{norad}", satellite),
     Route("/api/imagery/date", imagery_date),
+    Route("/api/eumetsat/time", eumetsat_time),
     Route("/api/ship/about", ship_about),
+    Route("/api/ship/trail/{mmsi}", ship_trail),
     Route("/api/maxar/acquisitions", maxar_acq),
     Route("/api/maxar/items", maxar_items),
     Route("/api/maxar/meta", maxar_meta),

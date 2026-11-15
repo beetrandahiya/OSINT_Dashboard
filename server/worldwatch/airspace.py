@@ -11,6 +11,7 @@ ones but drawn by volunteers, and a bulletin often covers only part of a region 
 longitude). The card says so and quotes the bulletin.
 """
 import html
+import json
 import re
 import time
 
@@ -122,3 +123,9 @@ def fir_shapes(geojson: dict, wanted: set[str]) -> dict[str, list]:
 
 def now() -> float:
     return time.time()
+
+
+def fir_shapes_raw(raw_compressed: bytes, wanted: set[str]) -> dict[str, list]:
+    """For a child process: unpack the boundary file and keep only the wanted regions."""
+    import zlib
+    return fir_shapes(json.loads(zlib.decompress(raw_compressed)), wanted)

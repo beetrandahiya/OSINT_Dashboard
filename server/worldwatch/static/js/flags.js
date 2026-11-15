@@ -4,10 +4,21 @@
 let T = null, loading = null;
 const hexCache = new Map();
 export function loadFlags() {
-  if (!loading) loading = fetch('/api/data/flags').then(r => r.json()).then(d => { T = d.payload || null; document.dispatchEvent(new Event('ww-flags')); }).catch(() => { loading = null; });
+  if (!loading) loading = fetch('/api/data/flags').then(r => r.json()).then(d => {
+    T = d.payload || null;
+    if (T) document.dispatchEvent(new Event('ww-flags'));
+    else { loading = null; setTimeout(loadFlags, 10000); }           // the server has not fetched the tables yet: ask again soon
+  }).catch(() => { loading = null; setTimeout(loadFlags, 10000); });
   return loading;
 }
 export const ready = () => !!T;
+// Plain, flat flags (flag-icons, MIT, vendored in static/flags) instead of the system's wavy emoji.
+const FLAG_DIR = new URL('../flags/', import.meta.url).href;
+export function flagImg(cc, title = '') {
+  if (!cc || cc.length !== 2) return '';
+  return `<img class="flagimg" src="${FLAG_DIR}${cc.toLowerCase()}.svg" alt="${cc}" title="${title.replace(/"/g, '&quot;')}" onerror="this.remove()">`;
+}
+export const flagsHtml = f => f ? (f.ccs ? f.ccs.map(c => flagImg(c, f.name || c)).join('') : flagImg(f.cc, f.name)) : '';
 export function emoji(cc) {
   if (!cc || cc.length !== 2) return '';
   return String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));

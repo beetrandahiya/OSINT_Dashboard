@@ -83,7 +83,7 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
         if translated:
             m = _LANG.search(r[25])
             lang = m.group(1) if m else "?"
-        best = None
+        best, cities = None, []
         for part in r[10].split(";"):
             p = part.split("#")
             if len(p) >= 9 and p[0] in ("3", "4") and p[5] and p[6]:
@@ -91,14 +91,20 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
                     cand = (int(p[8]), p[1], float(p[5]), float(p[6]))
                 except ValueError:
                     continue
+                cities.append(cand)
                 if best is None or cand < best:
                     best = cand
         m = _TITLE.search(r[26])
         if not best or not m or not m.group(1).strip():
             continue
         img = r[18].strip() if r[18].startswith("https://") else None
-        persons = r[11][:400] if len(r) > 11 else ""          # V1Persons: the people GDELT found named in the article
-        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons))
+        # V2EnhancedPersons ("name,offset;"): who is named and where in the text, so a person can be matched to the
+        # city mentioned nearest to them rather than to the article's first city
+        persons = r[12][:600] if len(r) > 12 else ""
+        if WATCH and persons and not any(_norm(p.rpartition(",")[0] or p) in WATCH for p in persons.split(";") if p):
+            persons = ""                    # nobody we follow is named: drop the names, which would cost ~40 MB over 6 hours
+        near = tuple((c[0], c[1], c[2], c[3]) for c in sorted(set(cities))[:8]) if persons else ()
+        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons, near))
     return rows
 
 
@@ -209,6 +215,15 @@ def images() -> set[str]:
     return _imgs["set"]
 
 
+WATCH: set[str] = set()          # normalised names of the people we follow (heads of state and government)
+
+
+def set_watch(names) -> None:
+    """Which people's names to keep in the news rows (see parse); called when the leaders list is loaded."""
+    WATCH.clear()
+    WATCH.update(_norm(n) for n in names if n)
+
+
 def _norm(name: str) -> str:
     import unicodedata
     n = unicodedata.normalize("NFKD", name.lower())
@@ -235,9 +250,10 @@ def _headline(t: str) -> str:
 
 
 def leaders_today(leaders: list[dict]) -> list[dict]:
-    """For each leader: the places that articles naming them were pinned to in the last six hours, counted by
-    distinct outlets. A place is the first city an article mentions, which is usually its dateline. This says where
-    the news reported them, not where they are."""
+    """For each leader: the places the news put them in the last six hours, counted by distinct outlets. For each
+    article naming a leader, the place is the city mentioned nearest to their name in the text (GDELT gives the
+    character position of every name and place); without positions, the article's first city. This says where the
+    news reported them, not where they are."""
     names = {}
     for l in leaders:
         n = _norm(l["name"])
@@ -248,21 +264,35 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
         for published, row in win.articles():
             if len(row) < 9 or not row[8]:
                 continue
-            raw = [p for p in row[8].split(";") if p]
-            if len(raw) > 12:                       # "today in history" and round-ups name dozens of people: no place to learn
+            mentions: dict[str, list[int]] = {}
+            for p in row[8].split(";"):
+                if not p:
+                    continue
+                name, _, off = p.rpartition(",")
+                if not name:                         # old cache files hold V1Persons: names without offsets
+                    name, off = p, ""
+                mentions.setdefault(_norm(name), []).append(int(off) if off.isdigit() else -1)
+            if len(mentions) > 12:                  # "today in history" and round-ups name dozens of people: no place to learn
                 continue
-            persons = {_norm(p) for p in raw}
-            for n in persons & names.keys():
+            cities = row[9] if len(row) > 9 else []
+            for n in mentions.keys() & names.keys():
+                # the city mentioned nearest to the person's name; the article's first city when offsets are missing
+                offs = [o for o in mentions[n] if o >= 0]
+                if cities and offs:
+                    c = min(cities, key=lambda c: min(abs(c[0] - o) for o in offs))
+                    where = (c[1], c[2], c[3])
+                else:
+                    where = (row[0], row[1], row[2])
                 for l in names[n]:
                     h = hits.setdefault(l["qid"], {"leader": l, "places": {}, "articles": {}})
-                    pl = h["places"].setdefault(row[0], {"place": row[0], "lat": row[1], "lon": row[2], "outlets": set(), "heads": set(), "last": 0})
+                    pl = h["places"].setdefault(where[0], {"place": where[0], "lat": where[1], "lon": where[2], "outlets": set(), "heads": set(), "last": 0})
                     pl["outlets"].add(row[3])
                     pl["heads"].add(_headline(row[4]))
                     pl["last"] = max(pl["last"], published)
                     old = h["articles"].get(row[3])
                     if not old or published > old["time"]:
                         h["articles"][row[3]] = {"outlet": row[3], "title": row[4], "url": row[5], "lang": row[6], "image": row[7],
-                                                 "place": row[0], "time": published}
+                                                 "place": where[0], "time": published}
     out = []
     for h in hits.values():
         # One agency story reprinted by twenty papers is one report: places rank by distinct headlines first, and the

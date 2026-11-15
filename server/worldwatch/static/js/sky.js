@@ -155,26 +155,66 @@ export const photo = {
 // ---- lightning: EUMETSAT's MTG Lightning Imager, flashes seen from geostationary orbit over Europe, Africa and the
 // Atlantic. The picture is EUMETSAT's own (transparent where there was none), the newest they serve. ----
 const EUM = 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&styles=&crs=EPSG:3857&format=image/png&transparent=true';
-let lightMap = null, lightAt = 0, lightOn = true;
+let lightMap = null, lightAt = 0, lightOn = true, lightTime = null;
 export const lightning = {
   id: 'lightning', title: 'Lightning', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-lightning'], local: true,
   addTo(map) {
     lightMap = map;
-    const add = () => {
+    const add = async () => {
+      let t = null;
+      try { t = (await fetch('/api/eumetsat/time?layer=mtg_fd:li_afa').then(r => r.json())).time; } catch (e) { /* keep the last picture */ }
+      if (!t || t === lightTime) return;
+      lightTime = t; lightAt = Date.parse(t) / 1000;
       if (map.getLayer('ww-lightning')) map.removeLayer('ww-lightning');
       if (map.getSource('ww-lightning')) map.removeSource('ww-lightning');
-      lightAt = now();
+      // every tile asks for the same image time, so the picture holds still while zooming
       map.addSource('ww-lightning', {type: 'raster', tileSize: 256, maxzoom: 8, attribution: 'Lightning: EUMETSAT MTG-LI',
-        tiles: [`${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&_=${Math.floor(lightAt / 300)}`]});
-      const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-photo', 'ww-sharp'].includes(l.id))?.id;
+        tiles: [`${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&TIME=${encodeURIComponent(t)}`]});
+      const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !l.id.startsWith('ww-mx-') && !['ww-night', 'ww-photo', 'ww-sharp'].includes(l.id))?.id;
       map.addLayer({id: 'ww-lightning', type: 'raster', source: 'ww-lightning', paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, first);
+      document.dispatchEvent(new Event('ww-chips'));
     };
-    add(); setInterval(add, 300000);          // a fresh picture every five minutes
+    add(); setInterval(add, 60000);           // EUMETSAT adds a new picture every five minutes
   },
   paint() {}, onData() {}, render() {},
   visible(on) { lightOn = on; },
   count: () => 0, note: () => lightAt ? local(lightAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
-  about: () => `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area), the newest picture they serve, asked for at ${local(lightAt)}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
+  about: () => `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area) in the picture of ${lightAt ? utc(lightAt) + ' (' + ago(lightAt) + ')' : 'the newest time'}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
+};
+
+// ---- live photo: the newest whole-disk pictures from weather satellites in geostationary orbit, every 10-15
+// minutes, about 1-3 km per pixel: Europe/Africa/Middle East from MTG (true colour by day, a night version after dark),
+// India and the Indian Ocean from Meteosat's Indian Ocean satellite, the Americas from GOES-East and GOES-West (via
+// NASA GIBS). East Asia and the western Pacific (Himawari) have no colour picture in these services. ----
+let liveOn = false, liveAt = null, liveMap = null;
+const LIVE = [
+  ['ww-live-goesw', 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-West_ABI_GeoColor/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', 7, 'GOES-West (NOAA, via NASA GIBS)'],
+  ['ww-live-goese', 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_GeoColor/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', 7, 'GOES-East (NOAA, via NASA GIBS)'],
+  ['ww-live-iodc', 'msg_iodc:rgb_naturalenhncd', 7, 'Meteosat Indian Ocean (EUMETSAT)'],
+  ['ww-live-mtg', 'mtg_fd:rgb_geocolour', 8, 'MTG (EUMETSAT)'],
+];
+async function liveAdd(map) {
+  let t = null;
+  try { t = (await fetch('/api/eumetsat/time?layer=mtg_fd:rgb_geocolour').then(r => r.json())).time; } catch (e) { /* keep */ }
+  if (t && t === liveAt) return;
+  liveAt = t;
+  const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+  for (const [id, src, maxzoom, credit] of LIVE) {
+    if (map.getLayer(id)) map.removeLayer(id);
+    if (map.getSource(id)) map.removeSource(id);
+    const url = src.startsWith('http') ? src : `${EUM}&layers=${src}&width=256&height=256&bbox={bbox-epsg-3857}${t ? '&TIME=' + encodeURIComponent(t) : ''}`;
+    map.addSource(id, {type: 'raster', tiles: [url], tileSize: 256, maxzoom, attribution: 'Live photo: ' + credit});
+    map.addLayer({id, type: 'raster', source: id, paint: {'raster-fade-duration': 0}, layout: {visibility: liveOn ? 'visible' : 'none'}}, labels);
+  }
+  document.dispatchEvent(new Event('ww-chips'));
+}
+export const livephoto = {
+  id: 'livephoto', title: 'Live photo', color: ['#3a6b4a', '#6fae84'], feeds: {}, layers: LIVE.map(l => l[0]), local: true, defaultOff: true,
+  addTo(map) { liveMap = map; liveAdd(map); setInterval(() => liveOn && liveAdd(map), 120000); },
+  paint() {}, onData() {}, render() {},
+  visible(on) { liveOn = on; photoHook(on); if (on && liveMap) liveAdd(liveMap); },
+  count: () => 0, note: () => liveAt ? local(Date.parse(liveAt) / 1000) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => `The newest pictures from weather satellites that stay over one spot (every 10-15 minutes, 1-3 km per pixel): Europe, Africa and the Middle East from MTG${liveAt ? ' (' + utc(Date.parse(liveAt) / 1000) + ')' : ''}, India from Meteosat's Indian Ocean satellite, the Americas from GOES-East and GOES-West. Coarser than the daily Photo but current. East Asia is not covered.`,
 };
 
 // ---- sharp photo: Esri World Imagery, up to 0.3-0.5 m per pixel in cities. Sharp but not current: each area is a

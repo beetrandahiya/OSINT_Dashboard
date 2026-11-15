@@ -1,7 +1,7 @@
 // Ships: Finland's open feed (northern Baltic, no key) plus aisstream.io worldwide once its free key is set.
 // A ship is drawn where it last reported; nothing is moved forward.
 import {ago, esc, local} from './util.js';
-import {shipFlag, emoji} from './flags.js';
+import {shipFlag, flagImg} from './flags.js';
 
 const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 10-26z';
 const STATUS = {0: 'Under way', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted in manoeuvring', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Fishing', 8: 'Under sail'};
@@ -15,6 +15,22 @@ function icon(fill, edge) {
 }
 
 const pics = new Map();
+// ---- the selected ship's path: the positions the worldwide stream heard from it (server memory, up to 30 points) ----
+let trailMap = null, trailFor = {ships: null, warships: null}, trailPts = [];
+async function loadTrail() {
+  const id = trailFor.ships || trailFor.warships;
+  const m = id && String(id).match(/^ship:(\d+)$/);
+  if (!m) { trailPts = []; drawTrail(); return; }
+  try { const r = await fetch('/api/ship/trail/' + m[1]).then(x => x.json()); if ((trailFor.ships || trailFor.warships) === id) { trailPts = r.points || []; drawTrail(); } } catch (e) { /* keep */ }
+}
+function drawTrail() {
+  if (!trailMap?.getSource('ww-ship-trail')) return;
+  const id = trailFor.ships || trailFor.warships, s = list.find(x => 'ship:' + x.mmsi === id);
+  const pts = trailPts.map(p => [p[0], p[1]]);
+  if (s && pts.length) pts.push([s.lon, s.lat]);
+  trailMap.getSource('ww-ship-trail').setData({type: 'FeatureCollection', features: pts.length > 1 ? [{type: 'Feature', geometry: {type: 'LineString', coordinates: pts}, properties: {}}] : []});
+}
+setInterval(() => { if (trailFor.ships || trailFor.warships) loadTrail(); }, 60000);
 async function fillShip() {
   const box = document.getElementById('shippic'); if (!box || box.dataset.done) return;
   box.dataset.done = '1';
@@ -31,6 +47,9 @@ async function fillShip() {
 const shipsLayer = {
   id: 'ships', title: 'Ships', color: ['#a2845e', '#c4a57b'], feeds: {ships: 60}, layers: ['ww-ships'],
   addTo(map) {
+    map.addSource('ww-ship-trail', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addLayer({id: 'ww-ship-trail', type: 'line', source: 'ww-ship-trail', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-width': 2.5, 'line-opacity': 0.85}});
+    trailMap = map;
     map.addSource('ww-ships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-ships', type: 'symbol', source: 'ww-ships', layout: {'icon-image': 'ww-ship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.16, 5, 0.3, 9, 0.5, 13, 0.75], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
@@ -39,6 +58,7 @@ const shipsLayer = {
   paint(map, dark) {
     const img = icon(this.color[+dark], dark ? '#1c1c1e' : '#ffffff');
     if (map.hasImage('ww-ship')) map.updateImage('ww-ship', img); else map.addImage('ww-ship', img, {pixelRatio: 2});
+    map.setPaintProperty('ww-ship-trail', 'line-color', this.color[+dark]);
     map.setPaintProperty('ww-ships', 'text-color', dark ? '#e5e5ea' : '#3a3a3c'); map.setPaintProperty('ww-ships', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-ships', 'text-halo-width', 1.3);
   },
   onData(feed, d) { list = d.payload.ships; info = d; },
@@ -52,19 +72,21 @@ const shipsLayer = {
   ring: () => 13,
   owns: id => String(id).startsWith('ship:') && !list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,
-  about: () => info?.payload?.world?.key ? `Ships worldwide from aisstream.io (volunteer receivers: dense near coasts, thin mid-ocean) plus Finland's open feed.` : 'Ships in the northern Baltic only, from Finland\'s open data. For the rest of the world, register a free key at aisstream.io and put it in data/aisstream-key.txt.',
+  select(id) { trailFor.ships = id; loadTrail(); },
+  about: () => info?.payload?.world?.key ? `Ships worldwide from aisstream.io plus Finland's open feed. aisstream relays volunteer receivers on shore: dense near Europe, North America and East Asia, thin or empty in the Indian Ocean and mid-ocean (no free satellite AIS exists). A ship stays listed two hours after its last report, so the count moves as receivers come and go.` : 'Ships in the northern Baltic only, from Finland\'s open data. For the rest of the world, register a free key at aisstream.io and put it in data/aisstream-key.txt.',
   detail(id) {
     const s = list.find(x => 'ship:' + x.mmsi === id);
     if (!s) return null;
     return `<div id="shippic" data-mmsi="${s.mmsi}" data-imo="${s.imo || ''}" data-name="${esc(s.name || '')}" data-mil="${s.kind === 'Military vessel' ? 1 : ''}"><p class="pic-wait">Looking for a picture of this ship…</p></div>
-      <p class="eyebrow">${esc(s.kind || 'Ship')}</p><h2>${esc(s.name || 'MMSI ' + s.mmsi)}${shipFlag(s.mmsi)?.cc ? ` <span class="flag" title="${esc(shipFlag(s.mmsi).name)}">${emoji(shipFlag(s.mmsi).cc)}</span>` : ''}</h2>
+      <p class="eyebrow">${esc(s.kind || 'Ship')}</p><h2>${esc(s.name || 'MMSI ' + s.mmsi)}${shipFlag(s.mmsi)?.cc ? ' ' + flagImg(shipFlag(s.mmsi).cc, shipFlag(s.mmsi).name) : ''}</h2>
       <p class="where">${s.destination ? 'Destination as entered by the crew: ' + esc(s.destination) : 'No destination entered'}</p>
-      <dl>${(() => { const fl = shipFlag(s.mmsi); return fl ? `<dt>Flag</dt><dd>${emoji(fl.cc)} ${esc(fl.name)} <span class="soft">(from its MMSI)</span></dd>` : ''; })()}<dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
+      <dl>${(() => { const fl = shipFlag(s.mmsi); return fl ? `<dt>Flag</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its MMSI)</span></dd>` : ''; })()}<dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
       <dt>Speed</dt><dd>${s.speed_kn == null ? 'not reported' : s.speed_kn.toFixed(1) + ' kn <span class="soft">(' + Math.round(s.speed_kn * 1.852) + ' km/h)</span>'}</dd>
       <dt>Course</dt><dd>${s.course == null ? 'not reported' : Math.round(s.course) + '°'}</dd>
       ${s.length_m ? `<dt>Length</dt><dd>${s.length_m} m</dd>` : ''}
       ${s.draught_m ? `<dt>Draught</dt><dd>${(+s.draught_m).toFixed(1)} m</dd>` : ''}
       <dt>Position reported</dt><dd>${local(s.time)} <span class="soft">(${ago(s.time)})</span></dd>
+      ${s.source === 'aisstream.io' ? `<dt>Path</dt><dd>${trailPts.length > 1 ? `the line shows ${trailPts.length} positions heard since ${local(trailPts[0][2])}` : 'only one position heard so far'}</dd>` : ''}
       <dt>Identifiers</dt><dd>MMSI ${s.mmsi}${s.imo ? ' · IMO ' + s.imo : ''}${s.callsign ? ' · ' + esc(s.callsign) : ''}</dd></dl>
       <div id="shipabout"></div>
       <a class="link" href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${s.mmsi}" target="_blank" rel="noopener">Look this ship up on MarineTraffic</a>
@@ -129,12 +151,13 @@ export const warships = {
   ring: () => 15,
   owns: id => String(id).startsWith('usni:') || !!list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,
+  select(id) { trailFor.warships = id; loadTrail(); },
   detail(id) {
     if (!String(id).startsWith('usni:')) return shipsLayer.detail(id);
     const x = fleetShips().find(v => 'usni:' + v.hull === id);
     if (!x) return null;
     return `<div id="shippic" data-mmsi="${esc(x.hull)}" data-imo="" data-name="${esc(x.name)}" data-mil="1"><p class="pic-wait">Looking for a picture of this ship…</p></div>
-      <p class="eyebrow">US Navy ${esc(x.kind)} · USNI Fleet Tracker</p><h2>${esc(x.name)} <span class="soft">${esc(x.hull)}</span> <span class="flag">🇺🇸</span></h2>
+      <p class="eyebrow">US Navy ${esc(x.kind)} · USNI Fleet Tracker</p><h2>${esc(x.name)} <span class="soft">${esc(x.hull)}</span> ${flagImg('us', 'United States')}</h2>
       <p class="where">${x.placed === 'port' ? 'In port: ' + esc(x.port) : 'Somewhere in ' + esc(x.region) + ' (the marker is the middle of that region, not its position)'}</p>
       ${x.said.length ? `<section class="pz"><h3>What USNI reported</h3>${x.said.map(t => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
       ${x.placed === 'port' ? `<button class="btn" data-sharpat="${x.lon},${x.lat}">Look at the port in the sharp photo</button><p class="source">The sharp photo is not live: it is from the date shown on its chip, so this ship may or may not be in it. Nobody publishes current pictures of warships for free.</p>` : ''}

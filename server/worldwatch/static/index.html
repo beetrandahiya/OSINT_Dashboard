@@ -12,7 +12,7 @@
 
 <aside class="glass sidebar" id="sidebar">
   <header class="side-head">
-    <h1>World Watch</h1>
+    <h1>World Watch</h1><button class="mini" id="side-mini" aria-label="Minimise the panel" title="Minimise"></button>
     <div class="seg" role="group" aria-label="Map shape">
       <button id="flat" aria-pressed="true">Map</button>
       <button id="globe" aria-pressed="false">Globe</button>
@@ -40,7 +40,8 @@
   </section>
 </div>
 
-<div class="glass markets" aria-label="Markets and space weather"><span id="markets" class="quotes"></span><span id="spaceweather" class="quotes"></span></div>
+<div class="loadbar" id="loadbar" hidden></div>
+<div class="glass markets" id="marketsbar" aria-label="Markets and space weather"><button class="mini" id="markets-mini" aria-label="Minimise the markets strip" title="Minimise"></button><span id="markets" class="quotes"></span><span id="spaceweather" class="quotes"></span></div>
 
 <div class="banner" id="banner" hidden></div>
 

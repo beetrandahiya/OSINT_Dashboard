@@ -12,23 +12,46 @@ import {civil, military, vip, doomsday, fillRoute, select as selectAircraft} fro
 import {satellites, launches, onSatChange} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
-import {rain, night, aurora, photo, onPhoto, lightning, sharp} from './sky.js';
+import {rain, night, aurora, photo, onPhoto, lightning, sharp, livephoto} from './sky.js';
 import fires from './fires.js';
 import people, {leadersToday} from './people.js';
 import {openProfile} from './profile.js';
 import ships, {warships} from './ships.js';
-import gps from './gps.js';
+import gps, {gpsLive} from './gps.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, sharp, maxarLayer, night, aurora, gps, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
-const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, cables, rain, lightning, night, aurora, photo, sharp, maxarLayer];
+const LAYERS = [photo, livephoto, sharp, maxarLayer, night, aurora, gps, gpsLive, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp, maxarLayer];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
 const dark = matchMedia('(prefers-color-scheme: dark)');
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
+// ---- a thin loading bar while any request to our server takes longer than a moment ----
+{
+  const bar = document.getElementById('loadbar'), real = window.fetch.bind(window);
+  let open = 0, t = null;
+  const show = () => { bar.hidden = open === 0; };
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    if (!url.includes('/api/') || url.includes('/api/status')) return real(input, init);   // the status poll is constant; not "loading"
+    open++; clearTimeout(t); t = setTimeout(show, 250);
+    return real(input, init).finally(() => { open = Math.max(0, open - 1); if (!open) { clearTimeout(t); bar.hidden = true; } });
+  };
+}
+// ---- every panel can be minimised; the choice is remembered on this computer ----
+function minimiser(btnId, panelId, key) {
+  const b = document.getElementById(btnId), p = document.getElementById(panelId); if (!b || !p) return;
+  let on = false; try { on = localStorage.getItem(key) === '1'; } catch (e) { /* private window */ }
+  const set = v => { on = v; p.classList.toggle('min', v); b.setAttribute('aria-expanded', !v); try { localStorage.setItem(key, v ? '1' : ''); } catch (e) { /* ignore */ } };
+  set(on); b.addEventListener('click', e => { e.stopPropagation(); set(!on); });
+}
+minimiser('side-mini', 'sidebar', 'ww-min-side');
+minimiser('markets-mini', 'marketsbar', 'ww-min-markets');
+let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
+
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
 
 let on = Object.fromEntries(LAYERS.map(l => [l.id, !l.defaultOff]));
@@ -72,7 +95,7 @@ map.on('load', () => {
     show(l);
     for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
   }
-  const NO_CLICK = ['ww-photo', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
+  const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
@@ -150,13 +173,15 @@ function renderDetail() {
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
   const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout', '#mxacq'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
-  el.innerHTML = '<button class="close" id="close" aria-label="Close"></button>' + html;
+  el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + html;
+  el.classList.toggle('min', detailMin);
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
   el.scrollTop = key === detailKey ? scroll : 0;
   detailKey = key;
   fillRoute();
   byId[picked.layer].fill?.(picked.id);   // a layer can fetch more for its card after it is drawn
 }
+const el0 = () => $('#detail');
 function refreshPick() { if (picked && !$('#detail').matches(':hover')) { renderDetail(); ring(); } }
 
 $('#list').addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) pick({layer: li.dataset.layer, id: li.dataset.id}, true); });
@@ -171,6 +196,7 @@ $('#list').addEventListener('keydown', e => {
 });
 $('#detail').addEventListener('click', e => {
   if (e.target.id === 'close') return pick(null);
+  if (e.target.id === 'detail-mini') { detailMin = !detailMin; el0().classList.toggle('min', detailMin); try { localStorage.setItem('ww-min-detail', detailMin ? '1' : ''); } catch (err) { /* ignore */ } return; }
   const a = e.target.closest('[data-act]');
   if (a && picked) { byId[picked.layer].act?.(a.dataset.act, map); detailKey = ''; renderDetail(); }
 });

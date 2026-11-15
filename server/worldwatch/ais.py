@@ -11,13 +11,17 @@ empty in the open ocean (satellite AIS is a paid product).
 """
 import asyncio
 import json
+import math
+from array import array
 import os
 import time
 
 from . import config
 
 URL = "wss://stream.aisstream.io/v0/stream"
-KEEP = 1800            # seconds a ship stays listed after its last position
+KEEP = 7200            # seconds a ship stays listed after its last position (moored ships report every few minutes, but
+                       # volunteer receivers come and go; two hours keeps the map steadier, and each ship shows its age)
+TRAIL_POINTS = 30      # positions kept per ship for its path: compact float arrays, at least 1 km or 15 minutes apart
 MAX_SHIPS = 60000      # hard cap, so a flood of messages cannot eat the memory budget
 
 TYPES = {30: "Fishing vessel", 31: "Tug", 32: "Tug", 33: "Dredger", 35: "Military vessel", 36: "Sailing vessel", 37: "Pleasure craft",
@@ -43,6 +47,9 @@ class Stream:
         self.pos: dict[int, list] = {}
         # mmsi -> [name, type code, destination, callsign, imo, draught]
         self.static: dict[int, list] = {}
+        # mmsi -> array('f', [lon, lat, minutes since start, ...]): the ship's recent path
+        self.trails: dict[int, array] = {}
+        self.t0 = time.time()
         self.state = "off"            # off | connecting | live | failing
         self.error = None
         self.connected_at = None
@@ -117,6 +124,7 @@ class Stream:
             course = body.get("Cog")
             self.pos[mmsi] = [round(lon, 5), round(lat, 5), body.get("Sog"), course if course is not None and course < 360 else None,
                               heading if heading is not None and heading < 360 else None, body.get("NavigationalStatus"), time.time()]
+            self._trail(mmsi, lon, lat)
             if mmsi not in self.static and meta.get("ShipName"):
                 self.static[mmsi] = [meta["ShipName"].strip() or None, None, None, None, None, None]
             if len(self.pos) > MAX_SHIPS:
@@ -129,6 +137,26 @@ class Stream:
             if dims:
                 self.static[mmsi].append((dims.get("A") or 0) + (dims.get("B") or 0) or None)
 
+    def _trail(self, mmsi, lon, lat):
+        tr = self.trails.get(mmsi)
+        mins = (time.time() - self.t0) / 60
+        if tr is not None and len(tr) >= 3:
+            dx = (lon - tr[-3]) * math.cos(math.radians(lat)) * 111.2
+            dy = (lat - tr[-2]) * 111.2
+            if dx * dx + dy * dy < 1.0 and mins - tr[-1] < 15:
+                return
+        if tr is None:
+            tr = self.trails[mmsi] = array("f")
+        tr.extend((lon, lat, mins))
+        if len(tr) > TRAIL_POINTS * 3:
+            del tr[:3]
+
+    def trail(self, mmsi: int) -> list:
+        tr = self.trails.get(mmsi)
+        if not tr:
+            return []
+        return [[round(tr[i], 5), round(tr[i + 1], 5), round(self.t0 + tr[i + 2] * 60)] for i in range(0, len(tr), 3)]
+
     def _prune(self, force=False):
         cut = time.time() - KEEP
         for k in [k for k, v in self.pos.items() if v[6] < cut]:
@@ -138,6 +166,8 @@ class Stream:
                 del self.pos[k]
         for k in [k for k in self.static if k not in self.pos]:
             del self.static[k]
+        for k in [k for k in self.trails if k not in self.pos]:
+            del self.trails[k]
 
     def ships(self):
         out, cut = [], time.time() - KEEP

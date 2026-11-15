@@ -688,6 +688,43 @@ them if possible. Country dossier: "cool, but we need a very sophisticated and g
 - **Satellite pictures of carriers:** no free current imagery of warships exists. For a ship in port the card offers
   "Look at the port in the sharp photo" (Esri, dated; the ship may not be in it). Ship photos come from Wikidata by name.
 
+### 2026-11-15 evening, his review (screenshots from his Mac) and fixes
+
+His points and what was done:
+- **Flags:** appeared only after ~10 min (the page asked once, before the server had the tables; now retries every
+  10 s). He dislikes the wavy emoji: now **flat SVG flags from flag-icons (MIT)**, vendored in `static/flags/`
+  (272 files, 2.7 MB), via `flagImg()` in `flags.js`.
+- **Leaders:** Netanyahu shown in Tehran, clicks on stacked dots opened the wrong leader, Modi and Murmu overlapping.
+  Now one marker per place listing everyone there (`todayp:` ids, card lists each leader); a leader's place is the
+  city mentioned **nearest to their name** in the text (GKG V2EnhancedPersons and V2EnhancedLocations offsets),
+  first city only when offsets are missing. Names are kept only for articles naming someone we follow
+  (`news.WATCH`, from the cached leaders list) because keeping them for all articles cost ~40 MB.
+- **Loading bar:** thin 2 px bar at the top while any `/api/` request takes over 250 ms (fetch wrapper in `main.js`;
+  the status poll is excluded).
+- **Minimisable panels:** sidebar, detail card and markets strip (`.mini` buttons; remembered in localStorage).
+- **Lightning moved when zooming:** tiles fetched at different times showed different 5-minute pictures. Every tile
+  now asks for one `TIME` (`/api/eumetsat/time?layer=...` reads the layer's default time from its capabilities).
+- **Clouds layer removed** (earlier). **Live photo** (new chip): MTG `mtg_fd:rgb_geocolour` (Europe, Africa, Middle
+  East; day colour, night version), `msg_iodc:rgb_naturalenhncd` (India), GOES-East/West GeoColor via GIBS (Americas),
+  every 10-15 min, 1-3 km. East Asia has no colour picture in these services. The daily Photo stays.
+- **Satellites:** dots 1.5 px; military imaging/signals are small red diamonds (no ring; flat map red dots). Pictures:
+  Wikidata, then its class, then family, then **NASA Image Library** (accepted only if the title names it).
+- **Ships:** paths (`ais.Stream.trails`, compact float arrays, 30 points 1 km / 15 min apart, `/api/ship/trail/{mmsi}`),
+  kept 2 h instead of 30 min. Indian Ocean empty because aisstream relays shore receivers only (no free satellite
+  AIS); the count moves as receivers come and go. Ship pictures: also a Commons search by name.
+- **Disaster imagery now current:** **Copernicus EMS rapid mapping** (feed `ems`): 36 activations in 120 days,
+  pictures used for each map (GeoEye-1, SPOT-6, ... e.g. Valencia floods 2026-10-20), plus Copernicus' counts of
+  affected buildings. Their COGs are Deflate + predictor 2 (Web Mercator): served as PNG with **no pixel work** (PNG's
+  Sub filter equals TIFF predictor 2; one filter byte per row; tRNS makes black no-data transparent). Maxar stays as
+  "archive". Fixed: moves during loading were dropped (`again` flag); pictures from zoom 9.
+- **Live GPS interference** (feed `gps_live`, chip "GPS, last hour"): 15 hotspot regions, 250 NM each from adsb.fi
+  every 10 min, aircraft per H3 res-4 cell, share with NACp < 8 over the last hour, GPSJAM's bands. Derived, labelled.
+  Costs 18 s of the shared adsb.fi gate every 10 minutes (area queries may wait that long once).
+- **Memory:** steady was 183 MB. Measured per feed: UCS spreadsheet +27, VATSpy boundaries +23, translated news +19.
+  Heavy one-off parses now run in a short-lived child process (`_in_child` in `feeds.py`), VATSpy is kept compressed,
+  UCS rows are read per request. Now ~154 MB steady, 159 MB peak (news still filling when measured).
+- Country and person dossiers: handed to a separate agent working in its own worktree (see its section when merged).
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,
