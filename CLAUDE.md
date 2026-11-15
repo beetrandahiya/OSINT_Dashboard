@@ -1158,3 +1158,9 @@ Agent's research findings worth keeping:
   forbid automated copying; no free image-search API exists. Cards now link "Search photos of it" and ShipSpotting by IMO.
 - He asked next for **public cameras, "all the ones you can safely do"** (open road/weather webcams, keyed public
   services; never private/unsecured cameras).
+- **Public cameras built** (`cams.py`, feed `cameras` daily, `/api/cam/image`, layer `cameras.js`, off by default): TfL
+  JamCams (832, still + clip), NYC DOT (875), Caltrans CCTV 12 districts (3,436, still + HLS stream), Singapore LTA via
+  data.gov.sg (list currently 8; image addresses rotate, so the proxy asks the current list by camera id), Hong Kong
+  Transport Department (1,013), Fintraffic weather cameras (813, several views). Pictures go through our server, allowlist
+  `cams.IMAGE_HOSTS`, cached 30 s; card refreshes every 30 s while open. Need free keys, not built: Ontario/Alberta 511,
+  511.org (Bay Area), Windy webcams (worldwide). Norway/Iceland endpoints guessed wrong (404), not found yet.

@@ -30,7 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
-from . import geo, travel, courts, frontline, sites, cablefaults
+from . import geo, travel, courts, frontline, sites, cablefaults, cams
 from . import radar as cfradar          # the name "radar" is the rain-radar feed below
 
 
@@ -653,6 +653,46 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def cameras(feed: Feed, f: Fetcher) -> Result:
+    """Public road and traffic cameras from six official open sources (see cams.py); lists daily, pictures on demand.
+    A source that fails keeps its last list from this run."""
+    have, problems = feed.memo.setdefault("cams", {}), []
+    ua = {"User-Agent": config.USER_AGENT}
+    async def take(key, label, coro):
+        try:
+            got = await coro
+            if got:
+                have[key] = got
+        except Exception as e:
+            problems.append(f"{label} ({type(e).__name__})")
+    async def ca():
+        out = []
+        for dist in range(1, 13):
+            try:
+                out += cams.caltrans((await f.get(f"https://cwwp2.dot.ca.gov/data/d{dist}/cctv/cctvStatusD{dist:02d}.json", headers=ua, timeout=40)).json())
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+        return out
+    await take("tfl", "London", _with(f, "https://api.tfl.gov.uk/Place/Type/JamCam", ua, cams.tfl))
+    await take("nyc", "New York", _with(f, "https://webcams.nyctmc.org/api/cameras", ua, cams.nyc))
+    await take("caltrans", "California", ca())
+    await take("sg", "Singapore", _with(f, "https://api.data.gov.sg/v1/transport/traffic-images", ua, cams.singapore))
+    await take("hk", "Hong Kong", _with(f, "https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_En.xml", ua, cams.hongkong, text=True))
+    await take("fi", "Finland", _with(f, "https://tie.digitraffic.fi/api/weathercam/v1/stations", {**ua, "Accept-Encoding": "gzip"}, cams.finland))
+    allc = [c for v in have.values() for c in v]
+    if not allc:
+        raise RuntimeError("; ".join(problems) or "no camera list answered")
+    counts = {k: len(v) for k, v in have.items()}
+    return Result(len(allc), {"cameras": allc, "counts": counts, "sources": cams.SOURCES}, data_time=time.time(), data_label="lists read",
+                  note=", ".join(f"{cams.SOURCES[k][0]} {n}" for k, n in counts.items()) + ("; failed: " + ", ".join(problems) if problems else ""))
+
+
+async def _with(f, url, headers, parse, text=False):
+    r = await f.get(url, headers=headers, timeout=40)
+    return parse(r.text if text else r.json())
+
+
 async def radar_feed(feed: Feed, f: Fetcher) -> Result:
     """Cloudflare Radar: BGP hijacks and route leaks of the last 24 hours, outage notes of the last 30 days (see radar.py)."""
     tok = config.cloudflare_token()
@@ -1173,6 +1213,8 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("cameras", "Public cameras", "TfL, NYC DOT, Caltrans, LTA Singapore, HK Transport Dept, Fintraffic", "https://tfl.gov.uk",
+         86400, cameras, min_retry=1800, limit_note="camera lists once a day (~20 MB, mostly Caltrans); pictures only when a card opens"),
     Feed("cf_radar", "Internet hijacks, leaks and outage notes", "Cloudflare Radar", "https://radar.cloudflare.com",
          900, radar_feed, min_retry=600, limit_note="free token; three requests every 15 minutes"),
     Feed("cable_faults", "Cable faults in the news", "SubTel Forum, GDELT", "https://subtelforum.com/category/cable-faults-maintenance/",

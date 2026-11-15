@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import config, db, maxar, patterns, satinfo, sites, translate
+from . import cams, config, db, maxar, patterns, satinfo, sites, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -644,6 +644,37 @@ async def area(request):
     return JSONResponse({**_area["body"], "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
+_CAM_IMG: dict = {}
+
+
+async def camera_image(request):
+    """A public camera's current picture, fetched by our server (so the camera operator sees this server, not the
+    browser), only from the six camera hosts we list; cached 30 s. Singapore's picture addresses change every minute,
+    so for those the current list is asked first."""
+    u = request.query_params.get("u", "")
+    cam = request.query_params.get("sg")
+    try:
+        async with httpx.AsyncClient(timeout=15, headers={"User-Agent": config.USER_AGENT}, follow_redirects=True) as c:
+            if cam:
+                d = (await c.get("https://api.data.gov.sg/v1/transport/traffic-images")).json()
+                u = next((x["image"] for x in (d.get("items") or [{}])[0].get("cameras", []) if x["camera_id"] == cam), "")
+            if not cams.IMAGE_HOSTS.match(u):
+                return JSONResponse({"error": "not a camera address we know"}, status_code=400)
+            hit = _CAM_IMG.get(u)
+            if hit and time.time() - hit[0] < 30:
+                body, ctype = hit[1], hit[2]
+            else:
+                r = await c.get(u)
+                r.raise_for_status()
+                body, ctype = r.content, r.headers.get("content-type", "image/jpeg")
+                if len(_CAM_IMG) > 200:
+                    _CAM_IMG.clear()
+                _CAM_IMG[u] = (time.time(), body, ctype)
+    except (httpx.HTTPError, ValueError) as e:
+        return JSONResponse({"error": f"the camera did not answer ({type(e).__name__})"}, status_code=502)
+    return Response(body, media_type=ctype, headers={"Cache-Control": "no-store"})
+
+
 async def cable_about(request):
     """A cable's owners, length, landing points, suppliers and year in service, from TeleGeography's cable map. A week."""
     cid = request.path_params["cid"]
@@ -738,6 +769,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/aircraft/patterns", flight_patterns),
     Route("/api/sites/areas", military_areas),
     Route("/api/cable/{cid}", cable_about),
+    Route("/api/cam/image", camera_image),
     Route("/api/track/{hex}", track),
     Route("/api/photo/{hex}", photo),
     Route("/api/news/place", news_place),

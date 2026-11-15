@@ -23,12 +23,13 @@ import front from './frontline.js';
 import {orbits, tankers} from './patterns.js';
 import {bases, nuclear} from './sites.js';
 import hijacks from './netwatch.js';
+import cameras from './cameras.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
-const CHIPS = [news, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
+const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
+const CHIPS = [news, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, cameras, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
