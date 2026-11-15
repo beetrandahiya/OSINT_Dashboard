@@ -30,6 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
+from . import geo, travel
 
 
 @dataclass
@@ -604,6 +605,25 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def travel_advice(feed: Feed, f: Fetcher) -> Result:
+    """Official travel advice per country from the US State Department and the German Foreign Office (see travel.py).
+    If one office fails, the other is still kept and the note names the one that failed."""
+    await geo.ensure(f.client)
+    out, problems = {"us": {}, "de": {}}, []
+    try:
+        out["us"] = travel.parse_us((await f.get(travel.US_URL)).text)
+    except Exception as e:
+        problems.append(f"US State Department failed: {type(e).__name__}")
+    try:
+        out["de"] = travel.parse_de((await f.get(travel.DE_URL)).json())
+    except Exception as e:
+        problems.append(f"German Foreign Office failed: {type(e).__name__}")
+    if not out["us"] and not out["de"]:
+        raise RuntimeError("; ".join(problems) or "nothing came back")
+    out["problems"] = problems
+    return Result(len(out["us"]) + len(out["de"]), out, data_label="advice in force when fetched",
+                  note=f"{len(out['us'])} countries with a US advisory, {len(out['de'])} with German advice"
+                       + ("; " + "; ".join(problems) if problems else ""))
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -923,6 +943,8 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("travel_advice", "Travel advice per country", "US State Department, German Foreign Office", "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
+         6 * H, travel_advice, min_retry=1800, limit_note="two official lists, asked every 6 hours; shown in country dossiers"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

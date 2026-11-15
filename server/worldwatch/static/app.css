@@ -283,3 +283,67 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .loadbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: -30%; border-radius: 1px; background: var(--accent, #007aff); animation: loadbar 1.1s ease-in-out infinite; }
 @keyframes loadbar { to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .loadbar::after { animation: none; left: 0; width: 100%; opacity: .5; } }
+/* ---- dossiers (person and country): one overlay, a calm header, a grid of signal tiles, then compact blocks ---- */
+.prof-card.dos { width: min(920px, calc(100vw - 32px)); padding: 24px 28px 22px; }
+.dos-head { display: flex; gap: 18px; align-items: flex-start; padding-right: 36px; }
+.dos-face { width: 96px; height: 96px; border-radius: 16px; object-fit: cover; flex: none; background: var(--fill); }
+.dos-face.flagbox { display: grid; place-items: center; font-size: 64px; line-height: 1; }
+.dos-id { min-width: 0; flex: 1; }
+.dos-eyebrow { margin: 0 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.dos-id h2 { margin: 0; font: 700 28px/32px var(--font); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.flag { font-size: 1em; line-height: 1; font-style: normal; }
+.dos-id h2 .flag { font-size: 24px; }
+.dos-flag { text-decoration: none; }
+.dos-roles { list-style: none; margin: 6px 0 0; padding: 0; font-size: 15px; line-height: 20px; }
+.dos-roles b { font-weight: 600; }
+.dos-sub { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 18px; }
+.dos-sub b { color: var(--text); font-weight: 600; }
+.dos-sub .link { font-size: 13px; }
+.dos-heads { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.dos-heads li { display: flex; flex-direction: column; padding: 6px 12px; border-radius: 10px; background: var(--fill); font-size: 13px; }
+.dos-heads a { color: var(--text); text-decoration: none; font-size: 15px; } .dos-heads a:hover { color: var(--accent); }
+.dos-heads .soft { font-size: 11px; }
+.dos-advice { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px; }
+.dos-advice li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--fill); font-size: 13px; line-height: 18px; }
+.dos-advice .link { font-size: 13px; }
+.lvl { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; background: var(--idle); }
+.lvl2 { background: #c9a400; } .lvl3, .lvlw { background: var(--warn); } .lvl4 { background: var(--bad); }
+.dos-signals { margin: 20px 0 0; }
+.dos-signals h3, .dos-block h3 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.sig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.sig { display: flex; flex-direction: column; gap: 2px; padding: 11px 13px 10px; border-radius: 12px; background: var(--fill); min-width: 0; position: relative; }
+.sig.warm::before, .sig.hot::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--warn); }
+.sig.hot::before { background: var(--bad); }
+.sig-k { font-size: 12px; color: var(--text-2); font-weight: 500; }
+.sig-v { font: 600 20px/24px var(--font); font-variant-numeric: tabular-nums; }
+.sig-s { font-size: 12px; line-height: 16px; }
+.sig-src { margin-top: 4px; font-size: 10.5px; line-height: 13px; color: var(--text-2); }
+.dos-sub-block { margin-top: 16px; }
+.dos-sub-block h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.dos-intro { margin: 18px 0 0; font-size: 15px; line-height: 22px; max-width: 70ch; }
+.dos-intro p { margin: 0 0 8px; }
+.dos-intro:not(.open) .dos-rest { display: none; }
+.dos-intro .link { font-size: 13px; }
+.dos-cols { columns: 2; column-gap: 28px; margin-top: 20px; }
+.dos-block { margin: 0 0 20px; min-width: 0; break-inside: avoid; }
+.dos-cols + .dos-block, .dos-signals + .dos-block { margin-top: 20px; }
+.dos-list { list-style: none; margin: 0; padding: 0; }
+.dos-list li { padding: 6px 0; font-size: 13px; line-height: 18px; border-top: .5px solid var(--sep); }
+.dos-list li:first-child { border-top: 0; padding-top: 0; }
+.dos-list b { font-weight: 600; }
+.dos-show { color: var(--accent); text-decoration: none; font-size: 12px; white-space: nowrap; } .dos-show:hover { text-decoration: underline; }
+.dos-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0 14px; margin: 0; font-size: 13px; line-height: 18px; }
+.dos-facts dt { color: var(--text-2); padding: 5px 0; } .dos-facts dd { margin: 0; padding: 5px 0; min-width: 0; }
+.dos-facts dt, .dos-facts dt + dd { border-top: .5px solid var(--sep); }
+.dos-facts dt:first-child, .dos-facts dt:first-child + dd { border-top: 0; }
+.dos-facts .link { font-size: 13px; }
+.dos-fold:not(.open) .fold-rest { display: none; }
+.dos-fold .tl, .dos-fold > .fold-rest { margin-top: 6px; }
+.dos-news li { padding: 8px 0; }
+.dos-above .spypass { margin: 0 0 6px; }
+.dos .btn { font: 500 13px var(--font); color: var(--text); background: var(--fill-strong); border: 0; border-radius: 8px; padding: 6px 14px; cursor: default; }
+.tag { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--fill-strong); }
+.tag.hot { color: var(--bad); }
+.dos-foot { margin-top: 8px; padding-top: 12px; border-top: .5px solid var(--sep); }
+@media (max-width: 720px) { .dos-cols { columns: 1; } .prof-card.dos { padding: 18px 18px 16px; } .dos-face { width: 64px; height: 64px; } }
+.dos a[data-person] { color: var(--text); text-decoration: none; } .dos a[data-person]:hover { color: var(--accent); }

@@ -16,6 +16,7 @@ import {rain, night, aurora, photo, onPhoto, lightning, sharp, livephoto} from '
 import fires from './fires.js';
 import people, {leadersToday} from './people.js';
 import {openProfile} from './profile.js';
+import {countryMatches, loadCountries, openCountry} from './dossier_country.js';
 import ships, {warships} from './ships.js';
 import gps, {gpsLive} from './gps.js';
 import * as munichView from './munich.js';
@@ -273,14 +274,24 @@ let findTimer = null;
 $('#find-q')?.addEventListener('input', e => {
   clearTimeout(findTimer); const q = e.target.value.trim(); const list = $('#find-list');
   if (q.length < 2) { list.hidden = true; return; }
+  const lands = () => countryMatches(q).map(c => `<li data-cc="${esc(c.iso)}"><b>${esc(c.name)}</b><span>Country dossier</span></li>`).join('');
+  list.innerHTML = lands() + '<li class="empty">Searching people…</li>'; list.hidden = false;   // countries answer at once, people need Wikidata
   findTimer = setTimeout(async () => {
+    let people = '';
     try {
       const r = await fetch('/api/people/search?q=' + encodeURIComponent(q), {cache: 'no-store'});
-      const d = await r.json(); if ($('#find-q').value.trim() !== q) return;
-      list.innerHTML = (d.results || []).map(p => `<li data-qid="${esc(p.qid)}"><b>${esc(p.name)}</b>${p.description ? `<span>${esc(p.description)}</span>` : ''}</li>`).join('') || '<li class="empty">No person found.</li>';
-      list.hidden = false;
-    } catch (err) { /* ignore */ }
+      const d = await r.json();
+      people = d.error ? `<li class="empty">${esc(d.error)}</li>` : (d.results || []).map(p => `<li data-qid="${esc(p.qid)}"><b>${esc(p.name)}</b>${p.description ? `<span>${esc(p.description)}</span>` : ''}</li>`).join('');
+    } catch (err) { people = '<li class="empty">People search did not answer.</li>'; }
+    if ($('#find-q').value.trim() !== q) return;
+    list.innerHTML = lands() + people || '<li class="empty">No person or country found.</li>';
+    list.hidden = false;
   }, 300);
 });
-$('#find-list')?.addEventListener('click', e => { const li = e.target.closest('li[data-qid]'); if (li) { openProfile(li.dataset.qid); $('#find-list').hidden = true; $('#find-q').value = ''; } });
+$('#find-q')?.addEventListener('focus', loadCountries, {once: true});
+$('#find-list')?.addEventListener('click', e => {
+  const li = e.target.closest('li[data-qid], li[data-cc]'); if (!li) return;
+  if (li.dataset.cc) openCountry({cc: li.dataset.cc}); else openProfile(li.dataset.qid);
+  $('#find-list').hidden = true; $('#find-q').value = '';
+});
 addEventListener('click', e => { if (!e.target.closest('.find')) $('#find-list')?.setAttribute('hidden', ''); });

@@ -2,7 +2,7 @@
 // place on one day, grouped from every article GDELT coded that way; the number is how many different outlets wrote
 // about it. Protests are drawn as rings, violent events as filled dots, each with a letter (no meaning by colour alone).
 // Groups seen by one outlet only live in a second chip, off by default: those are where false alarms gather.
-import {ago, esc, local, skyShot, utc, spyPass} from './util.js';
+import {ago, esc, local, skyShot, utc, spyPass, countryBtn} from './util.js';
 import {img} from './news.js';
 
 const KIND = {protest: ['P', 'Protest'], riot: ['R', 'Riot'], attack: ['A', 'Attack'], clash: ['C', 'Armed clash'], 'mass violence': ['M', 'Mass violence']};
@@ -65,6 +65,7 @@ function make(single) {
           ${g.actors.length ? `<dt>Named in the coding</dt><dd>${g.actors.map(esc).join(', ')}</dd>` : ''}
           <dt>In GDELT's files</dt><dd>${local(g.first)} – ${local(g.last)} <span class="soft">(${ago(g.last)})</span></dd>
         </dl>
+        ${g.country ? countryBtn({fips: g.country}) : ''}
         ${skyShot(g.lat, g.lon)}
         ${spyPass(g.lat, g.lon)}
         <ol class="stories">${g.articles.map(a => `<li>${a.image ? `<img src="${esc(img(a.image))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span class="st">

@@ -18,6 +18,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from . import config, db, maxar, satinfo, translate
+from . import dossier
 from . import news as news_window
 from .collector import Collector
 from .ais import stream as ais_stream
@@ -683,6 +684,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/feeds", page("feeds.html")),
     Route("/lookup", page("lookup.html")),
     *lookup_api.routes,
+    *dossier.make_routes(collector),
     Route("/api/status", status),
     Route("/api/data/{name}", data),
     Route("/api/route/{callsign}", route),

@@ -724,6 +724,59 @@ His points and what was done:
   Heavy one-off parses now run in a short-lived child process (`_in_child` in `feeds.py`), VATSpy is kept compressed,
   UCS rows are read per request. Now ~154 MB steady, 159 MB peak (news still filling when measured).
 - Country and person dossiers: handed to a separate agent working in its own worktree (see its section when merged).
+### 2026-11-15, person dossier redesign and country dossier (built in a separate worktree, waiting for review)
+
+Owner: the person profile "is weird, like a long long Wikipedia intro"; wants a spy-movie dossier, clean and meaningful
+with signals. Country dossier: "very sophisticated and good and complex setup"; he approved the direction (full-page
+overlay, sections from our own feeds, counts and facts only).
+
+- **Person dossier** (`profile.js` rewritten; same overlay `#profile`, now a shared shell `shell()` used by both dossiers):
+  header (photo, name, flag per citizenship linking to that country's dossier, up to 3 current offices with since-dates,
+  age, Wikidata/Wikipedia links); **Signals** tiles from our feeds, each with source and age: outlets naming them in the
+  6 h GDELT windows (GKG V1Persons), "Reported at" (Leaders today, leaders only), aircraft listed with them in
+  plane-alert-db (name or operator match; surname tag only when the plane is registered in their country; office tags
+  POTUS / Air Force One / VPOTUS / Air Force Two for the current holder) with live position, unrest and airspace
+  warnings in their country, sanctions listed / not listed / not checked. Then headlines that name them (agency copies
+  once), Wikipedia intro cut to 2-3 sentences with "Read more", a record grid (born + place, nationality, current party
+  only, education, spouse with "until", children, parents, languages, religion, net worth P2218 with its date, official
+  accounts), offices (current + "N earlier" folded timeline), companies, memberships, honours.
+  Server: `/api/dossier/person/{qid}` in `dossier.py`; `people.py` now also reads P19, P27, P1412, P140, P2218, party end
+  dates, labels via `wbgetentities` (SPARQL fallback), and falls back to Wikipedia's REST page summary when the action API
+  answers 429 (it did, all afternoon, from the sandbox). Profile cache key bumped to `profile2:`.
+  The GDELT DOC "recent articles" list was dropped from the page: mostly unrelated hits; our own windows are better.
+- **Country dossier** (`dossier_country.js`, `/api/dossier/country?cc|fips|icao|name|qid|lat&lon`, `/api/dossier/countries`):
+  header (flag, capital, population with date, government type, heads of state/government linking to person dossiers),
+  travel advice (US State Department level + German Foreign Office warning flags, each with its date), "Right now" tiles
+  (unrest 24 h, airspace warnings, US TFRs for the US, navy warnings within 300 km, IODA outages, quakes in/within 100 km,
+  GDACS/EONET, VIP/government/doomsday aircraft inside the outline, military aircraft count, AIS warships within 200 km and
+  USNI carriers within 600 km, leaders the news placed there, news outlets), detail lists with "Show on map" (closes the
+  overlay and picks the item via `ww-pick`), top 10 news places with picture, "From above" (spy-pass button over the capital
+  reusing space.js's document-level handler; Maxar events), record (languages, currency, area, GDP with date, memberships,
+  ISO/FIPS codes). Footer says plainly that "what changed" needs a history store we do not have.
+  Opened from "Find a person or country" (countries match locally at once, people still from Wikidata) and a "Country
+  dossier" button (`countryBtn()` in util.js) in news, unrest, airspace, outages and leaders cards.
+- **Country table** (`geo.py`, `data/countries-geo.json`, 1.7 MB, built once on first use, not in git): Natural Earth
+  1:50m admin-0 (public domain: names, ISO, FIPS, Wikidata ids, outlines) + VATSpy's ICAO prefix list. Inside/outside by
+  scan-line crossings per 0.05° row (fast enough for 11,000 aircraft); distance by outline vertices bucketed per degree.
+  FIPS fixes by hand where Natural Earth has none (IL=IS, NO, PS=GZ/WE, SS=OD). Wikidata facts per country cached 30 days
+  in `lookups`; when the query service refuses, the item's own JSON (Special:EntityData) is read instead.
+- **Travel advice feed** (`travel.py`, feed `travel_advice`, every 6 h, no key): State Department RSS (country by the link's
+  ISO3 code, else the FIPS Country-Tag; Gaza/West Bank -> PS) and Auswärtiges Amt open data.
+- **Flags** still emoji, behind `flagMark()` in `flags.js` (no `static/flags/` existed in this branch); swap there.
+- Lessons: coastal capitals fall outside a 1:50m outline (Washington sits on the Potomac line, New York in the harbour), so
+  positions get 25 km of slack; that slack pulled Tulcea (Romania) and Lahore (Pakistan) into Ukraine and India, so a GDELT
+  place whose own last part names another country is excluded. Maxar events need their centre inside and no other
+  country named in the title (Nepal floods were showing for India). GDELT's person list includes people named once deep in
+  a text; the dossier lists only headlines naming them and counts the rest.
+- Verified in headless Chromium (light and dark), screenshots read: Trump, Modi, Netanyahu person dossiers; Iran, India,
+  Germany, Ukraine country dossiers (also US, Palestine via the API); search -> Germany; news card -> Country dossier ->
+  spy passes -> head of state -> person dossier. Peak memory 186 MB in the sandbox with everything warm (was ~175-180).
+- **Untested:** OpenSanctions with a real key (only the "not checked" path ran); NGA navy warnings (still 503 here, so
+  "near its coast" only had UKHO); world AIS warships (no key here); Wikidata SPARQL path for countries worked, the
+  EntityData fallback was written for the 429 case and ran only by reading; on his Mac the Wikipedia action API may answer
+  normally (then the full intro is used, cut client-side).
+- Open questions for him: is "listed with them" (plane-alert-db tags) the right wording for aircraft; should the person
+  dossier show politicians' parties' history; country names come from Natural Earth ("United States of America").
 
 ## Boundaries on the lookup tool
 

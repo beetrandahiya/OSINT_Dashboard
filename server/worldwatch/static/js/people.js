@@ -1,6 +1,6 @@
 // People layer: current heads of state and government at their countries. Click one for a full profile.
 // Profiles come from public records (Wikidata, Wikipedia, GDELT, optional OpenSanctions) via our server.
-import {ago, esc} from './util.js';
+import {ago, esc, countryBtn} from './util.js';
 import {openProfile} from './profile.js';
 
 let leaders = [], info = null;
@@ -124,7 +124,7 @@ export const leadersToday = {
         ${t.places.length > 1 ? `<dt>Also placed at</dt><dd>${t.places.slice(1).map(p => `${esc(p.place.split(',')[0])} <span class="soft">(${p.outlets})</span>`).join(', ')}</dd>` : ''}
         <dt>Articles naming them</dt><dd>${t.outlets} outlets</dd>
       </dl>
-      <button class="btn" data-act="profile:${esc(t.qid)}">Open the full profile</button>
+      <button class="btn" data-act="profile:${esc(t.qid)}">Open the dossier</button> ${countryBtn({name: t.country}, 'Dossier of ' + esc(t.country))}
       <ol class="stories">${t.articles.map(a => `<li>${a.image ? `<img src="${esc(img(a.image))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span class="st">
         <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><span class="by">${esc(a.outlet)} · ${esc(a.place.split(',')[0])} · ${ago(a.time)}</span></span></li>`).join('')}</ol>
       <p class="source">Source: GDELT news of the last ${todayInfo?.window_h || 6} hours and Wikidata's list of current leaders. An article counts when GDELT found the leader's name in it; its place is the city mentioned nearest to the name in the text (GDELT records where each name and place appears). Copies of one agency story count as one headline, and a place needs two different headlines. So this is where the news reported them, not where they are, and it can still be wrong when a name and a city sit close together by chance.</p>`;

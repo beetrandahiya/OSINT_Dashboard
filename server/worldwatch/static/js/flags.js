@@ -42,3 +42,9 @@ export function satFlags(owner, ucsFlags) {
   return o ? {ccs: [], name: o[1]} : null;
 }
 export const flagText = f => f ? (f.ccs ? f.ccs.map(emoji).join('') : emoji(f.cc)) : '';
+// One place that turns a country code into a flag on a card, so emoji can be swapped for drawn flags later.
+export function flagMark(cc, name) {
+  if (!cc || !/^[A-Za-z]{2}$/.test(cc)) return '';
+  const label = String(name || cc.toUpperCase()).replace(/[<>"&]/g, '');
+  return flagImg(cc, label);                      // plain SVG flag (flag-icons), not the wavy emoji
+}

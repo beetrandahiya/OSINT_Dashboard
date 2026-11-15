@@ -55,3 +55,7 @@ document.addEventListener('click', e => {
 
 // A button in a card that works out which spy satellites passed over this place (the work is done in space.js).
 export const spyPass = (lat, lon) => `<section class="pz spypass" id="spypass" data-lat="${lat}" data-lon="${lon}"><button class="btn" data-spypass>Which spy satellites passed over in the last 24 hours?</button></section>`;
+
+// A button in a card that opens the country dossier (dossier_country.js listens). Give whatever the source has:
+// {cc} ISO code, {fips} GDELT's code, {icao} a flight region, {name}, or {lat, lon}.
+export const countryBtn = (o, label = 'Country dossier') => `<button class="btn" data-dossier="${esc(JSON.stringify(o))}">${label}</button>`;

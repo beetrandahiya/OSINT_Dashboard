@@ -1,7 +1,7 @@
 // Airspace warnings and closures. Conflict-zone bulletins (EASA) and FAA prohibitions and notices are drawn on the
 // flight regions they name (outlines from VATSpy, community-drawn, approximate); a region covered by several warnings
 // is drawn once, in its strongest level, and its card lists them all. US temporary flight restrictions have exact shapes.
-import {ago, esc, local} from './util.js';
+import {ago, esc, local, countryBtn} from './util.js';
 
 const SRC = 'ww-airspace';
 let zones = [], tfrs = [], firs = new Map(), info = null;
@@ -67,6 +67,7 @@ export default {
     return `<p class="eyebrow">Airspace warning · flight region ${esc(f.code)}</p>
       <h2>${esc(f.zones.find(z => z.source === 'EASA')?.title || f.zones[0].title)}</h2>
       <p class="where">${f.strong ? 'Airlines told not to fly here, in part or all' : 'Airlines told to take care'}</p>
+      ${countryBtn({icao: f.code})}
       ${f.zones.map(z => z.source === 'EASA' ? `<section class="pz"><h3>EASA ${esc(z.number)} · ${z.level === 'avoid' ? 'do not operate (in part or all)' : 'caution'}</h3>
           <p class="soft">Issued ${esc(z.issued)}${z.revised ? ', revised ' + esc(z.revised) : ''}${z.valid_until ? ', valid until ' + esc(z.valid_until) : ''}</p>
           ${z.affected ? `<p><b>Affected airspace:</b> ${esc(z.affected)}</p>` : ''}
