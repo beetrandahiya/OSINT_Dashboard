@@ -19,18 +19,18 @@ const imgUrl = (c, u) => c.src === 'sg' ? '/api/cam/image?sg=' + encodeURICompon
 export default {
   id: 'cameras', title: 'Cameras', color: ['#0071a4', '#64d2ff'], feeds: {cameras: 21600}, defaultOff: true,
   layers: ['ww-cams', 'ww-cams-windy'],
-  about: () => 'Public cameras: road and traffic cameras of London, New York, California, Singapore, Hong Kong and Finland, and, with a free key, Windy\'s public webcams worldwide (from zoom 5).',
+  about: () => 'Public cameras: road and traffic cameras of London, New York, California, Singapore, Hong Kong and Finland, and, with a free key, Windy\'s public webcams worldwide (from zoom 3).',
   addTo(map) {
     map.addSource('ww-cams', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-cams', type: 'circle', source: 'ww-cams',
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 2, 10, 5.5, 14, 8], 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, 0, 9, 1.2]}});
     // Windy's public webcams worldwide (free key): asked for the box on screen from zoom 5, up to 50 at a time
     map.addSource('ww-cams-windy', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-cams-windy', type: 'circle', source: 'ww-cams-windy', minzoom: 5,
+    map.addLayer({id: 'ww-cams-windy', type: 'circle', source: 'ww-cams-windy', minzoom: 3,
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 10, 6, 14, 8], 'circle-stroke-width': 1.2}});
     let busy = false, again = false;
     const pull = async () => {
-      if (map.getZoom() < 5 || map.getLayoutProperty('ww-cams', 'visibility') === 'none') return;
+      if (map.getZoom() < 3 || map.getLayoutProperty('ww-cams', 'visibility') === 'none') return;
       if (busy) { again = true; return; }
       busy = true;
       const b = map.getBounds();
@@ -49,7 +49,7 @@ export default {
     map.on('moveend', pull);
     this.pull = pull;
   },
-  visible(on) { if (on) this.pull?.(); },
+  visible(on) { if (on) setTimeout(() => this.pull?.(), 0); },   // after main.js has made the layer visible
   paint(map, dark) {
     map.setPaintProperty('ww-cams', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-cams', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');

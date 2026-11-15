@@ -1193,3 +1193,15 @@ Agent's research findings worth keeping:
   (`line-gradient` on a lineMetrics source) and arrival pulses, one per event with its own phase, max 120, only while the
   layer is on, off under Reduce Motion; card says streaks show direction, not live traffic.
   **Copernicus EMS** no longer marked late (activations are irregular); USNI stays late (it really stopped publishing).
+
+### 2026-11-15 night, Windy on the map and ship photos from a web image search
+
+- **Windy showed nothing**: the server answered (29 Munich cams with his key) but the page only asked from zoom 5. Now
+  from zoom 3, and once as soon as the layer is switched on (`cameras.js`).
+- **Ship photos like Google shows** (he had asked before and I only added links): Google's image search API is closed
+  to new customers, so `/api/ship/photos` asks the **Brave Search image API** (key in `data/brave-key.txt` or
+  `WW_BRAVE_KEY`, header `X-Subscription-Token`; free plan is a monthly credit, needs a card). Query `"<name>" IMO <n>`;
+  a result is kept only when its title or address carries the IMO number or the ship's name; up to 4, cached 30 days
+  per ship in `lookups`. The card shows them only when Wikimedia has no picture, each linked to its page with the
+  site's name, and says the pictures belong to their photographers. Thumbnails load from Brave's image proxy.
+  **Untested with a real key** (none here); without a key the card keeps the search links.

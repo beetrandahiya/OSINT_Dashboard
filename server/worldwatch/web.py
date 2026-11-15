@@ -55,7 +55,7 @@ async def status(request):
     s = collector.status()
     s["feeds"] = [_ships_world_state(f) if f["name"] == "ships_world" else f for f in s["feeds"]]
     s["feeds"].append({"name": "windy", "layer": "Public webcams worldwide", "source": "Windy", "home": "https://www.windy.com/webcams",
-                       "interval": None, "limit_note": "asked only for the area on screen, from zoom 5, with the Cameras chip on; 50 at a time (free key)",
+                       "interval": None, "limit_note": "asked only for the area on screen, from zoom 3, with the Cameras chip on; the 50 most popular at a time (free key)",
                        "state": ("waiting" if not config.windy_key() else "failing" if _WINDY_LAST["error"] else "ok"),
                        "fetched": _WINDY_LAST["time"], "data_time": _WINDY_LAST["time"], "items": _WINDY_LAST["cams"], "error": _WINDY_LAST["error"],
                        "note": ("not set up: put a free Windy Webcams key in data/windy-key.txt" if not config.windy_key()
@@ -341,6 +341,46 @@ async def ship_trail(request):
     except ValueError:
         return JSONResponse({"error": "not an MMSI"}, status_code=400)
     return JSONResponse({"mmsi": mmsi, "points": ais_stream.trail(mmsi), "since": ais_stream.t0})
+
+
+async def ship_photos(request):
+    """Photos of a ship from Brave Search's image search (key in data/brave-key.txt), for when Wikimedia has none: the
+    same kind of results an image search in a browser gives (VesselFinder, ShipSpotting, MarineTraffic...). Only results
+    whose title or page names the ship's IMO number or its name are kept. Remembered 30 days, so a ship costs one search."""
+    key = config.brave_key()
+    if not key:
+        return JSONResponse({"error": "not set up: no Brave Search key in data/brave-key.txt", "photos": []})
+    q = request.query_params
+    name, imo = (q.get("name") or "").strip(), re.sub(r"\D", "", q.get("imo") or "")
+    if not name and not imo:
+        return JSONResponse({"error": "name or imo needed", "photos": []}, status_code=400)
+    ck = f"shipphotos:{imo}:{name.lower()}"
+    hit = await asyncio.to_thread(db.lookup_get, ck, 30 * 86400)
+    if hit:
+        return JSONResponse(hit["body"])
+    query = f'"{name}" IMO {imo}' if imo and name else (f"IMO {imo} ship" if imo else f'"{name}" ship')
+    try:
+        async with httpx.AsyncClient(timeout=20, headers={"Accept": "application/json", "X-Subscription-Token": key}) as c:
+            r = await c.get("https://api.search.brave.com/res/v1/images/search", params={"q": query, "count": 20, "safesearch": "strict"})
+            if r.status_code in (401, 403, 422, 429):
+                return JSONResponse({"error": f"Brave answered HTTP {r.status_code}: {r.text[:160]}", "photos": []})
+            r.raise_for_status()
+            d = r.json()
+    except (httpx.HTTPError, ValueError) as e:
+        return JSONResponse({"error": f"Brave Search did not answer ({type(e).__name__})", "photos": []})
+    nm = re.sub(r"\W+", " ", name.lower()).strip()
+    photos = []
+    for x in d.get("results", []):
+        text = " ".join(str(x.get(k) or "") for k in ("title", "url")).lower()
+        if (imo and imo in text) or (nm and nm in re.sub(r"\W+", " ", text)):
+            th = (x.get("thumbnail") or {}).get("src")
+            if th:
+                photos.append({"thumb": th, "page": x.get("url"), "source": x.get("source") or (x.get("meta_url") or {}).get("hostname"), "title": x.get("title")})
+        if len(photos) >= 4:
+            break
+    body = {"photos": photos, "query": query}
+    await asyncio.to_thread(db.lookup_put, ck, time.time(), body)
+    return JSONResponse(body)
 
 
 async def ship_about(request):
@@ -878,6 +918,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/sites/areas", military_areas),
     Route("/api/cable/{cid}", cable_about),
     Route("/api/cam/image", camera_image),
+    Route("/api/ship/photos", ship_photos),
     Route("/api/sanctioned/live", sanctioned_live),
     Route("/api/news/spikes", news_spikes),
     Route("/api/cam/windy", windy_cams),

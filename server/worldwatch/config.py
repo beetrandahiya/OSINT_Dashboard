@@ -57,3 +57,13 @@ def windy_key() -> str | None:
         return os.environ["WW_WINDY_KEY"].strip()
     f = DATA / "windy-key.txt"
     return (f.read_text().strip() or None) if f.exists() else None
+
+
+def brave_key() -> str | None:
+    """A Brave Search API key (free monthly credit), for ship photos when Wikimedia has none. data/brave-key.txt or
+    WW_BRAVE_KEY. Never in git."""
+    import os
+    if os.environ.get("WW_BRAVE_KEY"):
+        return os.environ["WW_BRAVE_KEY"].strip()
+    f = DATA / "brave-key.txt"
+    return (f.read_text().strip() or None) if f.exists() else None
