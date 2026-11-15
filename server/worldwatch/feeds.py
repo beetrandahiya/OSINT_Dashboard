@@ -177,6 +177,9 @@ async def launches(feed: Feed, f: Fetcher) -> Result:
             "pad": pad.get("name"), "site": (pad.get("location") or {}).get("name"),
             "lat": pad.get("latitude"), "lon": pad.get("longitude"),
             "updated": r.get("last_updated"), "image": (r.get("image") or {}).get("thumbnail_url"),
+            "orbit": ((r.get("mission") or {}).get("orbit") or {}).get("name"),
+            "mission": ((r.get("mission") or {}).get("description") or "")[:600] or None,
+            "window": [r.get("window_start"), r.get("window_end")],
         })
     upd = [_iso(x["updated"]) for x in out if x["updated"]]
     return Result(len(out), {"launches": out}, data_time=max(upd) if upd else None, note="data time is the newest edit to a launch entry")

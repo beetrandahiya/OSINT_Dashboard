@@ -277,9 +277,50 @@ let refresh = null;
 export const onSatChange = fn => { refresh = fn; };
 
 const net = l => Date.parse(l.net) / 1000;
+
+// ---- launch corridors: the official hazard areas published for a launch, joined to its pad ----
+// A US flight restriction of type SPACE OPERATIONS within 150 km of the pad whose dates name the launch day, and
+// navy rocket / space-debris warnings within 4,000 km whose own date-time groups include the launch day (UTC,
+// one day either side for slips). Nothing is drawn from a guess: no area, no corridor.
+let airInfo = null, navInfo = null;
+const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const kmApart = (a, b) => { const r = Math.PI / 180, x = Math.sin((b[1] - a[1]) * r / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin((b[0] - a[0]) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
+const ringMid = rings => { let x = 0, y = 0, n = 0; for (const r of rings) for (const p of r) { x += p[0]; y += p[1]; n++; } return [x / n, y / n]; };
+function launchDays(l) { const d = new Date(Date.parse(l.net)); return [-1, 0, 1].map(k => new Date(d.getTime() + k * 86400000)); }
+function corridor(l) {
+  if (l.lat == null) return null;
+  const pad = [l.lon, l.lat], days = launchDays(l), areas = [];
+  for (const t of airInfo?.payload.tfrs || []) {
+    if (!/SPACE/i.test(t.type || '')) continue;
+    const mid = ringMid(t.polys);
+    if (kmApart(pad, mid) > 150) continue;
+    if (!days.some(d => (t.where || '').includes(`${MONTH[d.getUTCMonth()]} ${d.getUTCDate()},`))) continue;
+    areas.push({kind: 'US flight restriction', ref: 'NOTAM ' + t.notam, rings: t.polys, mid});
+  }
+  for (const w of navInfo?.payload.warnings || []) {
+    if (w.kind !== 'rocket') continue;
+    const rings = w.geoms.filter(g => g.type === 'Polygon').map(g => g.coordinates[0]);
+    if (!rings.length) continue;
+    const mid = ringMid(rings);
+    if (kmApart(pad, mid) > 4000) continue;
+    const text = w.text.toUpperCase();
+    const named = days.some(d => new RegExp(`\\b${String(d.getUTCDate()).padStart(2, '0')}\\d{4}Z(?:\\s+TO\\s+\\d{6}Z)?\\s+${MON[d.getUTCMonth()]}\\b`).test(text) ||
+      new RegExp(`\\b${d.getUTCDate()}\\s+(?:THRU|TO|AND|-)?\\s*\\d*\\s*${MON[d.getUTCMonth()]}\\b`).test(text));
+    if (!named) continue;
+    areas.push({kind: 'Navy rocket warning', ref: w.ref, rings, mid});
+  }
+  if (!areas.length) return null;
+  areas.sort((a, b) => kmApart(pad, a.mid) - kmApart(pad, b.mid));
+  return {pad, areas, line: [pad, ...areas.map(a => a.mid)]};
+}
 export const launches = {
-  id: 'launches', title: 'Launches', color: ['#00a3b4', '#40c8e0'], feeds: {launches: 300}, layers: ['ww-launches', 'ww-launches-label'],
+  id: 'launches', title: 'Launches', color: ['#00a3b4', '#40c8e0'], feeds: {launches: 300, airspace: 900, navwarn: 600},
+  layers: ['ww-corridor-fill', 'ww-corridor-line', 'ww-launches', 'ww-launches-label'],
   addTo(map) {
+    map.addSource('ww-corridor', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addLayer({id: 'ww-corridor-fill', type: 'fill', source: 'ww-corridor', filter: ['==', ['geometry-type'], 'Polygon'], paint: {'fill-opacity': 0.18}});
+    map.addLayer({id: 'ww-corridor-line', type: 'line', source: 'ww-corridor', paint: {'line-width': 1.6, 'line-dasharray': [3, 2]}});
     map.addSource('ww-launches', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-launches', type: 'circle', source: 'ww-launches', paint: {'circle-radius': 9, 'circle-opacity': 0.95, 'circle-stroke-width': 1.2}});
     map.addLayer({id: 'ww-launches-label', type: 'symbol', source: 'ww-launches',
@@ -287,10 +328,20 @@ export const launches = {
   },
   paint(map, dark) {
     map.setPaintProperty('ww-launches', 'circle-color', this.color[+dark]);
+    map.setPaintProperty('ww-corridor-fill', 'fill-color', this.color[+dark]);
+    map.setPaintProperty('ww-corridor-line', 'line-color', this.color[+dark]);
     map.setPaintProperty('ww-launches', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
-  onData(feed, d) { launchInfo = d; launchList = d.payload.launches; },
+  onData(feed, d) { if (feed === 'airspace') airInfo = d; else if (feed === 'navwarn') navInfo = d; else { launchInfo = d; launchList = d.payload.launches; } },
   render(map) {
+    const feats = [], t0 = now();
+    for (const l of launchList) {
+      if (net(l) > t0 + 4 * 86400 || net(l) < t0 - 6 * 3600) continue;    // corridors for the next four days only
+      const c = corridor(l); if (!c) continue;
+      for (const a of c.areas) for (const r of a.rings) feats.push({type: 'Feature', geometry: {type: 'Polygon', coordinates: [r]}, properties: {id: l.id}});
+      feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: c.line}, properties: {id: l.id}});
+    }
+    map.getSource('ww-corridor').setData({type: 'FeatureCollection', features: feats});
     const sites = new Map();   // several launches can share a site: one marker, labelled with how many
     for (const l of launchList) if (l.lat != null) { const k = l.site; sites.set(k, {l: sites.get(k)?.l ?? l, n: (sites.get(k)?.n ?? 0) + 1}); }
     map.getSource('ww-launches').setData({type: 'FeatureCollection', features: [...sites.values()].map(({l, n}) => (
@@ -316,8 +367,13 @@ export const launches = {
         <dt>Status</dt><dd>${esc(l.status || 'not given')}</dd>
         <dt>Pad</dt><dd>${esc(l.pad || 'not given')}</dd>
         <dt>Site</dt><dd>${esc(l.site || 'not given')}</dd>
+        ${l.orbit ? `<dt>Target orbit</dt><dd>${esc(l.orbit)}</dd>` : ''}
       </dl>
+      ${l.mission ? `<p class="prof-intro">${esc(l.mission)}</p>` : ''}
+      ${(() => { const c = corridor(l); return c ? `<section class="pz"><h3>Official hazard areas for this launch</h3><ul class="pz-list">${c.areas.map(a => `<li>${esc(a.kind)} <span class="soft">· ${esc(a.ref)} · ${Math.round(kmApart(c.pad, a.mid)).toLocaleString('en-GB')} km from the pad</span></li>`).join('')}</ul>
+        <p class="source">Drawn on the map with a dashed line from the pad through them, nearest first. The line only joins published areas: it shows the direction the rocket is expected to fly, not its path or height.</p></section>`
+        : `<p class="source">No published hazard area matched this launch yet (US flight restrictions near the pad, navy rocket warnings naming the launch day).</p>`; })()}
       ${same.length ? `<p class="source">Also listed from this site: ${same.map(x => esc(x.name)).join('; ')}.</p>` : ''}
-      <p class="source">Source: Launch Library 2 (The Space Devs). This entry was last edited ${l.updated ? ago(Date.parse(l.updated) / 1000) : 'at an unknown time'}; we fetched the list ${ago(launchInfo.fetched)}. Launch times slip often. No flight path is drawn because none is published.</p>`;
+      <p class="source">Source: Launch Library 2 (The Space Devs). This entry was last edited ${l.updated ? ago(Date.parse(l.updated) / 1000) : 'at an unknown time'}; we fetched the list ${ago(launchInfo.fetched)}. Launch times slip often. The flight path itself is not published by anyone, so it is not drawn.</p>`;
   },
 };

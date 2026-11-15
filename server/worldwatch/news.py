@@ -97,7 +97,8 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
         if not best or not m or not m.group(1).strip():
             continue
         img = r[18].strip() if r[18].startswith("https://") else None
-        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img))
+        persons = r[11][:400] if len(r) > 11 else ""          # V1Persons: the people GDELT found named in the article
+        rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons))
     return rows
 
 
@@ -170,7 +171,8 @@ PER_PLACE = 8          # articles per place sent with the map data; a card asks 
 def places(win: Window) -> list[dict]:
     """Count distinct outlets per place over the window; keep each outlet's newest article."""
     by: dict[str, dict] = {}
-    for published, (place, lat, lon, outlet, title, url, lang, img) in win.articles():
+    for published, row in win.articles():
+        place, lat, lon, outlet, title, url, lang, img = row[:8]
         c = by.setdefault(place, {"place": place, "lat": lat, "lon": lon, "outlets": {}, "last": 0})
         old = c["outlets"].get(outlet)
         if not old or published > old["time"]:
@@ -189,7 +191,8 @@ def place_articles(name: str) -> list[dict]:
     """Every article of one place in both windows, newest first, one per outlet."""
     seen = {}
     for win in (english, translated):
-        for published, (place, lat, lon, outlet, title, url, lang, img) in win.articles():
+        for published, row in win.articles():
+            place, lat, lon, outlet, title, url, lang, img = row[:8]
             if place == name and (outlet not in seen or published > seen[outlet]["time"]):
                 seen[outlet] = {"outlet": outlet, "title": title, "url": url, "lang": lang, "image": img, "time": published}
     return sorted(seen.values(), key=lambda a: -a["time"])
@@ -204,3 +207,75 @@ def images() -> set[str]:
     if key != _imgs["key"]:
         _imgs.update(key=key, set={row[7] for win in (english, translated) for _, row in win.articles() if row[7]})
     return _imgs["set"]
+
+
+def _norm(name: str) -> str:
+    import unicodedata
+    n = unicodedata.normalize("NFKD", name.lower())
+    return " ".join("".join(c for c in n if not unicodedata.combining(c)).replace("-", " ").split())
+
+
+_ALIAS = {"people's republic of china": "china", "united states of america": "united states", "russian federation": "russia",
+          "state of palestine": "palestine", "republic of the congo": "congo", "kingdom of the netherlands": "netherlands",
+          "czech republic": "czechia", "ivory coast": "cote d'ivoire", "east timor": "timor-leste"}
+
+
+def _abroad(place: str, country: str) -> bool:
+    """True when the place GDELT gives is in another country than the leader's (compared by name)."""
+    here = _norm(place.split(",")[-1]) if place else ""
+    home = _norm(_ALIAS.get(country.lower(), country))
+    if here in ("palestine", "gaza strip", "west bank") and home == "palestine":
+        return False
+    return bool(here) and here not in home and home not in here
+
+
+def _headline(t: str) -> str:
+    t = re.sub(r"\s+[-|–]\s+[^-|–]{2,40}$", "", t.lower())       # drop " - Outlet name" endings
+    return re.sub(r"\W+", " ", t).strip()
+
+
+def leaders_today(leaders: list[dict]) -> list[dict]:
+    """For each leader: the places that articles naming them were pinned to in the last six hours, counted by
+    distinct outlets. A place is the first city an article mentions, which is usually its dateline. This says where
+    the news reported them, not where they are."""
+    names = {}
+    for l in leaders:
+        n = _norm(l["name"])
+        if len(n.split()) >= 2:                     # single names (some monarchs) would match too much
+            names.setdefault(n, []).append(l)
+    hits: dict[str, dict] = {}
+    for win in (english, translated):
+        for published, row in win.articles():
+            if len(row) < 9 or not row[8]:
+                continue
+            raw = [p for p in row[8].split(";") if p]
+            if len(raw) > 12:                       # "today in history" and round-ups name dozens of people: no place to learn
+                continue
+            persons = {_norm(p) for p in raw}
+            for n in persons & names.keys():
+                for l in names[n]:
+                    h = hits.setdefault(l["qid"], {"leader": l, "places": {}, "articles": {}})
+                    pl = h["places"].setdefault(row[0], {"place": row[0], "lat": row[1], "lon": row[2], "outlets": set(), "heads": set(), "last": 0})
+                    pl["outlets"].add(row[3])
+                    pl["heads"].add(_headline(row[4]))
+                    pl["last"] = max(pl["last"], published)
+                    old = h["articles"].get(row[3])
+                    if not old or published > old["time"]:
+                        h["articles"][row[3]] = {"outlet": row[3], "title": row[4], "url": row[5], "lang": row[6], "image": row[7],
+                                                 "place": row[0], "time": published}
+    out = []
+    for h in hits.values():
+        # One agency story reprinted by twenty papers is one report: places rank by distinct headlines first, and the
+        # leading place needs at least two different headlines from two outlets.
+        places = sorted(({**p, "outlets": len(p["outlets"]), "headlines": len(p["heads"])} for p in h["places"].values()),
+                        key=lambda p: (-p["headlines"], -p["outlets"]))
+        for p in places:
+            del p["heads"]
+        if places[0]["headlines"] < 2 or places[0]["outlets"] < 2:
+            continue
+        arts = sorted(h["articles"].values(), key=lambda a: (a["place"] != places[0]["place"], -(a["image"] is not None), -a["time"]))
+        l = h["leader"]
+        out.append({"abroad": _abroad(places[0]["place"], l["country"]), "qid": l["qid"], "name": l["name"], "role": l["role"], "country": l["country"], "home": [l["lon"], l["lat"]],
+                    "place": places[0], "places": places[:6], "outlets": len(h["articles"]), "articles": arts[:10]})
+    out.sort(key=lambda x: -x["outlets"])
+    return out

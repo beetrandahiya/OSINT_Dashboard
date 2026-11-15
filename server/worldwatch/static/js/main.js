@@ -12,7 +12,7 @@ import hazards from './hazards.js';
 import cables from './cables.js';
 import {rain, night, aurora, photo, onPhoto} from './sky.js';
 import fires from './fires.js';
-import people from './people.js';
+import people, {leadersToday} from './people.js';
 import {openProfile} from './profile.js';
 import ships from './ships.js';
 import gps from './gps.js';
@@ -20,8 +20,8 @@ import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, night, aurora, gps, airspace, cables, fires, ships, people, civil, military, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain];
-const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, satellites, launches, ships, people, fires, gps, cables, rain, night, aurora, photo];
+const LAYERS = [photo, night, aurora, gps, airspace, cables, fires, ships, people, leadersToday, civil, military, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, satellites, launches, ships, people, leadersToday, fires, gps, cables, rain, night, aurora, photo];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -73,13 +73,13 @@ map.on('load', () => {
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
-      .filter(x => x.properties.id != null || x.properties.qid != null).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
+      .filter(x => x.properties.id != null || x.properties.qid != null || x.properties.cluster).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
     if (!f) { for (const l of LAYERS) { const id = on[l.id] && l.hit?.(e.point); if (id) return pick({layer: l.id, id}); } return pick(null); }
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     if (layer.pick && layer.pick(f.properties) === false) return;
     pick({layer: layer.id, id: f.properties.id});
   });
-  map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null) ? 'pointer' : ''; });
+  map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null || x.properties.cluster) ? 'pointer' : ''; });
   setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
 });

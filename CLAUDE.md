@@ -561,6 +561,35 @@ Research, measured from the sandbox 2026-11-15:
   per NOTAM). FIRs drawn from VATSpy, one shape per FIR in its strongest level, card lists every warning. Unmapped
   codes are kept in the data (e.g. OLBA, UKBU).
 
+### 2026-11-15, his review and the next build
+
+Owner: protests and clashes "really good, well done"; airspace and navy warnings good; satellite pictures "cool,
+not much information"; leaders today good. News "a bit too crowded": he picked merging nearby places and weight by
+importance (not the fade by age). Asked for launch corridors with "an expected trajectory in 3d". **Cameras: he
+says he will work on them himself.** My standing refusal of unsecured private cameras stands; public webcams fine.
+
+Built:
+- **News declutter** (`news.js`): MapLibre clustering up to zoom 5 (bubble = number of places, size = summed outlet
+  counts, click zooms in via the layer's `pick`); single places with 1-2 outlets are faint 2.5-3 px dots, 3+ full,
+  numbers only from 10. `main.js` click/hover now accept cluster features.
+- **Satellite picture in cards** (`skyShot()` in `util.js`): GIBS WMS GetMap, NOAA-20 VIIRS true colour, ~165 km box,
+  yesterday by default with Today / Yesterday / 2 days ago buttons, pin at the centre. In news, unrest and disaster
+  cards. 375 m pixels: a city is a smudge; useful for smoke, floods, storms. HLS (30 m) answered blank from GIBS.
+- **Leaders today** (`news.leaders_today`, `/api/people/today`, `leadersToday` in `people.js`): GKG V1Persons kept
+  per article (row field 9), matched (accent-folded) to the cached Wikidata leaders list; place = the article's
+  pinned city. Rules learned on real data: copies of one agency story count once (distinct normalised headlines;
+  a "Today in History" piece had put Abbas at Pikes Peak), the leading place needs 2+ headlines and 2+ outlets,
+  articles naming more than 12 people are skipped. "Abroad" compares country names, not distance (the country
+  point of the US is in Kansas, which made Trump in Washington "abroad"). Shown: 38 leaders, e.g. an ASEAN-week
+  cluster in Manila (Carney, Albanese, Li Qiang, Wong, Prabowo). Known GDELT errors remain (Ramaphosa at "Kayode,
+  Nigeria"; Kallas listed as Estonia's leader is Wikidata's data).
+- **Launch corridors** (`corridor()` in `space.js`): for launches in the next 4 days, US SPACE OPERATIONS TFRs within
+  150 km of the pad whose text names the launch day (+-1), and navy rocket warnings within 4,000 km whose date-time
+  groups name the day; drawn as areas plus a dashed line pad -> areas, nearest first. Card lists them. Vulcan
+  Amazon Leo LV-01 matched 3 TFRs. **No 3D ascent trajectory**: nobody publishes one and drawing one would be invented
+  (God's Eye View's synthesized launch paths were the criticism). Told him the honest options.
+  LL2 fields now also carried: target orbit, mission text, window.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

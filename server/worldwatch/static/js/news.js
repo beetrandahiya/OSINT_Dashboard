@@ -2,11 +2,12 @@
 // many different outlets did. That count is the only number shown; nothing is scored or ranked beyond it.
 // Pictures are the outlets' own preview images, fetched through our server (/api/news/image) so outlets never see
 // the browser. Headlines in other languages are machine-translated: the leading one at once, the rest when a card opens.
-import {ago, esc, local, utc} from './util.js';
+import {ago, esc, local, skyShot, utc} from './util.js';
 
 const SRC = 'ww-news', LIST_MIN_OUTLETS = 3;
 let places = [], sets = {}, langs = {eng: 'English'};
-const full = new Map();   // place -> every article, fetched when its card opens
+const full = new Map();
+let mapRef = null;   // place -> every article, fetched when its card opens
 
 export const img = u => u ? '/api/news/image?u=' + encodeURIComponent(u) : null;
 
@@ -43,20 +44,40 @@ function storyList(arts) {
 }
 
 export default {
-  id: 'news', title: 'News', color: ['#ff3b30', '#ff453a'], feeds: {news: 60, news_translated: 120}, layers: ['ww-news', 'ww-news-label'],
+  id: 'news', title: 'News', color: ['#ff3b30', '#ff453a'], feeds: {news: 60, news_translated: 120}, layers: ['ww-news-group', 'ww-news-group-label', 'ww-news', 'ww-news-label'],
 
   addTo(map) {
-    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    const size = ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 3, 2, 5.5, 4, 10, 8, 17, 14, 26];
-    map.addLayer({id: 'ww-news', type: 'circle', source: SRC, layout: {'circle-sort-key': ['get', 'n']},
-      paint: {'circle-radius': size, 'circle-opacity': 0.86, 'circle-stroke-width': 1.2}});
-    map.addLayer({id: 'ww-news-label', type: 'symbol', source: SRC, filter: ['>=', ['get', 'n'], 6],
+    mapRef = map;
+    // Nearby places merge into one bubble while zoomed out (Apple Maps clusters overlapping points the same way):
+    // its number is how many places it holds, its size the outlets they add up to. Zooming in splits it.
+    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}, cluster: true, clusterRadius: 34, clusterMaxZoom: 5,
+      clusterProperties: {sum: ['+', ['get', 'n']], top: ['max', ['get', 'n']]}});
+    const size = ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 2.5, 2, 3, 3, 6, 6, 11, 14, 24];
+    map.addLayer({id: 'ww-news-group', type: 'circle', source: SRC, filter: ['has', 'point_count'], layout: {'circle-sort-key': ['get', 'sum']},
+      paint: {'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'sum']], 1, 7, 6, 11, 14, 18, 30, 28], 'circle-opacity': 0.28, 'circle-stroke-width': 1.5}});
+    map.addLayer({id: 'ww-news-group-label', type: 'symbol', source: SRC, filter: ['has', 'point_count'],
+      layout: {'text-field': ['to-string', ['get', 'point_count']], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}});
+    // Single places: one or two outlets are small faint dots; three or more full circles; ten or more carry their number.
+    map.addLayer({id: 'ww-news', type: 'circle', source: SRC, filter: ['!', ['has', 'point_count']], layout: {'circle-sort-key': ['get', 'n']},
+      paint: {'circle-radius': size, 'circle-opacity': ['case', ['<', ['get', 'n'], 3], 0.4, 0.88], 'circle-stroke-width': ['case', ['<', ['get', 'n'], 3], 0, 1.2]}});
+    map.addLayer({id: 'ww-news-label', type: 'symbol', source: SRC, filter: ['all', ['!', ['has', 'point_count']], ['>=', ['get', 'n'], 10]],
       layout: {'text-field': ['to-string', ['get', 'n']], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true},
       paint: {'text-color': '#ffffff'}});
   },
   paint(map, dark) {
-    map.setPaintProperty('ww-news', 'circle-color', this.color[+dark]);
+    const c = this.color[+dark];
+    map.setPaintProperty('ww-news', 'circle-color', c);
     map.setPaintProperty('ww-news', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    map.setPaintProperty('ww-news-group', 'circle-color', c);
+    map.setPaintProperty('ww-news-group', 'circle-stroke-color', c);
+    map.setPaintProperty('ww-news-group-label', 'text-color', dark ? '#ffffff' : '#1c1c1e');
+  },
+  // A click on a merged bubble zooms in until it splits; it never opens a card of its own.
+  pick(props) {
+    if (!props.cluster || !mapRef) return true;
+    const f = mapRef.querySourceFeatures(SRC, {filter: ['==', ['get', 'cluster_id'], props.cluster_id]})[0];
+    mapRef.getSource(SRC).getClusterExpansionZoom(props.cluster_id).then(z => mapRef.easeTo({center: f ? f.geometry.coordinates : mapRef.getCenter(), zoom: Math.min(z + 0.2, 8)}));
+    return false;
   },
   onData(feed, d) { sets[feed] = d.payload; if (d.payload?.languages) langs = {...langs, ...d.payload.languages}; merge(); },
   render(map) {
@@ -82,6 +103,7 @@ export default {
       <p class="where">${esc(rest(p))}${rest(p) ? ' · ' : ''}${p.outlets} ${p.outlets === 1 ? 'outlet' : 'outlets'} · newest ${ago(p.last)}</p>
       ${hero ? `<img class="news-hero" src="${esc(img(hero.image))}" alt="" onerror="this.remove()">` : ''}
       <div id="more">${storyList(arts)}${full.has(id) ? '' : (p.outlets > p.articles.length ? `<p class="source">Loading all ${p.outlets} outlets…</p>` : '')}</div>
+      ${skyShot(p.lat, p.lon)}
       <p class="source">Source: GDELT, files from the last ${e?.window_h || 6} hours. English: ${e ? `${e.files} files, newest published ${utc(e.newest)} (${ago(e.newest)})` : 'not loaded yet'}. Other languages: ${t ? `${t.files} files, newest ${utc(t.newest)} (${ago(t.newest)}; GDELT releases them about an hour late)` : 'not loaded yet'}. GDELT's software reads each article and picks out place names, so a story can land on a place it only mentions in passing. Identical headlines are shown once. Pictures are each outlet's own preview image. Headlines in other languages are translated by machine (Google Translate) and can be wrong; the original is shown beneath.</p>`;
   },
   async fill(id) {

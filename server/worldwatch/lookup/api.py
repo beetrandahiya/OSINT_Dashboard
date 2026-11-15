@@ -253,6 +253,17 @@ async def people_profile(request):
     return JSONResponse({**hit["body"], "fetched": hit["fetched"], "now": time.time()}, headers={"Cache-Control": "no-store"})
 
 
+async def people_today(request):
+    """Where the news placed each head of state or government in the last six hours (see news.leaders_today)."""
+    from .. import news as news_window
+    hit = store.cache_get("leaders", 30 * 86400)
+    if not hit:
+        return JSONResponse({"today": [], "note": "the list of leaders has not been loaded yet", "now": time.time()})
+    body = await asyncio.to_thread(news_window.leaders_today, hit["body"])
+    return JSONResponse({"today": body, "window_h": news_window.WINDOW // 3600, "newest": news_window.english.newest(), "now": time.time()},
+                        headers={"Cache-Control": "no-store"})
+
+
 async def people_leaders(request):
     hit, note = store.cache_get("leaders", 12 * 3600), None
     if not hit:
@@ -273,5 +284,6 @@ async def people_leaders(request):
 routes += [
     Route("/api/people/search", people_search),
     Route("/api/people/leaders", people_leaders),
+    Route("/api/people/today", people_today),
     Route("/api/people/profile/{qid}", people_profile),
 ]
