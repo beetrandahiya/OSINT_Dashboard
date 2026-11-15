@@ -11,7 +11,7 @@ import time
 
 import httpx
 
-from .. import config
+from .. import config, geo
 from . import store
 
 WDQS = "https://query.wikidata.org/sparql"
@@ -92,12 +92,41 @@ async def _basics(client, qid):
         if v and name:
             socials[name] = "https://" + name + v
     out["socials"] = socials
+
+    def items(pid):
+        return [st["mainsnak"]["datavalue"]["value"]["id"] for st in claims.get(pid, [])
+                if st.get("rank") != "deprecated" and isinstance(st.get("mainsnak", {}).get("datavalue", {}).get("value"), dict)
+                and "id" in st["mainsnak"]["datavalue"]["value"]]
+    out["refs"] = {"birthplace": items("P19")[:1], "citizenship": items("P27"), "languages": items("P1412"), "religion": items("P140")}
+    worth = None                                   # net worth (P2218): the statement with the newest "point in time"
+    for st in claims.get("P2218", []):
+        v = st.get("mainsnak", {}).get("datavalue", {}).get("value")
+        if not isinstance(v, dict) or "amount" not in v:
+            continue
+        t = ((st.get("qualifiers", {}).get("P585") or [{}])[0].get("datavalue", {}).get("value") or {}).get("time", "")
+        rec = {"amount": float(v["amount"]), "unit": v.get("unit", "").rsplit("/", 1)[-1], "date": t.lstrip("+")[:10] or None}
+        if worth is None or (rec["date"] or "") > (worth["date"] or ""):
+            worth = rec
+    out["net_worth"] = worth
     return out
 
 
 async def _label_map(client, qids):
+    """English labels for Wikidata items: the regular API first (lighter, its own rate limit), SPARQL if that fails."""
     qids = [q for q in qids if q]
     out = {}
+    try:
+        for i in range(0, len(qids), 50):
+            r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(qids[i:i + 50]),
+                                 "props": "labels", "languages": "en", "format": "json"}, headers={"User-Agent": config.USER_AGENT}, timeout=30)
+            r.raise_for_status()
+            for q, e in r.json().get("entities", {}).items():
+                lab = (e.get("labels") or {}).get("en", {}).get("value")
+                if lab:
+                    out[q] = lab
+        return out
+    except (httpx.HTTPError, ValueError):
+        out = {}
     for i in range(0, len(qids), 180):
         batch = qids[i:i + 180]
         rows = await _sparql(client, "SELECT ?i ?iLabel WHERE { VALUES ?i {" + " ".join("wd:" + q for q in batch) + "} SERVICE wikibase:label { bd:serviceParam wikibase:language 'en'. } }")
@@ -135,7 +164,7 @@ async def _relations(client, qid):
             positions.append({"item": v, "of": of, "start": (x.get("start", {}).get("value") or "")[:10], "end": (x.get("end", {}).get("value") or "")[:10]})
         else:
             sect, label = REL[pid]
-            rec = {"item": v, "label": label}
+            rec = {"item": v, "label": label, "end": (x.get("end", {}).get("value") or "")[:10] or None}   # e.g. a party left
             bucket = {"ties": ties, "holdings": holdings, "identity": identity, "background": background}[sect]
             if rec not in bucket:
                 bucket.append(rec)
@@ -152,10 +181,14 @@ async def _wikipedia(client, title):
         r = await client.get("https://en.wikipedia.org/w/api.php", params={
             "action": "query", "prop": "extracts", "exintro": 1, "explaintext": 1, "titles": title, "format": "json", "redirects": 1},
             headers={"User-Agent": config.USER_AGENT}, timeout=20)
-        if r.status_code != 200:
-            return None
-        pages = r.json().get("query", {}).get("pages", {})
-        return next(iter(pages.values()), {}).get("extract")
+        if r.status_code == 200:
+            pages = r.json().get("query", {}).get("pages", {})
+            text = next(iter(pages.values()), {}).get("extract")
+            if text:
+                return text
+        # The action API is often throttled for shared addresses; the page summary service is separate (first paragraph only).
+        r = await client.get("https://en.wikipedia.org/api/rest_v1/page/summary/" + title.replace(" ", "_"), headers={"User-Agent": config.USER_AGENT}, timeout=20)
+        return r.json().get("extract") if r.status_code == 200 else None
     except httpx.HTTPError:
         return None
 
@@ -215,6 +248,7 @@ async def profile(qid: str) -> dict:
     """The whole profile for one person, built fresh (callers cache it)."""
     problems = []
     async with httpx.AsyncClient() as client:
+        await geo.ensure(client)
         basics = await _basics(client, qid)
         name = basics["labels"]["en"] or qid
         rel_task = _relations(client, qid)
@@ -232,6 +266,10 @@ async def profile(qid: str) -> dict:
             problems.append(f"Wikidata relations failed ({type(rel_result).__name__})")
         else:
             relations, qids = rel_result
+        for v in basics["refs"].values():
+            qids |= set(v)
+        if basics.get("net_worth") and basics["net_worth"]["unit"].startswith("Q"):
+            qids.add(basics["net_worth"]["unit"])
         labels = {}
         if qids:
             try:
@@ -239,6 +277,8 @@ async def profile(qid: str) -> dict:
             except httpx.HTTPError:
                 problems.append("Some Wikidata labels could not be loaded")
         intro = None if isinstance(wiki, Exception) else wiki
+        if wiki_title and not intro:
+            problems.append("the Wikipedia introduction could not be loaded")
         sanctions, sprob = ([], "sanctions check failed") if isinstance(sanc_result, Exception) else sanc_result
         news, nprob = ([], "news check failed") if isinstance(news_result, Exception) else news_result
         for p in (sprob, nprob):
@@ -261,6 +301,10 @@ async def profile(qid: str) -> dict:
         "current_roles": current, "positions": positions,
         "identity": sect("identity"), "ties": sect("ties"), "holdings": sect("holdings"), "background": sect("background"),
         "sanctions": sanctions, "news": news, "problems": problems, "built": time.time(),
+        "birthplace": [name_of(q) for q in basics["refs"]["birthplace"]][:1],
+        "citizenship": [{"qid": q, "name": name_of(q), "iso": geo.by_qid(q)} for q in basics["refs"]["citizenship"]],
+        "languages": [name_of(q) for q in basics["refs"]["languages"]], "religion": [name_of(q) for q in basics["refs"]["religion"]],
+        "net_worth": basics.get("net_worth") and {**basics["net_worth"], "unit": name_of(basics["net_worth"]["unit"]) if basics["net_worth"]["unit"].startswith("Q") else basics["net_worth"]["unit"]},
     }
 
 

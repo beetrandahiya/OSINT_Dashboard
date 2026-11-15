@@ -30,6 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
+from . import geo, travel
 
 
 @dataclass
@@ -477,6 +478,27 @@ async def usni_fleet(feed: Feed, f: Fetcher) -> Result:
                   note=f"{d['title']}: {len(d['ships'])} carriers and amphibious assault ships, {placed} placed by region or port (approximate)")
 
 
+async def travel_advice(feed: Feed, f: Fetcher) -> Result:
+    """Official travel advice per country from the US State Department and the German Foreign Office (see travel.py).
+    If one office fails, the other is still kept and the note names the one that failed."""
+    await geo.ensure(f.client)
+    out, problems = {"us": {}, "de": {}}, []
+    try:
+        out["us"] = travel.parse_us((await f.get(travel.US_URL)).text)
+    except Exception as e:
+        problems.append(f"US State Department failed: {type(e).__name__}")
+    try:
+        out["de"] = travel.parse_de((await f.get(travel.DE_URL)).json())
+    except Exception as e:
+        problems.append(f"German Foreign Office failed: {type(e).__name__}")
+    if not out["us"] and not out["de"]:
+        raise RuntimeError("; ".join(problems) or "nothing came back")
+    out["problems"] = problems
+    return Result(len(out["us"]) + len(out["de"]), out, data_label="advice in force when fetched",
+                  note=f"{len(out['us'])} countries with a US advisory, {len(out['de'])} with German advice"
+                       + ("; " + "; ".join(problems) if problems else ""))
+
+
 async def quakes(feed: Feed, f: Fetcher) -> Result:
     d = (await f.get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson")).json()
     out = [{"id": q["id"], "mag": q["properties"]["mag"], "place": q["properties"]["place"],
@@ -790,6 +812,8 @@ FEEDS = [
          min_retry=1800, limit_note="the list of events, daily; pictures are fetched only when you open one"),
     Feed("usni_fleet", "US carriers (USNI Fleet Tracker)", "USNI News", "https://news.usni.org/category/fleet-tracker", 6 * H, usni_fleet,
          stale_after=10 * 86400, min_retry=1800, limit_note="a weekly article, read through its RSS feed"),
+    Feed("travel_advice", "Travel advice per country", "US State Department, German Foreign Office", "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
+         6 * H, travel_advice, min_retry=1800, limit_note="two official lists, asked every 6 hours; shown in country dossiers"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

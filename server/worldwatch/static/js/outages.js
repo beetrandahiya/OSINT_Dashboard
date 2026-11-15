@@ -1,6 +1,6 @@
 // Country-level internet outage signals from IODA (Georgia Tech). A country has no single point, so each
 // marker sits at the country's geographic centre; the card says so.
-import {ago, esc, local, now, utc} from './util.js';
+import {ago, esc, local, now, utc, countryBtn} from './util.js';
 
 const SRC = 'ww-outages';
 let events = [], info = null;
@@ -50,6 +50,7 @@ export default {
         <dt>IODA's own score</dt><dd>${Math.round(e.score).toLocaleString('en-GB')} <span class="soft">(theirs, unitless)</span></dd>
       </dl>
       ${others.length ? `<p class="source">${others.length} more ${others.length === 1 ? 'signal' : 'signals'} for this country in the last 24 hours.</p>` : ''}
+      ${countryBtn({cc: e.code})}
       <a class="link" href="https://ioda.inetintel.cc.gatech.edu/country/${esc(e.code)}" target="_blank" rel="noopener">Open this country on IODA</a>
       <p class="source">Source: IODA, Georgia Tech; fetched ${ago(info.fetched)}. A signal means IODA measured a drop; it does not say why, or how many people are affected. The marker sits at the country's centre, not at the fault.</p>`;
   },
