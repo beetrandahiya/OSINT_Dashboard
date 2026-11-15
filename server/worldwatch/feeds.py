@@ -30,7 +30,7 @@ from . import satinfo
 from . import flags
 from . import maxar
 from . import usni
-from . import geo, travel, courts, frontline
+from . import geo, travel, courts, frontline, sites, cablefaults
 
 
 @dataclass
@@ -611,6 +611,77 @@ async def gps_live(feed: Feed, f: Fetcher) -> Result:
     return Result(len(feats), {"type": "FeatureCollection", "features": feats, "regions": {k: list(v) for k, v in JAM_REGIONS.items()}, "window_h": 1},
                   data_time=time.time(), note=f"{len(feats)} hexagons with interference in the last hour, from {asked} of {len(JAM_REGIONS)} sampled regions"
                   + (f"; not answered: {', '.join(failed)}" if failed else ""))
+async def cable_faults(feed: Feed, f: Fetcher) -> Result:
+    """Cables named in fault news: SubTel Forum's fault category (about 60 days) and our 6-hour news window (see cablefaults.py)."""
+    cab = (await f.get("https://www.submarinecablemap.com/api/v3/cable/all.json")).json()
+    items, problems = [], []
+    for page in (1, 2, 3):
+        try:
+            r = await f.get(cablefaults.RSS, params={"paged": page} if page > 1 else None, headers={"User-Agent": config.USER_AGENT})
+            got = cablefaults.parse_rss(r.text)
+        except Exception as e:
+            problems.append(f"SubTel Forum page {page} ({type(e).__name__})")
+            break
+        items += got
+        if not got or min(i["time"] for i in got) < time.time() - 60 * 86400:
+            break
+        await asyncio.sleep(2)
+    items = [i for i in items if i["time"] >= time.time() - 60 * 86400]
+    for published, row in news_window.english.articles():
+        if re.search(r"\bcables?\b", row[4], re.I) and cablefaults.FAULT.search(row[4]):
+            items.append({"title": row[4], "url": row[5], "time": published, "text": "", "source": row[3]})
+    flagged = await asyncio.to_thread(cablefaults.flag, items, cab)
+    if not items and problems:
+        raise RuntimeError("; ".join(problems))
+    return Result(len(flagged), {"cables": flagged, "headlines": len(items)}, data_time=max((i["time"] for i in items), default=None),
+                  note=f"{sum(v['state'] == 'problem' for v in flagged.values())} cables named in fault or repair news, {sum(v['state'] == 'restored' for v in flagged.values())} restored, "
+                       f"from {len(items)} headlines of the last 60 days" + ("; " + "; ".join(problems) if problems else ""))
+
+
+async def sites_feed(feed: Feed, f: Fetcher) -> Result:
+    """Military bases and nuclear sites from Wikidata, OpenStreetMap (QLever), US DoD MIRTA and Global Energy
+    Monitor (see sites.py). Weekly. A source that fails keeps its last good answer from this run."""
+    parts, problems = feed.memo.setdefault("parts", {}), []
+    ua = {"User-Agent": config.USER_AGENT}
+    async def get(key, label, coro):
+        try:
+            parts[key] = await coro
+        except Exception as e:
+            problems.append(f"{label} ({type(e).__name__}{', kept the last answer' if key in parts else ''})")
+    async def sparql(q):
+        r = await f.get(sites.WDQS, params={"query": q}, headers={**ua, "Accept": "text/csv"}, timeout=120)
+        return r.text
+    async def qlever():
+        r = await f.client.post(sites.QLEVER, data={"query": sites.OSM_MIL}, headers={**ua, "Accept": "text/csv"}, timeout=120)
+        f.wire_bytes += r.num_bytes_downloaded
+        r.raise_for_status()
+        return r.text
+    async def gem():
+        url = sites.gem_url((await f.get(sites.GEM_CONFIG, headers=ua)).text)
+        if not url:
+            raise RuntimeError("map file not named in GEM's config")
+        parts["gem_url"] = url
+        return (await f.get(url, headers=ua, timeout=60)).json()
+    await get("wd_bases", "Wikidata bases", sparql(sites.WD_BASES))
+    await get("wd_nuclear", "Wikidata nuclear", sparql(sites.WD_NUCLEAR))
+    await get("osm", "OpenStreetMap via QLever", qlever())
+    await get("mirta", "US DoD MIRTA", _json(f, sites.MIRTA, ua))
+    await get("gem", "Global Energy Monitor", gem())
+    if not parts.get("wd_bases") and not parts.get("osm"):
+        raise RuntimeError("; ".join(problems) or "no source answered")
+    d = await asyncio.to_thread(_in_child, sites.build, {k: v for k, v in parts.items() if k != "gem_url"})
+    d["gem_url"] = parts.get("gem_url")
+    c = d["military_counts"]
+    return Result(len(d["military"]) + len(d["plants"]) + len(d["facilities"]), d, data_time=time.time(), data_label="read",
+                  note=f"{len(d['military']):,} military sites (Wikidata {c['wikidata']:,}, OpenStreetMap {c['osm']:,}, US DoD {c['mirta']}; "
+                       f"{c['closed_left_out']:,} closed left out); {len(d['plants'])} nuclear power plants, {len(d['facilities'])} other nuclear facilities, "
+                       f"{len(d['tests'])} test sites" + ("; failed: " + ", ".join(problems) if problems else ""))
+
+
+async def _json(f, url, headers):
+    return (await f.get(url, headers=headers, timeout=60)).json()
+
+
 _FRONT: dict = {}            # map file and occupied area per DeepState update id, so an unchanged map is not re-read
 
 
@@ -705,7 +776,8 @@ async def quakes(feed: Feed, f: Fetcher) -> Result:
     out = [{"id": q["id"], "mag": q["properties"]["mag"], "place": q["properties"]["place"],
             "time": q["properties"]["time"] / 1000, "updated": q["properties"]["updated"] / 1000,
             "url": q["properties"]["url"], "lon": q["geometry"]["coordinates"][0],
-            "lat": q["geometry"]["coordinates"][1], "depth_km": q["geometry"]["coordinates"][2]}
+            "lat": q["geometry"]["coordinates"][1], "depth_km": q["geometry"]["coordinates"][2],
+            "type": q["properties"].get("type")}       # USGS's own word: earthquake, explosion, nuclear explosion, quarry blast...
            for q in d["features"]]
     return Result(len(out), {"quakes": out}, data_time=d["metadata"]["generated"] / 1000)
 
@@ -1017,6 +1089,10 @@ FEEDS = [
          stale_after=2 * 86400, min_retry=600, limit_note="hourly; each activation's details are read once and again when it changes"),
     Feed("gps_live", "GPS interference, last hour (derived)", "adsb.fi, worked out by World Watch", "https://adsb.fi", 600, gps_live,
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
+    Feed("cable_faults", "Cable faults in the news", "SubTel Forum, GDELT", "https://subtelforum.com/category/cable-faults-maintenance/",
+         3 * H, cable_faults, min_retry=1800, limit_note="up to three RSS pages every 3 hours, plus our own news window"),
+    Feed("sites", "Military bases and nuclear sites", "Wikidata, OpenStreetMap, US DoD, Global Energy Monitor", "https://www.wikidata.org",
+         7 * 86400, sites_feed, min_retry=3600, limit_note="five sources once a week (about 8 MB); QLever's copy of OpenStreetMap is about two months behind"),
     Feed("front_ukraine", "Front line, Ukraine", "DeepState", "https://deepstatemap.live/en",
          2 * H, front_ukraine, stale_after=3 * 86400, min_retry=600, limit_note="change list every 2 hours (1.4 MB); a map file (0.6 MB) only when they publish a new update"),
     Feed("courts_icc", "International Criminal Court cases", "International Criminal Court", "https://www.icc-cpi.int/cases",

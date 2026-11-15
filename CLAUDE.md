@@ -1018,3 +1018,65 @@ Probed for the next layer ideas (2026-11-15): DeepState Ukraine front line `deep
 (200, 620 KB GeoJSON), IMF PortWatch chokepoint transits (ArcGIS `Daily_Chokepoints_Data`, 200), OpenSanctions
 bulk `targets.simple.csv` (200, 79 MB, no key: vessels with IMO, aircraft with registrations). Japan Joint Staff
 press page 403 (Cloudflare) from here; Taiwan MND URL guessed wrong (404), not found yet.
+
+### 2026-11-15, front line, orbits, tankers, bases, nuclear, cable problems (built, waiting for review)
+
+Owner's picks: Ukraine front line, spy-plane orbits, tankers, "all the military bases and nuclear sites ... go deep deep",
+quakes at nuclear test sites and the test sites, spy satellite manoeuvres, cables "only highlight cables that have some
+issue". Ships ("complicated") dropped; government planes on the move already covered by VIP jets (said so).
+Research on bases/nuclear/cables/BGP was done by a background agent (probed from the sandbox; its findings are below).
+
+- **Front line** (`frontline.py`, feed `front_ukraine`, `frontline.js`): DeepState `api/history/public` (change list,
+  1.4 MB, every 2 h) and `api/history/{id}/geojson` only for a new update and the one nearest a week earlier. Kept by tag:
+  status.occupied/unknown, territories crimea/ordlo/tuzla (occupied), transnistria/abkhazia/tskhinvali (held). Left out:
+  their political polygons (East Prussia, Karelia, Kurils, Estonia/Latvia, Ichkeria...) and 2022 liberated areas. Points:
+  units ("enemy" icon), attack directions (arrow direction is only in their picture: place marked, no arrow), airfields,
+  HQs, from zoom 6. Change log entries placed at the coordinates in their links. Occupied area summed on a sphere:
+  116,882 km² (+22 km² 6-13 Nov). Card says: Ukrainian OSINT team's assessment, hours to a day late.
+- **Orbits and tankers** (`patterns.py`, `/api/aircraft/patterns`, `patterns.js`): from `Collector.trails` (military feed
+  every 5 min + Munich 20 s, 3 h). Orbit = heading changes ≥ 540° over 2 h with every point within 120 km of the centre;
+  time on station back through the kept trail. ISR types (R135, E3TF, E737, P8, GLHK, Q4, Q9, A50, IL20...) red. Tankers
+  by type (K35R, B762, A332, A310, IL78, KC10, E390...), excluding aircraft in the VIP list; A330/767 caveat on the card.
+  Tested on synthetic tracks only (racetrack 3.7 turns, straight none); live orbits need 30-60 min of server uptime.
+- **Spy satellite manoeuvres** (`satinfo.record_history` / `manoeuvres`, in `recon_sats`): 45-day history per spy
+  satellite in `data/orbit-history.json` (with `_started`). Raised > 0.8 km (amateur 5), lowered > 3 km + 1 km/day
+  (amateur 10), plane change > 0.03° (amateur 0.2). List rows (7 days) and an "Orbit changes" section on spy cards.
+  Starts empty; CelesTrak keeps no history (a free Space-Track account would backfill years; offered, not asked).
+- **OpenSanctions in words** (`lookup/people.py`): topic codes -> words (`TOPICS`), data set codes -> title, publisher,
+  country from `data.opensanctions.org/datasets/latest/index.json` (2 MB, cached a week). Tile says "Sanctioned" only
+  for sanction topics, else "Politically exposed"; a block lists the lists. Profile cache key now `profile3:`.
+  Untested with a real key. Bulk: full sanctions CSV 79 MB, maritime subset 5 MB (for sanctioned ships later).
+- **Military bases** (`sites.py`, feed `sites` weekly, `sites.js` layer `bases`, off by default): Wikidata whitelist of
+  24 base classes (GROUP BY query, closed ones dropped: 1,179) 4,191; OSM via QLever (`qlever.dev/api/osm-planet`,
+  military=base|airfield|naval_base|radar|launchpad|ammunition; unnamed radar/ammunition dropped) 7,965 after merging
+  941 into Wikidata items by their wikidata tag; US DoD MIRTA points (US/Guam only) 399 not within 3 km of another.
+  "radar station" (Q89578131) kept only with military words (it covers weather radars). Never use P279* under
+  Q18691599/Q245016 (pulls in gendarmerie barracks, Roman forts, bird hides). Cards: operator, country flag, source
+  links, "Look at it in the sharp photo" (`data-sharpat`), spy passes.
+- **Nuclear sites** (layer `nuclear`, same feed): GEM Global Nuclear Power Tracker map file (CC BY 4.0; name read from
+  its `config.js`; GEM's official download sits behind an email form, this is the file their public map loads) grouped
+  into 409 plants (cancelled/shelved dropped), status and exact/approximate location; Wikidata nuclear-facility tree
+  (research reactors, fuel cycle, waste, mines) 303; 28 test sites hard-coded by QID (namesakes exist), Novaya Zemlya
+  placed at the centre of OSM's explosion points (Wikidata has no point); 2,612 OSM explosion points within 60 km of a
+  site (vandal points elsewhere dropped). No open dataset of nuclear-weapons storage/production sites exists; said on
+  the cards. IAEA RRDB's internal API: do not use (agent's request was rightly stopped). NTI is behind Cloudflare.
+- **Quakes near test sites** (`quakes.js`, `nearTestSite()` in `sites.js`): within 50 km -> listed whatever the
+  magnitude, "☢ n km from <site>" and a card section; the quakes feed now keeps USGS's own `type` (earthquake,
+  explosion, nuclear explosion, quarry blast), shown as the eyebrow. The card says a quake near a site is not a test.
+- **Cable problems** (`cablefaults.py`, feed `cable_faults` every 3 h, `cables.js` rewritten): SubTel Forum fault &
+  maintenance RSS (up to 3 pages, 60 days) + our news window headlines with "cable" and a fault word, matched to
+  TeleGeography's `cable/all.json` names by whole name, acronym, "EAC-C2C" halves, or a distinctive one-word core;
+  geographic words never alone; one-word names that are ordinary words must match the cable's own spelling (the word
+  "Faster" had matched the FASTER cable). Only flagged cables are drawn (problem solid, restored dashed green). Now:
+  AAE-1, SJC2, CDSCN, Kumul (problem), EAC-C2C (restored).
+- Memory with all of this: 205 MB steady in the sandbox (was ~175).
+
+Agent's research findings worth keeping:
+- Overpass instances all fail from the sandbox; QLever answers (research service, no SLA, planet ~2 months old: weekly at most).
+- GeoNames military codes need the 423 MB allCountries file or an API username: not worth it. OurAirports has no military flag.
+- GeoNuclearData (GitHub, ODbL) last updated 2024: fallback only. WRI power plant DB frozen 2021.
+- BGP: GRIP (Georgia Tech) `api.grip.inetintel.cc.gatech.edu/v1/json/events` answers without a key, ~100 MOAS events
+  per ~25 h with a handful of high suspicion per day, but its terms say academic/educational use only, no bulk scraping.
+  Cisco BGPStream reset from the sandbox. Cloudflare Radar hijack/leak events need a free token (CC BY-NC) and the same
+  token gives outage annotations including cable cuts. Not built; owner to decide (token recommended).
+- Cable ships: Wikidata class Q348741 (59 ships, 27 with MMSI) could be matched against AIS as "cable ship on station" (hint only). Not built.

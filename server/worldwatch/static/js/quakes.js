@@ -1,5 +1,6 @@
 // Earthquakes, exactly as the USGS feed lists them. Circle size follows magnitude; nothing else is implied.
 import {ago, esc, local, utc} from './util.js';
+import {nearTestSite} from './sites.js';
 
 const SRC = 'ww-quakes', LIST_MIN_MAG = 4;   // the list shows these; the map shows every quake in the feed
 let quakes = [], info = null;
@@ -30,17 +31,19 @@ export default {
   },
   count: () => quakes.length,
   rows() {
-    return quakes.filter(q => (q.mag ?? 0) >= LIST_MIN_MAG).map(q => ({
+    // a quake near a nuclear test site is listed whatever its size, with the site named
+    return quakes.filter(q => (q.mag ?? 0) >= LIST_MIN_MAG || nearTestSite(q.lon, q.lat)).map(q => ({
       id: q.id, time: q.time, badge: mag(q), strong: (q.mag ?? 0) >= 5.5,
       title: q.place || 'Unnamed location',
-      meta: `Earthquake · ${local(q.time)} · ${ago(q.time)}`}));
+      meta: (t => t ? `☢ ${t.km} km from ${t.name} nuclear test site · ` : '')(nearTestSite(q.lon, q.lat)) + `${q.type && q.type !== 'earthquake' ? esc(q.type[0].toUpperCase() + q.type.slice(1)) : 'Earthquake'} · ${local(q.time)} · ${ago(q.time)}`}));
   },
   locate(id) { const q = quakes.find(x => x.id === id); return q && [q.lon, q.lat]; },
   ring(id) { const q = quakes.find(x => x.id === id); return q ? 8 + Math.max(0, (q.mag ?? 0) - 2) * 3 : 12; },
   detail(id) {
     const q = quakes.find(x => x.id === id);
     if (!q) return null;
-    return `<p class="eyebrow">Earthquake</p>
+    const kind = q.type && q.type !== 'earthquake' ? q.type[0].toUpperCase() + q.type.slice(1) : 'Earthquake';
+    return `<p class="eyebrow">${esc(kind)}${q.type && q.type !== 'earthquake' ? ' <span class="soft">(as USGS classifies it)</span>' : ''}</p>
       <h2>Magnitude ${mag(q)}</h2>
       <p class="where">${esc(q.place || 'Unnamed location')}</p>
       <dl>
@@ -49,6 +52,8 @@ export default {
         <dt>Position</dt><dd>${Math.abs(q.lat).toFixed(3)}° ${q.lat >= 0 ? 'N' : 'S'}, ${Math.abs(q.lon).toFixed(3)}° ${q.lon >= 0 ? 'E' : 'W'}</dd>
         <dt>Last revised</dt><dd>${local(q.updated)} <span class="soft">(${ago(q.updated)})</span></dd>
       </dl>
+      ${(t => t ? `<section class="pz"><h3>☢ Near a nuclear test site</h3><p>${t.km} km from <b>${esc(t.name)}</b> (tested there: ${esc(t.by)}).</p>
+        <p class="soft">This says only where it is. An earthquake near a test site is usually an earthquake; an explosion is told apart by seismologists from its shallow depth (often listed as 0 km) and the shape of its waves, and announced by the USGS, the CTBTO or the country. USGS lists this one as: <b>${esc(q.type || 'not stated')}</b>.</p></section>` : '')(nearTestSite(q.lon, q.lat))}
       <a class="link" href="${esc(q.url)}" target="_blank" rel="noopener">Open the USGS event page</a>
       <p class="source">Source: USGS. Their feed was generated at ${utc(info.data_time)}; we fetched it ${ago(info.fetched)}. The list shows magnitude ${LIST_MIN_MAG} and above; the map shows all ${quakes.length}.</p>`;
   },
