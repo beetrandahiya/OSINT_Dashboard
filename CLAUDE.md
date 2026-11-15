@@ -667,6 +667,27 @@ not found; wants more interesting ideas (my last list "not super interesting").
   the browser places pieces as image sources by bilinear corners and picks the overview level by screen size.
   Verified: Cyclone Ditwah, WorldView-3 0.37 m colour, houses visible. WorldView-1 passes are black and white.
 
+### 2026-11-15, doomsday planes and US carriers (built, waiting for review)
+
+He asked for doomsday planes and US carriers "in the same category as military vessels", with satellite pictures of
+them if possible. Country dossier: "cool, but we need a very sophisticated and good and complex setup to do it well"
+(not built; plan to be agreed).
+
+- **Doomsday planes** (chip, `doomsday` in `aircraft.js`): from plane-alert-db rows tagged Doomsday / Nightwatch /
+  Looking Glass (US E-4B x4, E-6B fleet, Russian Il-86 VKP, Il-76VKP, Tu-214SR; trainers and the NSF EC-130 excluded),
+  category "Doomsday" in the `vip_aircraft` feed (41 aircraft). Card says what each type is for (`DOOM_ROLE`).
+  Airborne ones go in the list. VIP jets layer no longer shows them; VIP list now 821 (military categories need
+  strong words).
+- **US carriers and amphibs** (`usni.py`, feed `usni_fleet`, inside the Warships layer): USNI News Fleet and Marine
+  Tracker via its category RSS (`news.usni.org/category/fleet-tracker/feed`; the site and WP API answer 403 to the
+  sandbox, the feed works). Sections by "In ..." headings; CVN/LHA/LHD; status sentences only (photo captions name
+  ships too); "departed" means at sea; port from "in port in / pulled into / returned to". Placed at a hand-made
+  port table (exact) or region centre (approximate, wide dashed ring) and the card says which. USNI's map graphic
+  shown (proxied; the image proxy allows it). **Newest edition 2026-10-19: USNI has not published since**, feed
+  shows late. 7 ships parsed (Tripoli in port Sasebo; Roosevelt left Yokosuka; GW, Bush, Boxer Arabian Sea).
+- **Satellite pictures of carriers:** no free current imagery of warships exists. For a ship in port the card offers
+  "Look at the port in the sharp photo" (Esri, dated; the ship may not be in it). Ship photos come from Wikidata by name.
+
 ## Boundaries on the lookup tool
 
 Public sources only. Never build features aimed at tracking a private person's location,

@@ -74,11 +74,35 @@ const shipsLayer = {
 
 // Warships: ships that broadcast themselves as military (AIS type 35). Many navies switch AIS off; those that leave
 // it on show up here, larger and labelled at every zoom.
+// US carriers and amphibious assault ships from USNI News' weekly Fleet Tracker: placed by region or port, so the
+// marker sits inside a wide dashed ring (a region) or a small one (a port), never as an exact position.
+let fleet = null;
+const fleetShips = () => (fleet?.ships || []).filter(x => x.lat != null);
+function fleetFeatures() {
+  const seen = {}, out = [];
+  for (const x of fleetShips()) {
+    const k = x.lat + ',' + x.lon, n = seen[k] = (seen[k] || 0) + 1;     // ships in the same region are spread a little so each can be clicked
+    const lon = x.lon + (n - 1) * 1.6, lat = x.lat - (n - 1) * 0.8;
+    out.push({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]}, properties: {id: 'usni:' + x.hull, label: x.name.replace('USS ', '') + ' (' + x.hull + ')', r: x.placed === 'port' ? 8 : 34, carrier: x.hull.startsWith('CVN')}});
+  }
+  return out;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-sharpat]'); if (!b) return;
+  const [lon, lat] = b.dataset.sharpat.split(',').map(Number);
+  const chip = document.querySelector('.chip[data-id=sharp]'); if (chip && chip.getAttribute('aria-pressed') !== 'true') chip.click();
+  window.dispatchEvent(new CustomEvent('ww-fly', {detail: {center: [lon, lat], zoom: 14.5}}));
+});
+
 export const warships = {
-  id: 'warships', title: 'Warships', color: ['#636366', '#c7c7cc'], feeds: {ships: 60}, layers: ['ww-warships'],
+  id: 'warships', title: 'Warships', color: ['#636366', '#c7c7cc'], feeds: {ships: 60, usni_fleet: 3600}, layers: ['ww-usni-ring', 'ww-usni', 'ww-warships'],
   about: () => 'Ships broadcasting as military (AIS type 35) on the worldwide stream and Finland\'s feed. Navies often switch AIS off; what is here chose to be seen.',
   addTo(map) {
     map.addSource('ww-warships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource('ww-usni', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addLayer({id: 'ww-usni-ring', type: 'circle', source: 'ww-usni', paint: {'circle-radius': ['get', 'r'], 'circle-opacity': 0.06, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.6}});
+    map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': 'ww-warship', 'icon-size': ['case', ['get', 'carrier'], 0.75, 0.6], 'icon-allow-overlap': true,
+      'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.8], 'text-anchor': 'top', 'text-optional': true}});
     map.addLayer({id: 'ww-warships', type: 'symbol', source: 'ww-warships', layout: {'icon-image': 'ww-warship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.3, 5, 0.45, 9, 0.7], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'text-field': ['step', ['zoom'], '', 3.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.6], 'text-anchor': 'top', 'text-optional': true}});
@@ -86,20 +110,39 @@ export const warships = {
   paint(map, dark) {
     const img = icon(dark ? '#c7c7cc' : '#48484a', dark ? '#1c1c1e' : '#ffffff');
     if (map.hasImage('ww-warship')) map.updateImage('ww-warship', img); else map.addImage('ww-warship', img, {pixelRatio: 2});
-    map.setPaintProperty('ww-warships', 'text-color', dark ? '#e5e5ea' : '#1c1c1e'); map.setPaintProperty('ww-warships', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-warships', 'text-halo-width', 1.3);
+    map.setPaintProperty('ww-warships', 'text-color', dark ? '#e5e5ea' : '#1c1c1e');
+    for (const p of [['ww-usni-ring', 'circle-color'], ['ww-usni-ring', 'circle-stroke-color']]) map.setPaintProperty(...p, dark ? '#c7c7cc' : '#48484a');
+    map.setPaintProperty('ww-usni', 'text-color', dark ? '#e5e5ea' : '#1c1c1e'); map.setPaintProperty('ww-usni', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-usni', 'text-halo-width', 1.3); map.setPaintProperty('ww-warships', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-warships', 'text-halo-width', 1.3);
   },
-  onData() {},
+  onData(feed, d) { if (feed === 'usni_fleet') fleet = {...d.payload, fetched: d.fetched}; },
   render(map) {
+    map.getSource('ww-usni').setData({type: 'FeatureCollection', features: fleetFeatures()});
     map.getSource('ww-warships').setData({type: 'FeatureCollection', features: list.filter(s => s.kind === 'Military vessel').map(s => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]},
       properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || ''}}))});
   },
-  count: () => list.filter(s => s.kind === 'Military vessel').length,
+  count: () => list.filter(s => s.kind === 'Military vessel').length + fleetShips().length,
   rows: () => [],
-  locate(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat]; },
+  locate(id) {
+    if (String(id).startsWith('usni:')) { const f = fleetFeatures().find(x => x.properties.id === id); return f?.geometry.coordinates; }
+    const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat];
+  },
   ring: () => 15,
-  owns: id => !!list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
+  owns: id => String(id).startsWith('usni:') || !!list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,
-  detail(id) { return shipsLayer.detail(id); },
+  detail(id) {
+    if (!String(id).startsWith('usni:')) return shipsLayer.detail(id);
+    const x = fleetShips().find(v => 'usni:' + v.hull === id);
+    if (!x) return null;
+    return `<div id="shippic" data-mmsi="${esc(x.hull)}" data-imo="" data-name="${esc(x.name)}" data-mil="1"><p class="pic-wait">Looking for a picture of this ship…</p></div>
+      <p class="eyebrow">US Navy ${esc(x.kind)} · USNI Fleet Tracker</p><h2>${esc(x.name)} <span class="soft">${esc(x.hull)}</span> <span class="flag">🇺🇸</span></h2>
+      <p class="where">${x.placed === 'port' ? 'In port: ' + esc(x.port) : 'Somewhere in ' + esc(x.region) + ' (the marker is the middle of that region, not its position)'}</p>
+      ${x.said.length ? `<section class="pz"><h3>What USNI reported</h3>${x.said.map(t => `<p>${esc(t)}</p>`).join('')}</section>` : ''}
+      ${x.placed === 'port' ? `<button class="btn" data-sharpat="${x.lon},${x.lat}">Look at the port in the sharp photo</button><p class="source">The sharp photo is not live: it is from the date shown on its chip, so this ship may or may not be in it. Nobody publishes current pictures of warships for free.</p>` : ''}
+      ${fleet.graphic ? `<a href="${esc(fleet.link)}" target="_blank" rel="noopener"><img class="news-hero" src="/api/news/image?u=${encodeURIComponent(fleet.graphic)}" alt="USNI's map of the fleet" onerror="this.remove()"></a>` : ''}
+      <div id="shipabout"></div>
+      <a class="link" href="${esc(fleet.link)}" target="_blank" rel="noopener">Read USNI's Fleet Tracker</a>
+      <p class="source">Source: ${esc(fleet.title)}, published ${local(fleet.published)} (${ago(fleet.published)}). USNI compiles it weekly from Navy and public reports and gives regions, not positions; ships move hundreds of kilometres a day. Fetched ${ago(fleet.fetched)}.</p>`;
+  },
 };
 
 export default shipsLayer;

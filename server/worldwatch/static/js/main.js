@@ -8,7 +8,7 @@ import airspace from './airspace.js';
 import {unrest, unrestSingle} from './unrest.js';
 import quakes from './quakes.js';
 import outages from './outages.js';
-import {civil, military, vip, fillRoute, select as selectAircraft} from './aircraft.js';
+import {civil, military, vip, doomsday, fillRoute, select as selectAircraft} from './aircraft.js';
 import {satellites, launches, onSatChange} from './space.js';
 import hazards from './hazards.js';
 import cables from './cables.js';
@@ -22,8 +22,8 @@ import * as munichView from './munich.js';
 import * as markets from './markets.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, sharp, maxarLayer, night, aurora, gps, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
-const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, satellites, launches, ships, warships, people, leadersToday, fires, gps, cables, rain, lightning, night, aurora, photo, sharp, maxarLayer];
+const LAYERS = [photo, sharp, maxarLayer, night, aurora, gps, airspace, cables, fires, ships, warships, people, leadersToday, civil, military, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, rain, lightning];
+const CHIPS = [news, unrest, unrestSingle, navwarn, airspace, quakes, hazards, outages, civil, military, vip, doomsday, satellites, launches, ships, warships, people, leadersToday, fires, gps, cables, rain, lightning, night, aurora, photo, sharp, maxarLayer];
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -129,7 +129,7 @@ function ring() {
 
 function pick(p, fly = false) {
   picked = p;
-  selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military' || p.layer === 'vip') ? p.id : null);
+  selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military' || p.layer === 'vip' || p.layer === 'doomsday') ? p.id : null);
   for (const l of LAYERS) l.select?.(p && p.layer === l.id ? p.id : null);
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
@@ -176,6 +176,7 @@ $('#detail').addEventListener('click', e => {
 });
 onSatChange(() => { detailKey = ''; renderDetail(); });
 addEventListener('ww-pick', e => pick(e.detail, true));
+addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ? 0 : 1500}));
 addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
 
 function shape(globe) {

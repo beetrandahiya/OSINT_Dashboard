@@ -29,6 +29,7 @@ from . import airspace
 from . import satinfo
 from . import flags
 from . import maxar
+from . import usni
 
 
 @dataclass
@@ -327,7 +328,7 @@ async def airspace_feed(feed: Feed, f: Fetcher) -> Result:
                        + ("; " + "; ".join(problems) if problems else ""))
 
 
-_VIP_CATS = {"Governments", "Dictator Alert", "Don't you know who I am?", "Radiohead", "Royal Aircraft"}
+_VIP_CATS = {"Doomsday", "Governments", "Dictator Alert", "Don't you know who I am?", "Radiohead", "Royal Aircraft"}
 _VIP_WORDS = re.compile(r"head of state|president|prime minister|royal flight|air force one|potus|executive transport|\bvip\b|\bking\b|emir|sultan|royal family|chancellor", re.I)
 _VIP_MIL = {"Toy Soldiers", "USAF", "United States Marine Corps", "United States Navy", "Other Navies", "GAF", "RAF", "Other Air Forces", "Army Air Corps"}
 _VIP_STRONG = re.compile(r"head of state|president|prime minister|royal flight|air force one|potus|\bking\b|emir|sultan|royal family|chancellor|government", re.I)
@@ -343,6 +344,8 @@ async def vip_aircraft(feed: Feed, f: Fetcher) -> Result:
     for x in csv.DictReader(io.StringIO(text)):
         tags = " ".join(x.get(k) or "" for k in ("$Tag 1", "$#Tag 2", "$#Tag 3", "$Operator"))
         cat = x.get("Category") or ""
+        if re.search(r"Doomsday|Nightwatch|Looking Glass", tags) and not re.search(r"Trainer|Atmospheric", tags):
+            cat = "Doomsday"                     # airborne nuclear command posts (E-4B, E-6B, Il-86/Il-76 VKP, Tu-214SR)
         military = cat in _VIP_MIL
         if cat in _VIP_CATS or (cat not in _VIP_NOT and (_VIP_STRONG if military else _VIP_WORDS).search(tags)):
             hex_ = (x.get("$ICAO") or "").strip().lower()
@@ -463,6 +466,15 @@ async def maxar_events(feed: Feed, f: Fetcher) -> Result:
     events = sorted(have.values(), key=lambda e: e["end"] or "", reverse=True)
     return Result(len(events), {"events": events}, data_time=_iso(events[0]["end"].replace(" ", "T")) if events and events[0]["end"] else None,
                   note=f"{len(events)} events with free sharp imagery; newest pictures {events[0]['end'][:10] if events and events[0]['end'] else 'unknown'}")
+
+
+async def usni_fleet(feed: Feed, f: Fetcher) -> Result:
+    """US carriers and amphibious assault ships by region or port, from USNI News' weekly Fleet Tracker (see usni.py)."""
+    r = await f.get(usni.FEED, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"})
+    d = await asyncio.to_thread(usni.parse, r.text)
+    placed = sum(1 for s in d["ships"] if s["lat"] is not None)
+    return Result(len(d["ships"]), d, data_time=d["published"],
+                  note=f"{d['title']}: {len(d['ships'])} carriers and amphibious assault ships, {placed} placed by region or port (approximate)")
 
 
 async def quakes(feed: Feed, f: Fetcher) -> Result:
@@ -776,6 +788,8 @@ FEEDS = [
          flag_tables, min_retry=1800, limit_note="three small tables, weekly"),
     Feed("maxar_events", "Disaster imagery (Maxar Open Data)", "Maxar Open Data (CC BY-NC 4.0)", "https://www.maxar.com/open-data", 86400, maxar_events,
          min_retry=1800, limit_note="the list of events, daily; pictures are fetched only when you open one"),
+    Feed("usni_fleet", "US carriers (USNI Fleet Tracker)", "USNI News", "https://news.usni.org/category/fleet-tracker", 6 * H, usni_fleet,
+         stale_after=10 * 86400, min_retry=1800, limit_note="a weekly article, read through its RSS feed"),
     Feed("quakes", "Earthquakes", "USGS", "https://earthquake.usgs.gov", 60, quakes, stale_after=600,
          limit_note="feed regenerates every minute"),
     Feed("gdacs", "Disaster alerts", "GDACS (UN and EU)", "https://www.gdacs.org", 600, gdacs,

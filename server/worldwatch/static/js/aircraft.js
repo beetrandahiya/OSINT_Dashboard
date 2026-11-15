@@ -205,7 +205,8 @@ function detail(id) {
     : from === 'military' ? 'This feed refreshes every 5 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.'
     : 'The world view refreshes every 20 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.';
   const v = vipList[a.hex];
-  const vipBlock = v ? `<section class="pz vip"><h3>${esc(VIP_NAME[v.category] || v.category)}</h3>
+  const role = v?.category === 'Doomsday' ? DOOM_ROLE.find(([re]) => re.test(v.type || ''))?.[1] : null;
+  const vipBlock = v ? `<section class="pz vip"><h3>${esc(VIP_NAME[v.category] || v.category)}</h3>${role ? `<p>${esc(role)}</p>` : ''}
       <p><b>${esc(v.operator || 'Operator not listed')}</b>${v.type ? ' · ' + esc(v.type) : ''}${v.reg ? ' · ' + esc(v.reg) : ''}</p>
       ${v.tags.length ? `<p class="soft">Listed as: ${v.tags.map(esc).join(' · ')}</p>` : ''}
       ${v.link ? `<a class="link" href="${esc(v.link)}" target="_blank" rel="noopener">The list's reference</a>` : ''}
@@ -306,14 +307,14 @@ export const military = {
 
 // ---- government and VIP aircraft, by transponder address, from plane-alert-db ----
 let vipList = {}, vipInfo = null;
-const VIP_NAME = {'Dictator Alert': 'Autocrat\'s aircraft (the list\'s "Dictator Alert")', Governments: 'Government aircraft', Radiohead: 'Head of state',
+const VIP_NAME = {Doomsday: 'Doomsday plane: airborne nuclear command post', 'Dictator Alert': 'Autocrat\'s aircraft (the list\'s "Dictator Alert")', Governments: 'Government aircraft', Radiohead: 'Head of state',
   "Don't you know who I am?": 'Celebrity or tycoon', 'Royal Aircraft': 'Royal flight'};
-function vipNow() {
+function vipNow(doom = false) {
   const seen = new Map();
   for (const a of world) if (vipList[a.hex]) seen.set(a.hex, {a, at: [a.lon, a.lat], ground: a.on_ground});
   for (const a of mil) if (vipList[a.hex]) seen.set(a.hex, {a, at: [a.lon, a.lat], ground: a.alt_ft === 'ground'});
   for (const a of view) if (vipList[a.hex]) seen.set(a.hex, {a, at: shownAt(a), ground: a.alt_ft === 'ground'});
-  return [...seen.values()];
+  return [...seen.values()].filter(h => (vipList[h.a.hex].category === 'Doomsday') === !!doom);
 }
 const vipLabel = h => { const v = vipList[h.a.hex]; return (v.category === 'Dictator Alert' || v.category === 'Governments' || v.category === 'Radiohead') && v.tags[1] && !/^government$/i.test(v.tags[1]) ? v.tags[1] : v.tags[0] === 'Air Force One' ? 'Air Force One' : v.operator; };
 export const vip = {
@@ -339,9 +340,46 @@ export const vip = {
   count: () => vipNow().length,
   rows: () => vipNow().filter(h => !h.ground && vipList[h.a.hex].category !== "Don't you know who I am?").map(h => ({id: h.a.hex, time: vipInfo?.fetched || 0, badge: '◆',
     title: `${vipLabel(h)}: ${vipList[h.a.hex].type || 'aircraft'} airborne`, meta: `${VIP_NAME[vipList[h.a.hex].category] || vipList[h.a.hex].category} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
-  owns: id => !!vipList[id] && !!find(id),
+  owns: id => !!vipList[id] && vipList[id].category !== 'Doomsday' && !!find(id),
   locate: id => civil.locate(id),
   ring: () => 18,
+  moving: true,
+  detail,
+};
+
+// What each kind of doomsday plane is for, by its type (public descriptions of these fleets).
+const DOOM_ROLE = [
+  [/E-4B/i, 'US National Airborne Operations Center ("Nightwatch"): a flying command post for the President, the Secretary of Defense and the Joint Chiefs if ground command centres are lost. One is always on alert; it also flies the Secretary of Defense on trips.'],
+  [/E-6B/i, 'US Navy E-6B Mercury: TACAMO ("take charge and move out") relays orders to submarines carrying nuclear missiles, and as "Looking Glass" can control the land-based missile fields. They fly routine training and relay flights every day.'],
+  [/IL-?86|IL-?76/i, 'Russian airborne command post (VKP): a flying headquarters for Russia\'s leadership and nuclear command in a crisis.'],
+  [/Tu-214SR/i, 'Russian Tu-214SR: a communications relay aircraft that flies alongside the president\'s plane.'],
+];
+export const doomsday = {
+  id: 'doomsday', title: 'Doomsday planes', color: ['#d70015', '#ff6961'], feeds: {vip_aircraft: 3600}, layers: ['ww-doom-halo', 'ww-doom-label'],
+  about: () => 'Airborne nuclear command posts (US E-4B and E-6B, Russian Il-86/Il-76 VKP, Tu-214SR) when an aircraft feed sees them.',
+  addTo(map) {
+    map.addSource('ww-air-doom', {type: 'geojson', data: empty});
+    map.addLayer({id: 'ww-doom-halo', type: 'circle', source: 'ww-air-doom', paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 9, 6, 16], 'circle-opacity': 0.15, 'circle-stroke-width': 2.5}});
+    map.addLayer({id: 'ww-doom-label', type: 'symbol', source: 'ww-air-doom',
+      layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11.5, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-allow-overlap': true}, paint: {'text-halo-width': 1.4}});
+    setInterval(() => { if (!document.hidden && vipInfo) this.render(map); }, 2000);
+  },
+  paint(map, dark) {
+    const c = this.color[+dark];
+    map.setPaintProperty('ww-doom-halo', 'circle-color', c); map.setPaintProperty('ww-doom-halo', 'circle-stroke-color', c);
+    map.setPaintProperty('ww-doom-label', 'text-color', c); map.setPaintProperty('ww-doom-label', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
+  },
+  onData(feed, d) { vipInfo = d; vipList = d.payload.aircraft || {}; },
+  render(map) {
+    map.getSource('ww-air-doom').setData({type: 'FeatureCollection', features: vipNow(true).map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
+      properties: {id: h.a.hex, label: (vipList[h.a.hex].type || 'Doomsday plane').replace(/^Boeing |^Ilyushin |^Tupolev /, '') + (h.ground ? ' (on the ground)' : '')}}))});
+  },
+  count: () => vipNow(true).length,
+  rows: () => vipNow(true).filter(h => !h.ground).map(h => ({id: h.a.hex, time: now(), badge: '!', strong: true,
+    title: `${(vipList[h.a.hex].type || 'Doomsday plane')} airborne`, meta: `${vipList[h.a.hex].operator || ''} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
+  owns: id => vipList[id]?.category === 'Doomsday' && !!find(id),
+  locate: id => civil.locate(id),
+  ring: () => 20,
   moving: true,
   detail,
 };

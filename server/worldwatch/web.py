@@ -515,7 +515,8 @@ async def news_image(request):
     """An outlet's preview picture, fetched by this server so the outlet never sees the browser. Only pictures
     named in the current news data are fetched; this is not an open proxy."""
     url = request.query_params.get("u", "")
-    if url not in news_window.images():
+    fleet = (collector.states.get("usni_fleet") and collector.states["usni_fleet"].payload) or {}
+    if url not in news_window.images() and url != fleet.get("graphic"):
         return Response(status_code=404)
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=True, headers={"User-Agent": config.USER_AGENT}) as c:
