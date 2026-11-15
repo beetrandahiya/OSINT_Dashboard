@@ -1080,3 +1080,10 @@ Agent's research findings worth keeping:
   Cisco BGPStream reset from the sandbox. Cloudflare Radar hijack/leak events need a free token (CC BY-NC) and the same
   token gives outage annotations including cable cuts. Not built; owner to decide (token recommended).
 - Cable ships: Wikidata class Q348741 (59 ships, 27 with MMSI) could be matched against AIS as "cable ship on station" (hint only). Not built.
+
+### 2026-11-15, Global Energy Monitor: owner's OK
+
+- Owner: "use global energy monitor with my email, no problem". Checked the download page: the form-gated spreadsheet
+  covers the same 1,825 units as the public map file we read; it adds columns such as construction start and operation
+  dates. Not automated: the form is for a person, and we never send his email from code. If he downloads it once and
+  puts it in `data/`, add those columns (column names unknown until the file is seen). Until then the map file stays.
