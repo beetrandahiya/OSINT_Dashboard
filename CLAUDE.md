@@ -1383,3 +1383,23 @@ Now (`models3d.js` rewritten, `aircraft.js`, chase in `main.js`):
   ~3 px of the free-area centre over 14 s while the centre moves, path drawn and ending at the plane, zoom while
   following, stop restores ground and padding, no errors. **Not tested:** 3D terrain mode with models (headless times
   out), frame rate on his GPU, helicopters edge-on (one H60 seen only from above).
+
+### 2026-11-16 evening, follow on the globe, camera controls, card numbers, no haze
+
+- **Follow put the plane at the top edge on the globe (his RJA317 at cruise height; a low IGO5277 looked fine):**
+  MapLibre's globe projection ignores a lifted map centre below zoom ~12 (measured: a point 10 km up stayed at y 59
+  instead of 350 with `elevation: 10000`; the flat projection honours it; above zoom 12 the globe blends to flat).
+  While following on the globe the map now uses the flat projection (`shape(false, false)`, not saved) and goes back to
+  the globe after Stop. Never rely on `elevation` with the globe projection.
+- **Camera controls:** turning and tilting everywhere (right-drag / Ctrl-drag, two-finger twist), MapLibre's
+  NavigationControl (zoom, compass: click = north up, drag = turn and tilt) left of the right-hand column above the
+  markets strip. While following: drag orbits and tilts around the plane (map panning off), the bar has ↺ ↻ (45°),
+  N (north up), "Behind it" (back to following its heading); the compass points the follow camera north; a click on
+  empty map or the end of a drag no longer ends the follow.
+- **Card altitude/speed did not change while following:** the live area feed is loaded by `aircraft.js`, which never told
+  the card, and cards are not redrawn while the mouse is over them (where it is after pressing Follow). Now
+  `liveCard()` updates altitude, speed, heading and report time in place on every report and the "ago" every second.
+- **White wash at the top in 3D:** it was the fog I had added towards the horizon. Fog over the ground is off
+  (`fog-ground-blend` 1, `horizon-fog-blend` 0); only the sky above the horizon remains.
+- Tested headless on the globe (1440x900): plane held at the free-area centre (540,450 ±2 px), N / +45 / drag / Behind
+  it / zoom while following / Stop back to the globe, no errors. Terrain (3D button) still not testable headless.

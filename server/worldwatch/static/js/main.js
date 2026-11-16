@@ -137,9 +137,10 @@ map.on('load', () => {
   const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
+    if (chase && orbitMoved > 4) { orbitMoved = 0; return; }   // the end of a drag around the followed target, not a click
     const f = map.queryRenderedFeatures([[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]], {layers: hit.filter(id => map.getLayoutProperty(id, 'visibility') !== 'none')})
       .filter(x => x.properties.id != null || x.properties.qid != null || x.properties.cluster).sort((a, b) => LOW.indexOf(a.layer.id) - LOW.indexOf(b.layer.id))[0];   // markers win over fire dots, cables and hexagons
-    if (!f) { for (const l of LAYERS) { const id = on[l.id] && l.hit?.(e.point); if (id) return pick({layer: l.id, id}); } return pick(null); }
+    if (!f) { for (const l of LAYERS) { const id = on[l.id] && l.hit?.(e.point); if (id) return pick({layer: l.id, id}); } return chase ? undefined : pick(null); }   // a click on empty map does not end a follow
     const layer = LAYERS.find(l => l.layers.includes(f.layer.id) && (!l.owns || l.owns(f.properties.id))) || LAYERS.find(l => l.layers.includes(f.layer.id));
     if (layer.pick && layer.pick(f.properties) === false) return;
     pick({layer: layer.id, id: f.properties.id});
@@ -256,15 +257,15 @@ addEventListener('ww-try-pick', e => {
 addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ? 0 : 1500}));
 addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
 
-function shape(globe) {
+function shape(globe, save = true) {
   setGlobe(map, globe);
   setTimeout(() => { for (const l of LAYERS) l.shape?.(map); ring(); }, 60);
   $('#flat').setAttribute('aria-pressed', !globe);
   $('#globe').setAttribute('aria-pressed', globe);
-  try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
+  if (save) try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
 }
-$('#flat').onclick = () => shape(false);
-$('#globe').onclick = () => shape(true);
+$('#flat').onclick = () => { if (chase) chase.wasGlobe = false; shape(false); };
+$('#globe').onclick = () => { if (chase) chase.wasGlobe = true; else shape(true); };
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });
 // ---- 3D: terrain and buildings, tilt and turn ----
 const on3 = l => !!on[l.id];
@@ -283,11 +284,14 @@ map.on('load', () => { try { if (localStorage.getItem('ww-3d')) three(true); } c
 // ---- chase camera: lock onto a moving aircraft or ship, tilted, turning with its heading ----
 // One animation loop owns the camera while it follows: the first 1.6 s glide from where the camera was to behind the
 // target, then the camera centre is the target itself, in the air for an aircraft (the map's centre point is lifted
-// to its altitude), turning gently towards its heading. The target's own position is already smooth (aircraft.js
-// display()), so the camera never jerks. Wheel zoom stays centred on it; dragging hands the camera back.
+// to its altitude). The target's own position is already smooth (aircraft.js display()), so the camera never jerks.
+// The globe projection ignores a lifted centre below zoom ~12 (measured: a point 10 km up stayed 290 px above the
+// centre), so while following on the globe the map uses the flat projection, and goes back to the globe on Stop.
+// Looking around: drag to orbit and tilt, the bar's buttons turn 45°, point north, or go back behind it; wheel zooms.
 let chase = null;
 const ease = u => u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
 const shortest = (a, b) => ((b - a + 540) % 360) - 180;
+const globeOn = () => $('#globe').getAttribute('aria-pressed') === 'true';
 // the part of the map not covered by the panel on the left and the card on the right: the target is kept in its middle
 function freeArea() {
   const cv = map.getCanvas().getBoundingClientRect(), pad = {top: 0, bottom: 0, left: 0, right: 0};
@@ -297,22 +301,23 @@ function freeArea() {
   if (pad.left + pad.right > cv.width - 160) { pad.left = 0; pad.right = 0; }   // too little room: use the whole map
   return pad;
 }
-function groundAgain(level, padding) {
+function groundAgain(level, padding, then) {
   const go = () => {
     if (chase) return;
     const g = (is3D() && map.queryTerrainElevation?.(map.getCenter())) || 0;
     map.easeTo({elevation: g, padding, ...(level ? {pitch: 0, bearing: 0} : {}), duration: calm.matches ? 0 : 700});
-    map.once('moveend', () => { if (!chase) map.setCenterClampedToGround(true); });
+    map.once('moveend', () => { if (chase) return; map.setCenterClampedToGround(true); then?.(); });
   };
   if (map.isMoving()) map.once('moveend', go); else go();
 }
 function chaseStop(level = true) {
   if (!chase) return;
   cancelAnimationFrame(chase.raf);
-  const padWas = chase.padWas; chase = null;
+  const {padWas, wasGlobe} = chase; chase = null;
   $('#chasebar')?.remove();
   map.scrollZoom.enable();
-  groundAgain(level && !is3D(), padWas);
+  map.dragPan.enable();
+  groundAgain(level && !is3D(), padWas, wasGlobe ? () => shape(true, false) : null);
   detailKey = ''; renderDetail();
 }
 function chaseStart() {
@@ -321,17 +326,25 @@ function chaseStart() {
   const where = () => layer.locate3d?.(id) || (layer.locate(id) && [...layer.locate(id), 0]);
   if (!where()) return;
   chaseStop(false);
+  const wasGlobe = globeOn();
+  if (wasGlobe) shape(false, false);
   const padWas = map.getPadding();
   const ship = picked.layer === 'ships' || picked.layer === 'warships' || picked.layer === 'sanctioned';
   const c0 = map.getCenter();
-  chase = {layer, id, raf: 0, t0: performance.now(), last: performance.now(), from: {lon: c0.lng, lat: c0.lat, alt: map.getCenterElevation() || 0, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()},
-    zoom: Math.max(map.getZoom(), ship ? 12 : 10.5), pitch: 62, bearing: layer.heading?.(id) ?? map.getBearing(), intro: calm.matches ? 0 : 1600,
-    padWas, pad: {...padWas}, padAt: 0};
+  chase = {layer, id, raf: 0, t0: performance.now(), last: performance.now(), wasGlobe,
+    from: {lon: c0.lng, lat: c0.lat, alt: map.getCenterElevation() || 0, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()},
+    zoom: Math.max(map.getZoom(), ship ? 12 : 10.5), pitch: 62, pitchWant: 62, bearing: layer.heading?.(id) ?? map.getBearing(),
+    mode: 'behind', free: 0, intro: calm.matches ? 0 : 1600, padWas, pad: {...padWas}, padAt: 0};
   map.setCenterClampedToGround(false);
   map.scrollZoom.enable({around: 'center'});
+  map.dragPan.disable();   // a drag orbits around the target instead (below)
   const bar = document.createElement('div');
   bar.id = 'chasebar'; bar.className = 'glass chasebar';
-  bar.innerHTML = `<span>Following</span><b>${esc(document.querySelector('#detail h2')?.textContent || 'it')}</b><button class="btn" id="chasestop">Stop</button>`;
+  bar.innerHTML = `<span>Following</span><b>${esc(document.querySelector('#detail h2')?.textContent || 'it')}</b>
+    <button class="btn icon" data-orbit="-45" title="Turn left" aria-label="Turn left">↺</button><button class="btn icon" data-orbit="45" title="Turn right" aria-label="Turn right">↻</button>
+    <button class="btn icon" data-orbit="north" title="North up" aria-label="North up">N</button><button class="btn" data-orbit="behind" title="Look the way it is going">Behind it</button>
+    <button class="btn" id="chasestop">Stop</button>`;
+  bar.title = 'Drag the map to look around it; the wheel zooms';
   document.body.appendChild(bar);
   $('#chasestop').onclick = () => chaseStop();
   detailKey = ''; renderDetail();   // the card's button now reads "Stop following"
@@ -340,24 +353,44 @@ function chaseStart() {
     const t = performance.now(), dt = Math.min(0.1, (t - chase.last) / 1000); chase.last = t;
     const p = where();
     if (!p || !picked || picked.id !== chase.id) { chaseStop(); return; }
-    const want = chase.layer.heading?.(chase.id);
-    if (want != null) chase.bearing += shortest(chase.bearing, want) * (1 - Math.exp(-dt / 2.5));   // turn gently with it
+    const want = chase.mode === 'behind' ? chase.layer.heading?.(chase.id) : chase.free;
+    if (want != null) chase.bearing += shortest(chase.bearing, want) * (1 - Math.exp(-dt / (chase.mode === 'behind' && !chase.turning ? 2.5 : 0.25)));
+    if (chase.turning && Math.abs(shortest(chase.bearing, want ?? chase.bearing)) < 1) chase.turning = false;
+    chase.pitch += (chase.pitchWant - chase.pitch) * (1 - Math.exp(-dt / 0.15));
     const u = chase.intro ? Math.min(1, (t - chase.t0) / chase.intro) : 1, e = ease(u), f = chase.from;
     if (t - chase.padAt > 400) { chase.padAt = t; chase.padWant = freeArea(); }
     for (const k of ['left', 'right', 'top', 'bottom']) chase.pad[k] += (chase.padWant[k] - chase.pad[k]) * (1 - Math.exp(-dt / 0.3));
     let dl = p[0] - f.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
     map.jumpTo(u < 1 ? {center: [f.lon + dl * e, f.lat + (p[1] - f.lat) * e], elevation: f.alt + (p[2] - f.alt) * e, zoom: f.zoom + (chase.zoom - f.zoom) * e,
         pitch: f.pitch + (chase.pitch - f.pitch) * e, bearing: f.bearing + shortest(f.bearing, chase.bearing) * e, padding: {...chase.pad}}
-      : {center: [p[0], p[1]], elevation: p[2], bearing: chase.bearing, padding: {...chase.pad}});
+      : {center: [p[0], p[1]], elevation: p[2], bearing: chase.bearing, pitch: chase.pitch, padding: {...chase.pad}});
     chase.raf = requestAnimationFrame(step);
   };
   chase.raf = requestAnimationFrame(step);
 }
-// dragging the map hands the camera back
-map.getCanvas().addEventListener('mousedown', () => chase && chaseStop(false));
-map.getCanvas().addEventListener('touchstart', () => chase && chaseStop(false), {passive: true});
+// the bar's buttons: turn 45°, north up, back behind it
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-orbit]'); if (!b || !chase) return;
+  const v = b.dataset.orbit;
+  if (v === 'behind') chase.mode = 'behind';
+  else { chase.free = v === 'north' ? 0 : (chase.mode === 'free' ? chase.free : chase.bearing) + Number(v); chase.mode = 'free'; }
+  chase.turning = true;
+});
+// dragging while following orbits around the target (sideways turns, up and down tilts) instead of ending the follow
+let orbitAt = null;
+let orbitMoved = 0;
+map.getCanvas().addEventListener('pointerdown', e => { if (chase && e.button === 0) { orbitAt = [e.clientX, e.clientY]; orbitMoved = 0; map.getCanvas().setPointerCapture(e.pointerId); } });
+map.getCanvas().addEventListener('pointermove', e => {
+  if (!chase || !orbitAt) return;
+  const dx = e.clientX - orbitAt[0], dy = e.clientY - orbitAt[1]; orbitAt = [e.clientX, e.clientY]; orbitMoved += Math.abs(dx) + Math.abs(dy);
+  if (chase.mode !== 'free') { chase.mode = 'free'; chase.free = chase.bearing; }
+  chase.free -= dx * 0.3; chase.turning = true;
+  chase.pitchWant = Math.max(0, Math.min(map.getMaxPitch(), chase.pitchWant - dy * 0.25));
+});
+addEventListener('pointerup', () => { orbitAt = null; });
 document.addEventListener('click', e => { if (e.target.closest('[data-chase]')) { e.preventDefault(); chase ? chaseStop() : chaseStart(); } });
-
+// the compass resets to north; while following it points the follow camera north instead
+document.addEventListener('click', e => { if (chase && e.target.closest('.maplibregl-ctrl-compass')) { e.stopPropagation(); chase.mode = 'free'; chase.free = 0; chase.turning = true; } }, true);
 
 // ---- the feeds card: one honest line when closed, every feed when open ----
 async function loadStatus() {

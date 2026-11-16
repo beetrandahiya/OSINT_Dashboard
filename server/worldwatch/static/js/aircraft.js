@@ -216,6 +216,18 @@ function inLive(a) {
   const r = Math.PI / 180, x = Math.sin((a.lat - v.lat) * r / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(v.lat * r) * Math.sin((a.lon - v.lon) * r / 2) ** 2;
   return 12742 * Math.asin(Math.min(1, Math.sqrt(x))) < v.radius_nm * 1.852;
 }
+// The open card's live numbers, updated in place on every new report (redrawing the whole card is held back while
+// the mouse is over it, which is exactly where it is after pressing "Follow")
+function liveCard() {
+  const el = $('#ac-alt'); if (!el || !sel) return;
+  const h = find(sel); if (!h || h.from === 'world') return;
+  const a = h.a, f = h.from === 'view' ? viewInfo : info.aircraft_military, at = (f?.data_time ?? now()) - (a.seen_pos_s ?? 0);
+  el.innerHTML = ft(a.alt_ft);
+  $('#ac-gs') && ($('#ac-gs').innerHTML = kt(a.gs_kt));
+  $('#ac-trk') && ($('#ac-trk').textContent = a.track == null ? 'not reported' : Math.round(a.track) + '°');
+  $('#ac-at') && ($('#ac-at').innerHTML = `${local(at)} <span class="soft">(${ago(at)})</span>`);
+}
+setInterval(liveCard, 1000);   // keeps "n s ago" counting
 // ---- live aircraft for the area on screen ----
 let asking = false;
 async function loadView() {
@@ -228,6 +240,7 @@ async function loadView() {
   try {
     const d = await api(`/api/aircraft/area?lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&r=${Math.min(250, Math.ceil(km / 1.852))}`);
     viewInfo = d; view = d.aircraft; record(view, d.data_time, true); glide(true);
+    liveCard();
   } catch (e) { /* the feeds card shows adsb.fi failing; the world positions stay on screen */ }
   asking = false;
 }
@@ -301,11 +314,11 @@ function detail(id) {
       <dt>Position reported</dt><dd>${local(a.last_contact)} <span class="soft">(${ago(a.last_contact)})</span></dd>`;
   } else {
     const at = f.data_time - (a.seen_pos_s ?? 0);
-    rows = `<dt>Altitude</dt><dd>${ft(a.alt_ft)}</dd>
-      <dt>Ground speed</dt><dd>${kt(a.gs_kt)}</dd>
-      <dt>Heading</dt><dd>${a.track == null ? 'not reported' : Math.round(a.track) + '°'}</dd>
+    rows = `<dt>Altitude</dt><dd id="ac-alt">${ft(a.alt_ft)}</dd>
+      <dt>Ground speed</dt><dd id="ac-gs">${kt(a.gs_kt)}</dd>
+      <dt>Heading</dt><dd id="ac-trk">${a.track == null ? 'not reported' : Math.round(a.track) + '°'}</dd>
       ${a.squawk ? `<dt>Transponder code</dt><dd>${esc(a.squawk)}${{7500: ' (hijack)', 7600: ' (radio failure)', 7700: ' (emergency)'}[a.squawk] || ''}</dd>` : ''}
-      <dt>Position reported</dt><dd>${local(at)} <span class="soft">(${ago(at)})</span></dd>
+      <dt>Position reported</dt><dd id="ac-at">${local(at)} <span class="soft">(${ago(at)})</span></dd>
       ${a.nac_p != null ? `<dt>Position accuracy it reports</dt><dd>${ACCURACY[a.nac_p] || 'unknown'} <span class="soft">(NACp ${a.nac_p})</span></dd>` : ''}`;
   }
   const flags = [isMil && 'Military', a.ladd && 'On the FAA\'s limited-display list', a.pia && 'Privacy address'].filter(Boolean).join(' · ');
@@ -433,7 +446,7 @@ export const military = {
   id: 'military', title: 'Military', color: ['#af52de', '#da8fff'], feeds: {aircraft_military: 30}, layers: ['ww-air-mil'],
   addTo(map) { map.addLayer(symbol('ww-air-mil', 'ww-air-mil')); },
   paint(map, dark) { civil.paint(map, dark); },
-  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; record(mil, d.data_time, false); },
+  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; record(mil, d.data_time, false); liveCard(); },
   render: () => glide(true),
   visible(on) { shown.military = on; if (on) loadView(); },
   count: () => mil.length,

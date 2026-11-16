@@ -19,14 +19,16 @@ export function createMap(container, leftPadding) {
   try { maplibregl.setWorkerCount(Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1))); } catch (e) { /* engine without it */ }
   const map = new maplibregl.Map({
     container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.3, maxZoom: 16,
-    attributionControl: false, dragRotate: false, pitchWithRotate: false, renderWorldCopies: true,
+    attributionControl: false, dragRotate: true, pitchWithRotate: true, renderWorldCopies: true,
   });
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
   // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many
   // layers, its tiles were requested but never finished loading
   map.once('style.load', () => { if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
     attribution: 'Elevation: © Mapterhorn (CC BY 4.0)'}); });
-  map.touchZoomRotate.disableRotation();
+  // turning and tilting everywhere: right-drag or Ctrl-drag, two-finger twist, or the compass (click: north up again;
+  // drag it: turn and tilt)
+  map.addControl(new maplibregl.NavigationControl({visualizePitch: true, showZoom: true}), 'bottom-right');
   map.setPadding({left: leftPadding, top: 0, right: 0, bottom: 0});
   return map;
 }
@@ -97,13 +99,11 @@ export function set3D(map, on, dark) {
     paint3D(map, dark);
     try { map.setTerrain({source: 'ww-dem', exaggeration: 1}); } catch (e) { /* terrain not available in this projection */ }
     sky3D(map, dark);
-    map.dragRotate.enable(); map.touchZoomRotate.enableRotation(); map.keyboard.enable();
     map.setMaxPitch(75);
     if (map.getPitch() < 20) map.easeTo({pitch: map.getZoom() >= 8 ? 60 : 45, duration: 700});
   } else {
     try { map.setTerrain(null); } catch (e) { /* ignore */ }
     for (const id of ['ww-relief', 'ww-buildings']) if (map.getLayer(id)) map.removeLayer(id);
-    map.dragRotate.disable(); map.touchZoomRotate.disableRotation();
     try { map.setSky({'atmosphere-blend': 0}); } catch (e) { /* older engines */ }
     map.easeTo({pitch: 0, bearing: 0, duration: 600});
   }
@@ -111,8 +111,9 @@ export function set3D(map, on, dark) {
 // a sky and haze towards the horizon, so a tilted view has depth (MapLibre's sky; colours for light and dark)
 function sky3D(map, dark) {
   try {
-    map.setSky(dark ? {'sky-color': '#0b1427', 'horizon-color': '#22324d', 'fog-color': '#161e2e', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0}
-      : {'sky-color': '#7fb2e5', 'horizon-color': '#dce9f5', 'fog-color': '#e6edf4', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0});
+    // no fog over the ground (the owner found the white wash at the top of a tilted view ugly): only a sky above the horizon
+    map.setSky(dark ? {'sky-color': '#0b1427', 'horizon-color': '#22324d', 'fog-color': '#0b1427', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0, 'fog-ground-blend': 1, 'atmosphere-blend': 0}
+      : {'sky-color': '#7fb2e5', 'horizon-color': '#a9cbec', 'fog-color': '#7fb2e5', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0, 'fog-ground-blend': 1, 'atmosphere-blend': 0});
   } catch (e) { /* older engines */ }
 }
 export function paint3D(map, dark) {

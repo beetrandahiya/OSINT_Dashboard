@@ -401,3 +401,13 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 .side-head h1 { white-space: nowrap; }
 .side-head .seg button { padding: 4px 11px; }
 .side-head .toggle3d { padding: 6px 9px; }
+
+/* compass and zoom (MapLibre's navigation control): just left of the right-hand column, above the markets strip,
+   in the panels' glass */
+.maplibregl-ctrl-bottom-right { right: calc(340px + var(--gap) * 2); bottom: calc(var(--gap) + 72px); }
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  border-radius: var(--radius-ctl); box-shadow: 0 -2px 20px #0000001a, 0 0 12px #0000001a; overflow: hidden; }
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+@media (prefers-color-scheme: dark) {
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-icon { filter: invert(1); } }
+.chasebar .btn.icon { width: 30px; padding: 4px 0; text-align: center; font-weight: 600; }
