@@ -698,6 +698,46 @@ async def sanctioned(feed: Feed, f: Fetcher) -> Result:
                        f"{len(hexes)} of their registrations with a known transponder address; OpenSanctions (non-commercial)")
 
 
+async def sdr_receivers(feed: Feed, f: Fetcher) -> Result:
+    """Public KiwiSDR shortwave receivers (0-30 MHz) that their owners list for anyone to tune, from the list
+    kiwisdr.com publishes (as converted by rx.linkfanel.net for its receiver map). Listening is done in the receiver's
+    own web page; we only place and describe them."""
+    r = await f.get("http://rx.linkfanel.net/kiwisdr_com.js", headers={"User-Agent": config.USER_AGENT}, timeout=40)
+    text = r.text
+    m = re.search(r"\[\s*\{.*\}\s*,?\s*\]", text, re.S)      # a JavaScript array: trailing commas allowed
+    if not m:
+        raise ValueError("receiver list not found in the file")
+    rows, out = json.loads(re.sub(r",(\s*[\]}])", r"\1", m.group(0))), []
+    for x in rows:
+        g = re.match(r"\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)", x.get("gps") or "")
+        if not g or x.get("offline") == "yes" or not x.get("url"):
+            continue
+        lat, lon = float(g.group(1)), float(g.group(2))
+        if lat == 0 and lon == 0:
+            continue
+        try:
+            users, umax = int(x.get("users") or 0), int(x.get("users_max") or 0)
+        except ValueError:
+            users, umax = 0, 0
+        lo, _, hi = (x.get("bands") or "").partition("-")
+        out.append({"id": x.get("id"), "name": re.sub(r"\s+", " ", x.get("name") or "").strip()[:120], "lat": round(lat, 4), "lon": round(lon, 4),
+                    "url": x["url"], "loc": (x.get("loc") or "")[:80], "antenna": (x.get("antenna") or "")[:160],
+                    "users": users, "max": umax, "snr": (x.get("snr") or "").split(",")[0], "asl": x.get("asl"),
+                    "band": [int(lo) if lo.isdigit() else None, int(hi) if hi.isdigit() else None], "gps": "GPS" in (x.get("sdr_hw") or ""),
+                    "tdoa": (x.get("tdoa_id") or "") != ""})
+    stamp = re.search(r"KiwiSDR.com data timestamp: (.+)", text)
+    from datetime import datetime, timezone
+    when = time.time()
+    if stamp:
+        try:
+            when = datetime.strptime(stamp.group(1).strip(), "%A, %d-%b-%Y %H:%M:%S GMT").replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            pass
+    busy = sum(1 for x in out if x["max"] and x["users"] >= x["max"])
+    return Result(len(out), {"receivers": out}, data_time=when, data_label="list made",
+                  note=f"{len(out)} receivers online, {busy} full right now")
+
+
 async def cameras(feed: Feed, f: Fetcher) -> Result:
     """Public road and traffic cameras from six official open sources (see cams.py); lists daily, pictures on demand.
     A source that fails keeps its last list from this run."""
@@ -1269,6 +1309,8 @@ FEEDS = [
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
     Feed("sanctioned", "Sanctioned ships and aircraft", "OpenSanctions", "https://www.opensanctions.org",
          7 * 86400, sanctioned, min_retry=3600, limit_note="two bulk files once a week (about 85 MB, read row by row); matched against live positions on request"),
+    Feed("sdr", "Listening stations (KiwiSDR)", "kiwisdr.com, via rx.linkfanel.net", "http://kiwisdr.com/public/",
+         3600, sdr_receivers, min_retry=900, limit_note="one 0.9 MB list an hour"),
     Feed("cameras", "Public cameras", "TfL, NYC DOT, Caltrans, LTA Singapore, HK Transport Dept, Fintraffic", "https://tfl.gov.uk",
          86400, cameras, min_retry=1800, limit_note="camera lists once a day (~20 MB, mostly Caltrans); pictures only when a card opens"),
     Feed("cf_radar", "Internet hijacks, leaks and outage notes", "Cloudflare Radar", "https://radar.cloudflare.com",

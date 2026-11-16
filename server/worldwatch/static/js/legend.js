@@ -49,6 +49,7 @@ const LEGENDS = {
   sanctioned: [['letter', RED, 'Sanctioned or shadow-fleet ship', 'S'], ['letter', RED, 'Sanctioned aircraft', 'A']],
   cameras: [['dot', L('#0071a4', '#64d2ff'), 'Public traffic or weather camera'], ['dot', L('#248a3d', '#30d158'), 'Windy webcam with a live stream'],
     ['dot', L('#0a84ff', '#5ac8fa'), 'Windy webcam sending still pictures']],
+  sdr: [['dot', L('#008a7a', '#40d9c4'), 'Public shortwave receiver you can tune in the browser'], ['dot', L('#008a7a', '#40d9c4'), 'Faint: all listener slots taken', '', 0.35]],
   people: [['dot', L('#ff9f0a', '#ffb340'), 'Head of state or government, at their country']],
   leaders: [['dot', L('#ff9f0a', '#ffb340'), 'Leader as placed by today\'s news (where reported, not a tracked location)'], ['dash', L('#ff9f0a', '#ffb340'), 'Abroad: line from home']],
   fires: [['dot', L('#ff5e3a', '#ff6a4d'), 'Hot spot seen by NASA\'s MODIS in the last 24 h (not always a wildfire)']],

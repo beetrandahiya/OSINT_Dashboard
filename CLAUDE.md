@@ -1239,3 +1239,32 @@ He liked the front line, military zones, quakes and the dossier. Fixes:
 - **Legend panel** (`legend.js`, `#legend` beside the sidebar above the markets strip, minimisable, remembered): one
   section per switched-on chip with the same colours, letters and shapes the layer paints. **Colours are duplicated
   from the layers' `paint()`: change both when a layer's look changes.**
+
+### 2026-11-16, "who photographed it" and listening stations (built, waiting for review)
+
+He picked from a competitor survey (God's Eye View, ShadowBroker, worldmonitor, Crucix...): SAR "who imaged this place" and
+KiwiSDR receivers; malware C2 servers he asked for, then asked whether they were the same as hijacks (they are not:
+hijacks are routing, C2 are botnet control servers). **C2 not built:** abuse.ch Feodo has 5 entries left, ThreatFox and
+URLhaus exports answer 410 (now behind a free abuse.ch Auth-Key); C2IntelFeeds (GitHub, 226 Cobalt Strike IPs/30 days)
+works but needs IP geolocation. Waiting for his word. He rejected: air-raid alerts, GFW shadow fleet, chokepoints, fires
+at sites (he finds FIRMS's ~11,000 daily hot spots implausible: they are real, mostly farm burning and gas flares, but
+he does not trust the layer), UCDP, restricted airspace (has airspace already).
+- **Photographed from orbit** (`imaged.py`, `/api/imaged?lat&lon&days`, `/api/imaged/pic?u=`, `static/js/imaged.js`): a second
+  button under every spy-pass button (`spyPass()` in util.js, so news, unrest, disasters, navy, bases, nuclear, front,
+  sanctioned, tankers, spikes, country dossier get it). Asks Sentinel-1 (ASF search API, GRD with browse JPEG), Sentinel-2
+  (Copernicus Data Space STAC, thumbnail + cloud %) and Landsat 8/9 (USGS LandsatLook STAC) at once, no keys, ~1.5 s, cached
+  1 h per 0.01°; dedupes per satellite and minute. Card: counts (radar / optical / mostly clear), rows with preview (proxied,
+  only addresses handed out, 4 at a time with one retry: bursts of 19 had 502s), outlines on the map (purple radar, blue
+  optical, hovered row lit), cleared when the card closes. Washington: 20 captures in 30 days; Moscow 26.
+- **Listening stations** (feed `sdr`, hourly, `sdr.js`, chip off by default): kiwisdr.com public list via rx.linkfanel.net
+  (a JavaScript array with trailing commas, not JSON), 843 online with position, full ones faded. Card: listeners, band,
+  antenna, SNR, "Open the receiver and listen" (their page, new tab) and quick-tune links `?f=<kHz><mode>` for UVB-76 4625,
+  HFGCS 8992/11175, Shannon VOLMET 5505, WWV 10000. Whether the `?f=` parameter tunes is from KiwiSDR's documented URL
+  options; not clicked through here.
+- Second research round (agent, probed 2026-11-16), not yet shown to him in full: Umbra open data MIL folder (25 cm SAR of
+  Severomorsk, Qingdao, Bandar Abbas, Bushehr, Chabahar, Changxing; newest Dec 2025; CC BY 4.0), Capella open data
+  defence collection (126 items; licence unclear: STAC says proprietary), CelesTrak SOCRATES close approaches (22.5 MB,
+  flaky), eam.watch Emergency Action Message log (JSON, no published terms: ask the operator), Priyom numbers-station
+  schedule (calendar2.priyom.org JSON, CC BY-NC-SA), Cloudflare Radar DDoS origin->target pairs, ransomware.live victims,
+  OONI + Tor Metrics censorship, spy-ship watchlist (Wikidata too thin, hand list needed), FBI wanted state hackers (named
+  people: ask first), OpenSanctions deltas. Blocked here: Taiwan MND, China MSA, NTI, embassy alerts, Interpol, CORDS.

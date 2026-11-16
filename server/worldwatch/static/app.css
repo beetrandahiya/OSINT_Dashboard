@@ -385,3 +385,9 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 .legend li svg { flex: none; }
 .legend .lg-note { display: block; font-size: 11px; line-height: 14px; color: var(--text-2); margin: 2px 0 2px 0; }
 @media (max-width: 900px) { .legend { display: none; } }
+/* ---- "photographed from orbit" list in cards ---- */
+.img-list { list-style: none; margin: 8px 0; padding: 0; }
+.img-row { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-top: .5px solid var(--sep); font-size: 13px; line-height: 17px; }
+.img-row img { width: 72px; height: 58px; object-fit: cover; border-radius: 6px; background: var(--fill); flex: none; display: block; }
+.img-row .img-none { width: 72px; height: 58px; border-radius: 6px; background: var(--fill); flex: none; font-size: 10px; color: var(--text-2); display: grid; place-items: center; }
+.img-row:hover { background: var(--fill); border-radius: 8px; }

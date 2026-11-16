@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import cams, config, db, maxar, patterns, sanctions, satinfo, sites, translate
+from . import cams, config, db, imaged, maxar, patterns, sanctions, satinfo, sites, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -336,6 +336,44 @@ async def satellite(request):
             problem = (problem or "") + f"; a picture source could not be asked ({type(e).__name__})"
     return JSONResponse({"norad": norad, "ucs": ucs_row, "wikidata": wd, "problem": problem if not (wd or {}).get("image") else None,
                          "ucs_kind": satinfo.code(ucs_row) if ucs_row else None})
+
+
+async def imaged_search(request):
+    """Which civil imaging satellites captured a place in the last days (imaged.py)."""
+    q = request.query_params
+    try:
+        lat, lon = float(q["lat"]), float(q["lon"])
+        days = max(1, min(60, int(q.get("days") or 30)))
+    except (KeyError, ValueError):
+        return JSONResponse({"error": "lat and lon needed"}, status_code=400)
+    return JSONResponse(await imaged.search(lat, lon, days), headers={"Cache-Control": "no-store"})
+
+
+_IMAGED_GATE = asyncio.Semaphore(4)
+
+
+async def imaged_pic(request):
+    """A catalogue preview picture, fetched by this server (only addresses imaged.search handed out)."""
+    u = request.query_params.get("u") or ""
+    if not imaged.allowed(u):
+        return Response(status_code=404)
+    r = None
+    async with _IMAGED_GATE:                   # a card asks for up to 30 previews at once; the catalogues dislike bursts
+        for attempt in (0, 1):
+            try:
+                async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers={"User-Agent": config.USER_AGENT}) as c:
+                    r = await c.get(u)
+                if r.status_code == 404:
+                    return Response(status_code=404)
+                r.raise_for_status()
+                break
+            except httpx.HTTPError:
+                r = None
+                await asyncio.sleep(1.5)
+    if r is None:
+        return Response(status_code=502)
+    return Response(r.content, media_type=r.headers.get("content-type", "image/jpeg").replace("application/octet-stream", "image/jpeg"),
+                    headers={"Cache-Control": "max-age=86400"})
 
 
 async def ship_trail(request):
@@ -927,6 +965,8 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/cable/{cid}", cable_about),
     Route("/api/cam/image", camera_image),
     Route("/api/ship/photos", ship_photos),
+    Route("/api/imaged", imaged_search),
+    Route("/api/imaged/pic", imaged_pic),
     Route("/api/sanctioned/live", sanctioned_live),
     Route("/api/news/spikes", news_spikes),
     Route("/api/cam/windy", windy_cams),

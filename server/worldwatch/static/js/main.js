@@ -24,15 +24,17 @@ import {orbits, tankers} from './patterns.js';
 import {bases, nuclear} from './sites.js';
 import hijacks from './netwatch.js';
 import cameras from './cameras.js';
+import sdr from './sdr.js';
 import sanctioned from './sanctioned.js';
 import spikes from './spikes.js';
 import * as munichView from './munich.js';
 import * as markets from './markets.js';
 import {renderLegend} from './legend.js';
+import {attachImaged} from './imaged.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, rain, lightning];
-const CHIPS = [news, spikes, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, sanctioned, cameras, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
+const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sdr, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, rain, lightning];
+const CHIPS = [news, spikes, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, sanctioned, cameras, sdr, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -84,6 +86,7 @@ let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') =
 
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
 window.wwWatchTiles?.(map);
+attachImaged(map);
 
 let on = Object.fromEntries(LAYERS.map(l => [l.id, !l.defaultOff]));
 try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); } catch (e) { /* private window */ }
@@ -207,7 +210,7 @@ function renderDetail() {
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
   if (key === detailKey && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
-  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + html;
   el.classList.toggle('min', detailMin);
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
