@@ -132,7 +132,8 @@ class Collector:
             t = data_time - (a.get("seen_pos_s") or 0)
             tr = self.trails.setdefault(a["hex"], [])
             if not tr or (t > tr[-1][0] + 4 and (a["lon"], a["lat"]) != (tr[-1][1], tr[-1][2])):
-                tr.append([round(t, 1), a["lon"], a["lat"]])
+                alt = a.get("alt_ft")
+                tr.append([round(t, 1), a["lon"], a["lat"], 0 if alt == "ground" else round(alt * 0.3048) if isinstance(alt, (int, float)) else None])
         old = data_time - 3 * 3600
         for hex_, tr in list(self.trails.items()):
             while tr and tr[0][0] < old:

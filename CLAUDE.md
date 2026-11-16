@@ -1350,3 +1350,36 @@ Built:
   the look itself (low-poly, untextured, no liveries) is GEV's procedural set; waiting for his verdict on his GPU.
 - Testing limits here: software GL; terrain plus continuous redraw times the browser out, so 3D-with-terrain screenshots
   could not be taken; flat and tilted views without terrain checked.
+
+### 2026-11-16, 3D aircraft reliability pass (his report: plane invisible, follow stops, path on the ground, "newest" ahead)
+
+Causes found: the model was at true altitude while the ring, path, labels and the follow camera sat on the ground below
+it (tilted, the plane was far from its ring, often off screen or under the card); OpenSky's path runs to now while the
+plane was drawn 30 s behind (hence "newest" ahead of it); follow aimed at the ground point, waited for an easeTo and
+skipped frames while the map moved; only the nearest 150 within 150 km got models.
+Now (`models3d.js` rewritten, `aircraft.js`, chase in `main.js`):
+- **One rule:** below `MODEL_ZOOM` (7) every aircraft is a flat icon; from 7 every aircraft on screen (live, military,
+  world, VIP, doomsday) is a model in the air, one `InstancedMesh` per model part, matrices relative to the view centre.
+  Icon, VIP/doomsday halo and ground path layers get maxzoom 7 (`setLayerZoomRange`, once the generic model has loaded).
+  All aircraft and helicopter models (~0.9 MB) are fetched at start; the generic one stands in while one loads.
+- Ring (black/white like every selection) and callsign labels (no overlaps, nearest the middle first) on a 2D canvas
+  over the map at the model's screen point; flown path and route line in 3D at altitude as constant-width ribbons
+  (custom shader); drop line to the ground only for the selected aircraft when tilted.
+- **One position for everything:** `where()` / `display()` in `aircraft.js`. Live: playback DELAY 15 s (area feed
+  polled every 5 s, server reuse 4 s); military-feed-only aircraft DELAY_SLOW 40 s, delay changes eased in. Between
+  reports a Hermite curve from the reported speed and track (straight line when they disagree with the distance).
+  On screen smoothed (0.3 s) so nothing jumps; heading slews at most 60°/s. One clock per animation frame
+  (`document.timeline.currentTime`) so camera, model and ring agree exactly. World-feed aircraft: the selected one sits
+  at its OpenSky path's newest point when that is newer than the snapshot; no "newest" label any more. The flown path is
+  cut at the plane's drawn time and joined to it. Track points carry altitude (OpenSky `p[3]`, our trails too).
+- World-feed positions are not drawn inside the live area's circle (they were 20-minute-old ghosts beside live ones).
+- Model colours: light mode the icon colours (indigo / purple / grey / gold / red), dark mode near-white; darkest parts
+  lifted to 40 % of the colour. Selected model at least 46 px.
+- **Chase camera:** one rAF loop owns the camera: 1.6 s glide in, then centre = the plane itself, lifted to its altitude
+  (`setCenterClampedToGround(false)` + `jumpTo({elevation})`), padding = the area free of sidebar and card, bearing eases
+  to the heading, wheel zoom stays centred. Stop eases the centre back to the ground and restores the padding.
+  `cameras.js` / `sites.js` now debounce `moveend` (the chase moves the map every frame).
+- Tested headless (software GL, 1440x900, light and dark): models = all aircraft on screen, chase holds the plane within
+  ~3 px of the free-area centre over 14 s while the centre moves, path drawn and ending at the plane, zoom while
+  following, stop restores ground and padding, no errors. **Not tested:** 3D terrain mode with models (headless times
+  out), frame rate on his GPU, helicopters edge-on (one H60 seen only from above).

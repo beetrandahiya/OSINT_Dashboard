@@ -281,42 +281,77 @@ $('#three').onclick = () => three(!is3D());
 map.on('load', () => { try { if (localStorage.getItem('ww-3d')) three(true); } catch (e) { /* private window */ } });
 
 // ---- chase camera: lock onto a moving aircraft or ship, tilted, turning with its heading ----
+// One animation loop owns the camera while it follows: the first 1.6 s glide from where the camera was to behind the
+// target, then the camera centre is the target itself, in the air for an aircraft (the map's centre point is lifted
+// to its altitude), turning gently towards its heading. The target's own position is already smooth (aircraft.js
+// display()), so the camera never jerks. Wheel zoom stays centred on it; dragging hands the camera back.
 let chase = null;
+const ease = u => u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+const shortest = (a, b) => ((b - a + 540) % 360) - 180;
+// the part of the map not covered by the panel on the left and the card on the right: the target is kept in its middle
+function freeArea() {
+  const cv = map.getCanvas().getBoundingClientRect(), pad = {top: 0, bottom: 0, left: 0, right: 0};
+  const side = $('#sidebar'), card = $('#detail');
+  if (side && !side.hidden) { const r = side.getBoundingClientRect(); if (r.height > 120) pad.left = Math.max(0, r.right - cv.left); }
+  if (card && !card.hidden) { const r = card.getBoundingClientRect(); if (r.height > 120) pad.right = Math.max(0, cv.right - r.left); }
+  if (pad.left + pad.right > cv.width - 160) { pad.left = 0; pad.right = 0; }   // too little room: use the whole map
+  return pad;
+}
+function groundAgain(level, padding) {
+  const go = () => {
+    if (chase) return;
+    const g = (is3D() && map.queryTerrainElevation?.(map.getCenter())) || 0;
+    map.easeTo({elevation: g, padding, ...(level ? {pitch: 0, bearing: 0} : {}), duration: calm.matches ? 0 : 700});
+    map.once('moveend', () => { if (!chase) map.setCenterClampedToGround(true); });
+  };
+  if (map.isMoving()) map.once('moveend', go); else go();
+}
 function chaseStop(level = true) {
   if (!chase) return;
-  cancelAnimationFrame(chase.raf); chase = null;
+  cancelAnimationFrame(chase.raf);
+  const padWas = chase.padWas; chase = null;
   $('#chasebar')?.remove();
   map.scrollZoom.enable();
-  if (level && !is3D()) map.easeTo({pitch: 0, bearing: 0, duration: 600});
+  groundAgain(level && !is3D(), padWas);
   detailKey = ''; renderDetail();
 }
 function chaseStart() {
   if (!picked) return;
   const layer = byId[picked.layer], id = picked.id;
-  const start = layer.locate(id); if (!start) return;
+  const where = () => layer.locate3d?.(id) || (layer.locate(id) && [...layer.locate(id), 0]);
+  if (!where()) return;
   chaseStop(false);
-  chase = {layer, id, bearing: map.getBearing(), raf: 0};
+  const padWas = map.getPadding();
+  const ship = picked.layer === 'ships' || picked.layer === 'warships' || picked.layer === 'sanctioned';
+  const c0 = map.getCenter();
+  chase = {layer, id, raf: 0, t0: performance.now(), last: performance.now(), from: {lon: c0.lng, lat: c0.lat, alt: map.getCenterElevation() || 0, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()},
+    zoom: Math.max(map.getZoom(), ship ? 12 : 10.5), pitch: 62, bearing: layer.heading?.(id) ?? map.getBearing(), intro: calm.matches ? 0 : 1600,
+    padWas, pad: {...padWas}, padAt: 0};
+  map.setCenterClampedToGround(false);
   map.scrollZoom.enable({around: 'center'});
-  const z = Math.max(map.getZoom(), picked.layer === 'ships' || picked.layer === 'warships' || picked.layer === 'sanctioned' ? 11 : 8.5);
-  map.easeTo({center: start, zoom: z, pitch: 62, bearing: layer.heading?.(id) ?? map.getBearing(), duration: calm.matches ? 0 : 1200});
   const bar = document.createElement('div');
   bar.id = 'chasebar'; bar.className = 'glass chasebar';
   bar.innerHTML = `<span>Following</span><b>${esc(document.querySelector('#detail h2')?.textContent || 'it')}</b><button class="btn" id="chasestop">Stop</button>`;
   document.body.appendChild(bar);
   $('#chasestop').onclick = () => chaseStop();
   detailKey = ''; renderDetail();   // the card's button now reads "Stop following"
-  setTimeout(() => {
-    const step = () => {
-      if (!chase) return;
-      const at = chase.layer.locate(chase.id);
-      if (!at || !picked || picked.id !== chase.id) { chaseStop(); return; }
-      const want = chase.layer.heading?.(chase.id);
-      if (want != null) { let d = ((want - chase.bearing + 540) % 360) - 180; chase.bearing += d * 0.04; }   // turn gently with it
-      if (!map.isMoving() || map.isZooming()) map.jumpTo({center: at, bearing: chase.bearing, pitch: Math.max(map.getPitch(), 45)});
-      chase.raf = requestAnimationFrame(step);
-    };
+  const step = () => {
+    if (!chase) return;
+    const t = performance.now(), dt = Math.min(0.1, (t - chase.last) / 1000); chase.last = t;
+    const p = where();
+    if (!p || !picked || picked.id !== chase.id) { chaseStop(); return; }
+    const want = chase.layer.heading?.(chase.id);
+    if (want != null) chase.bearing += shortest(chase.bearing, want) * (1 - Math.exp(-dt / 2.5));   // turn gently with it
+    const u = chase.intro ? Math.min(1, (t - chase.t0) / chase.intro) : 1, e = ease(u), f = chase.from;
+    if (t - chase.padAt > 400) { chase.padAt = t; chase.padWant = freeArea(); }
+    for (const k of ['left', 'right', 'top', 'bottom']) chase.pad[k] += (chase.padWant[k] - chase.pad[k]) * (1 - Math.exp(-dt / 0.3));
+    let dl = p[0] - f.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
+    map.jumpTo(u < 1 ? {center: [f.lon + dl * e, f.lat + (p[1] - f.lat) * e], elevation: f.alt + (p[2] - f.alt) * e, zoom: f.zoom + (chase.zoom - f.zoom) * e,
+        pitch: f.pitch + (chase.pitch - f.pitch) * e, bearing: f.bearing + shortest(f.bearing, chase.bearing) * e, padding: {...chase.pad}}
+      : {center: [p[0], p[1]], elevation: p[2], bearing: chase.bearing, padding: {...chase.pad}});
     chase.raf = requestAnimationFrame(step);
-  }, calm.matches ? 0 : 1250);
+  };
+  chase.raf = requestAnimationFrame(step);
 }
 // dragging the map hands the camera back
 map.getCanvas().addEventListener('mousedown', () => chase && chaseStop(false));

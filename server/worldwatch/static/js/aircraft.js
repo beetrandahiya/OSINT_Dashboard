@@ -5,47 +5,96 @@
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
 import {$, ago, api, esc, local, now} from './util.js';
-import {addModelProvider, hitModel, modelled} from './models3d.js';
+import {addModelProvider, addPathProvider, hitModel, isOn, onReady, MODEL_ZOOM} from './models3d.js';
 import {planeFlag, flagImg} from './flags.js';
 
 let view = [], viewInfo = null, mil = [], world = [], info = {}, theMap = null, shown = {aircraft: true, military: true};
 const VIEW_MIN_ZOOM = 5.2;   // below this the screen holds more than adsb.fi's 250-mile circle, so only the world feed is used
 
-// ---- gliding (the owner's decision of 14 Nov 2026, the one place where something is drawn ahead of its data) ----
-// Live aircraft are drawn DELAY seconds behind real time, moving between two real reports (the way God's Eye View
-// does it): at any moment the symbol is where the aircraft really was then, joined smoothly between reports, never
-// guessed ahead. When no newer report has come in yet, it waits at its last one. (Replaces the earlier "gliding",
-// which drew it up to 30 s ahead of its last report: an estimate that jumped when a report disagreed.)
-export const DELAY = 30;
-const hist = new Map();                // hex -> real reports [{t, lon, lat, alt, track, gs}], oldest first
-function record(list, dataTime) {
+// ---- playback (the owner's decision of 16 Nov 2026, after studying God's Eye View) ----
+// Live aircraft are drawn a few seconds behind real time, moving between two real reports: at any moment the aircraft
+// is where it really was then, joined smoothly between reports, never guessed ahead. Between two reports the path is
+// a curve that leaves and arrives with the speed and heading the aircraft itself reported (a Hermite curve), so it
+// does not kink at every report. When no newer report has come in yet, it waits at its last one.
+// Aircraft in the live area feed (a report every ~5 s) run DELAY seconds behind; ones known only from the military
+// feed (every 30 s) run DELAY_SLOW behind, so they keep moving between its reports too.
+export const DELAY = 15, DELAY_SLOW = 40;
+const VIEW_POLL = 5000;
+const hist = new Map();                // hex -> real reports [{t, lon, lat, alt, track, gs}], oldest first; .view = when the area feed last had it
+function record(list, dataTime, fromView) {
   const now0 = now();
   for (const a of list) {
     if (a.lat == null || a.lon == null || !a.hex) continue;
     const t = (dataTime ?? now0) - (a.seen_pos_s ?? 0);
     let h = hist.get(a.hex);
     if (!h) hist.set(a.hex, h = []);
+    if (fromView) h.view = now0;
+    h.seen = now0;
     if (h.length && t <= h[h.length - 1].t + 0.5) continue;           // the same report again
-    h.push({t, lon: a.lon, lat: a.lat, alt: a.alt_ft === 'ground' ? 0 : a.alt_ft, track: a.track, gs: a.gs_kt, seen: now0});
-    while (h.length > 12 || (h.length > 2 && h[0].t < t - 240)) h.shift();
+    h.push({t, lon: a.lon, lat: a.lat, alt: a.alt_ft === 'ground' ? 0 : a.alt_ft, track: a.track, gs: a.gs_kt});
+    while (h.length > 16 || (h.length > 2 && h[0].t < t - 300)) h.shift();
   }
-  if (hist.size > 4000) for (const [k, h] of hist) if (now0 - h[h.length - 1].seen > 300) hist.delete(k);
+  if (hist.size > 4000) for (const [k, h] of hist) if (now0 - h.seen > 300) { hist.delete(k); disp.delete(k); }
 }
+const delayOf = hex => { const h = hist.get(hex); return h && h.view && now() - h.view < 20 ? DELAY : DELAY_SLOW; };
 const lerpDeg = (a, b, f) => a == null ? b : b == null ? a : a + ((((b - a) % 360) + 540) % 360 - 180) * f;
+const KT = 0.514444, DEG = 111320;
 // where an aircraft was at time T, from its real reports: {lon, lat, alt (ft), track, held}
-export function playback(a, T = now() - DELAY) {
+export function playback(a, T = now() - delayOf(a.hex)) {
   const h = hist.get(a.hex);
-  if (!h || !h.length) return {lon: a.lon, lat: a.lat, alt: a.alt_ft === 'ground' ? 0 : a.alt_ft, track: a.track, held: true};
-  if (T <= h[0].t) { const f = h[0]; return {lon: f.lon, lat: f.lat, alt: f.alt, track: f.track, held: true}; }
+  if (!h || !h.length) return {lon: a.lon, lat: a.lat, alt: a.alt_ft === 'ground' ? 0 : a.alt_ft, track: a.track, held: true, t: T};
+  if (T <= h[0].t) { const f = h[0]; return {lon: f.lon, lat: f.lat, alt: f.alt, track: f.track, held: true, t: T}; }
   const L = h[h.length - 1];
-  if (T >= L.t) return {lon: L.lon, lat: L.lat, alt: L.alt, track: L.track, held: true};
+  if (T >= L.t) return {lon: L.lon, lat: L.lat, alt: L.alt, track: L.track, held: true, t: T};
   let i = h.length - 2; while (i > 0 && h[i].t > T) i--;
-  const p = h[i], q = h[i + 1], f = (T - p.t) / (q.t - p.t || 1);
+  const p = h[i], q = h[i + 1], dt = q.t - p.t || 1, f = (T - p.t) / dt;
   let dl = q.lon - p.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
-  return {lon: p.lon + dl * f, lat: p.lat + (q.lat - p.lat) * f, alt: p.alt == null || q.alt == null ? (q.alt ?? p.alt) : p.alt + (q.alt - p.alt) * f,
-    track: lerpDeg(p.track, q.track, f), held: false};
+  const cos = Math.cos(p.lat * Math.PI / 180);
+  // straight line by default; the curve when both reports carry speed and heading that agree with the distance flown
+  let x = dl * f, y = (q.lat - p.lat) * f;
+  if (p.gs != null && q.gs != null && p.track != null && q.track != null && dt < 40) {
+    const chord = Math.hypot(dl * cos * DEG, (q.lat - p.lat) * DEG), sp = (p.gs + q.gs) / 2 * KT * dt;
+    if (sp > 0 && chord > 0.6 * sp && chord < 1.5 * sp) {
+      const r = Math.PI / 180, v = (g, tr) => [g * KT * Math.sin(tr * r) / (DEG * cos) * dt, g * KT * Math.cos(tr * r) / DEG * dt];
+      const [ax, ay] = v(p.gs, p.track), [bx, by] = v(q.gs, q.track);
+      const h10 = f ** 3 - 2 * f ** 2 + f, h01 = -2 * f ** 3 + 3 * f ** 2, h11 = f ** 3 - f ** 2;
+      x = h10 * ax + h01 * dl + h11 * bx; y = h10 * ay + h01 * (q.lat - p.lat) + h11 * by;
+    }
+  }
+  return {lon: p.lon + x, lat: p.lat + y, alt: p.alt == null || q.alt == null ? (q.alt ?? p.alt) : p.alt + (q.alt - p.alt) * f,
+    track: lerpDeg(p.track, q.track, f), held: false, t: T};
 }
-const shownAt = a => { const p = playback(a); return [p.lon, p.lat]; };
+// What is drawn: the playback position, smoothed on screen so nothing ever jumps (a late report, a switch between
+// feeds), and the nose turning at most 60 degrees a second (God's Eye View's rule). Everything that shows an
+// aircraft (model, icon, ring, path, chase camera) asks this one function, so they always agree.
+const disp = new Map();
+// One clock per animation frame (the frame's own timestamp), so the camera, the model and the ring, which all ask
+// within the same frame, get exactly the same position.
+const frameT = () => (document.timeline?.currentTime ?? performance.now()) / 1000;
+const frameNow = () => now() - performance.now() / 1000 + frameT();
+export function display(a) {
+  const t = frameT();
+  let d = disp.get(a.hex);
+  const want = delayOf(a.hex);
+  if (!d || t - d.wall > 3) {
+    const p = playback(a, frameNow() - want);
+    d = {...p, delay: want, wall: t}; disp.set(a.hex, d); return d;
+  }
+  const dt = t - d.wall; if (dt <= 0) return d;
+  d.delay += Math.max(-dt * 0.5, Math.min(dt * 0.5, want - d.delay));   // a change of delay is eased in, never jumped
+  const p = playback(a, frameNow() - d.delay), k = 1 - Math.exp(-dt / 0.3);
+  let dl = p.lon - d.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
+  if (Math.abs(dl) > 2 || Math.abs(p.lat - d.lat) > 2) { Object.assign(d, p); d.wall = t; return d; }
+  d.lon += dl * k; d.lat += (p.lat - d.lat) * k;
+  d.alt = p.alt == null ? d.alt : d.alt == null ? p.alt : d.alt + (p.alt - d.alt) * k;
+  if (p.track != null) {
+    if (d.track == null) d.track = p.track;
+    else { const dh = ((p.track - d.track + 540) % 360) - 180, st = Math.max(-60 * dt, Math.min(60 * dt, dh * Math.min(1, k * 2))); d.track = (d.track + st + 360) % 360; }
+  }
+  d.held = p.held; d.t = p.t; d.wall = t;
+  return d;
+}
+const shownAt = a => { const p = display(a); return [p.lon, p.lat]; };
 
 // A great-circle line between two points, split where it crosses the date line.
 function arc(a, b, n = 64) {
@@ -110,7 +159,7 @@ function icons(map, dark) {
 }
 
 const feature = (a, cls, at) => { const [shape, size] = kind(a); return {type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
-  properties: {id: a.hex, track: STILL.has(shape) ? 0 : (at && hist.has(a.hex) ? playback(a).track : a.track) ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : ''), cc: planeFlag(a.hex)?.cc || ''}}; };
+  properties: {id: a.hex, track: STILL.has(shape) ? 0 : (at && hist.has(a.hex) ? display(a).track : a.track) ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : ''), cc: planeFlag(a.hex)?.cc || ''}}; };
 const empty = {type: 'FeatureCollection', features: []};
 const SIZE = ['interpolate', ['linear'], ['zoom'], 1, ['*', 0.22, ['get', 's']], 5, ['*', 0.46, ['get', 's']], 9, ['*', 0.8, ['get', 's']]];
 const label = {'text-field': ['step', ['zoom'], '', 6.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5,
@@ -124,7 +173,23 @@ function find(id) {
   const w = world.find(a => a.hex === id); if (w) return {a: w, from: 'world'};
   return null;
 }
-const position = h => h.from === 'world' ? [h.a.lon, h.a.lat] : shownAt(h.a);
+// The one place that says where an aircraft is drawn: {lon, lat, altM, track, t (the time that position is from)}.
+// Live and military aircraft: the smoothed playback. World-feed aircraft: their 20-minute snapshot, except the
+// selected one when the path OpenSky gives for it is newer: then it sits at that path's newest point.
+function where(h) {
+  if (h.from !== 'world') { const d = display(h.a); return {lon: d.lon, lat: d.lat, altM: d.alt == null ? null : d.alt * 0.3048, track: d.track, t: d.t, held: d.held}; }
+  const a = h.a, last = flown && flown.hex === a.hex && flown.points.length ? flown.points[flown.points.length - 1] : null;
+  if (last && last[0] > (a.last_contact ?? 0)) {
+    const prev = flown.points[flown.points.length - 2];
+    return {lon: last[1], lat: last[2], altM: last[3] ?? a.alt_m, track: prev ? bearing(prev[1], prev[2], last[1], last[2]) : a.track, t: last[0], fromPath: true};
+  }
+  return {lon: a.lon, lat: a.lat, altM: a.on_ground ? 0 : a.alt_m, track: a.track, t: a.last_contact ?? 0};
+}
+function bearing(lo1, la1, lo2, la2) {
+  const r = Math.PI / 180, y = Math.sin((lo2 - lo1) * r) * Math.cos(la2 * r), x = Math.cos(la1 * r) * Math.sin(la2 * r) - Math.sin(la1 * r) * Math.cos(la2 * r) * Math.cos((lo2 - lo1) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+const position = h => { const w = where(h); return [w.lon, w.lat]; };
 
 // ---- drawing ----
 // The ~6,000 world aircraft change only when a new snapshot arrives: they are sent to the map then (full = true). The
@@ -133,17 +198,24 @@ const position = h => h.from === 'world' ? [h.a.lon, h.a.lat] : shownAt(h.a);
 function glide(full = false) {
   const map = theMap; if (!map || !map.getSource('ww-air')) return;
   const milHex = new Set(mil.map(a => a.hex)), viewHex = new Set(view.map(a => a.hex));
-  map.getSource('ww-air-live').setData({type: 'FeatureCollection', features: view.filter(a => !milHex.has(a.hex) && !a.military && !modelled.has(a.hex)).map(a => feature(a, 'civil', shownAt(a)))});
+  map.getSource('ww-air-live').setData({type: 'FeatureCollection', features: view.filter(a => !milHex.has(a.hex) && !a.military).map(a => feature(a, 'civil', shownAt(a)))});
   if (full) {
     const feats = [];
-    for (const a of world) if (!viewHex.has(a.hex) && !milHex.has(a.hex) && !a.on_ground) feats.push(feature(a, 'civil'));
+    for (const a of world) if (!viewHex.has(a.hex) && !milHex.has(a.hex) && !a.on_ground && !inLive(a)) feats.push(feature(a, 'civil', a.hex === sel ? position({a, from: 'world'}) : undefined));
     map.getSource('ww-air').setData({type: 'FeatureCollection', features: feats});
   }
-  map.getSource('ww-air-mil').setData({type: 'FeatureCollection', features: [...mil.filter(a => !viewHex.has(a.hex) && !modelled.has(a.hex)).map(a => feature(a, 'mil', shownAt(a))),
-    ...view.filter(a => (a.military || milHex.has(a.hex)) && !modelled.has(a.hex)).map(a => feature(a, 'mil', shownAt(a)))]});
+  map.getSource('ww-air-mil').setData({type: 'FeatureCollection', features: [...mil.filter(a => !viewHex.has(a.hex)).map(a => feature(a, 'mil', shownAt(a))),
+    ...view.filter(a => a.military || milHex.has(a.hex)).map(a => feature(a, 'mil', shownAt(a)))]});
   drawExtras();
 }
 
+// Inside the circle the live feed covers, it is the only source: a 20-minute-old world position there is a ghost
+// (often an aircraft that has landed since), so the world feed is not drawn inside it.
+function inLive(a) {
+  const v = viewInfo; if (!v || !view.length) return false;
+  const r = Math.PI / 180, x = Math.sin((a.lat - v.lat) * r / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(v.lat * r) * Math.sin((a.lon - v.lon) * r / 2) ** 2;
+  return 12742 * Math.asin(Math.min(1, Math.sqrt(x))) < v.radius_nm * 1.852;
+}
 // ---- live aircraft for the area on screen ----
 let asking = false;
 async function loadView() {
@@ -155,7 +227,7 @@ async function loadView() {
   asking = true;
   try {
     const d = await api(`/api/aircraft/area?lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&r=${Math.min(250, Math.ceil(km / 1.852))}`);
-    viewInfo = d; view = d.aircraft; record(view, d.data_time); glide(true);
+    viewInfo = d; view = d.aircraft; record(view, d.data_time, true); glide(true);
   } catch (e) { /* the feeds card shows adsb.fi failing; the world positions stay on screen */ }
   asking = false;
 }
@@ -164,26 +236,37 @@ async function loadView() {
 let sel = null, route = null, flown = null;
 async function loadTrack() {
   const id = sel; if (!id) return;
-  try { const r = await api('/api/track/' + encodeURIComponent(id)); if (sel === id) { flown = {hex: id, ...r}; drawExtras(); noteTrack(); } } catch (e) { /* the line stays as it was */ }
+  try { const r = await api('/api/track/' + encodeURIComponent(id)); if (sel === id) { flown = {hex: id, ...r}; glide(true); noteTrack(); } } catch (e) { /* the line stays as it was */ }
 }
 setInterval(loadTrack, 45000);
 function noteTrack() {
   const el = $('#tracknote'); if (!el || !flown || flown.hex !== sel) return;
-  const h = find(sel), last = flown.points[flown.points.length - 1];
-  el.textContent = flown.points.length > 1 ? `Solid line: the path it has flown, from ${flown.source}.` + (h && last && posTime(h) < last[0] ? ` That path is newer than the position the symbol shows (${ago(posTime(h))}); its newest point, from ${local(last[0])}, is marked.` : '') : `No flown path to draw${flown.note ? ' (' + flown.note + ')' : ''}.`;
+  const h = find(sel), w = h && where(h);
+  el.textContent = flown.points.length > 1 ? `Solid line: the path it has flown, from ${flown.source}, up to where it is drawn.` + (w?.fromPath ? ` That path is newer than the 20-minute snapshot, so the aircraft is drawn at its newest point (${local(w.t)}, ${ago(w.t)}).` : '') : `No flown path to draw${flown.note ? ' (' + flown.note + ')' : ''}.`;
+}
+// The flown path up to the moment the aircraft is drawn at, joined to it: [[lon, lat, alt m], ...]. OpenSky's path
+// runs up to now while a live aircraft is drawn a few seconds behind, so the newer end is cut off; otherwise the line
+// would run ahead of the aircraft.
+function flownLine(h, w) {
+  if (!flown || flown.hex !== h.a.hex || flown.points.length < 2) return null;
+  const out = [];
+  let lastAlt = null;
+  for (const p of flown.points) { if (p[3] != null) lastAlt = p[3]; if (p[0] < w.t - 0.5) out.push([p[1], p[2], p[3] ?? lastAlt]); }
+  for (const p of out) if (p[2] == null) p[2] = w.altM ?? 0;
+  out.push([w.lon, w.lat, w.altM ?? lastAlt ?? 0]);
+  return out.length > 1 ? out : null;
+}
+function routeLine(w) {
+  if (!route || route.for !== sel || !route.fits) return null;
+  const d = route.destination, alt = w.altM ?? 0, out = [];
+  for (const line of arc([w.lon, w.lat], [d.lon, d.lat])) for (const p of line) out.push(p);
+  return out.map((p, i) => [p[0], p[1], alt * (1 - i / (out.length - 1))]);
 }
 function drawExtras() {
   const map = theMap; if (!map?.getSource('ww-air-extra')) return;
-  const feats = [], hit = sel && find(sel), at = hit && position(hit);
-  if (hit && flown && flown.hex === sel && flown.points.length > 1) {
-    const pts = flown.points.map(p => [p[1], p[2]]), last = flown.points[flown.points.length - 1];
-    // Join the path to the symbol only when the symbol's position is the newer one. The world snapshot can be
-    // 20 minutes old while OpenSky's path runs up to now: joining those drew a line that ran ahead and turned
-    // back to the older symbol. Then the path's own newest point is marked with its time instead.
-    if (posTime(hit) >= last[0]) pts.push(at);
-    else feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [last[1], last[2]]}, properties: {kind: 'airport', label: 'newest ' + local(last[0])}});
-    feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: split(pts)}, properties: {kind: 'trail'}});
-  }
+  const feats = [], hit = sel && find(sel), w = hit && where(hit), at = w && [w.lon, w.lat];
+  const line = hit && flownLine(hit, w);
+  if (line) feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: split(line.map(p => [p[0], p[1]]))}, properties: {kind: 'trail'}});
   if (hit && route && route.for === sel && route.fits) {
     const o = route.origin, d = route.destination;
     feats.push({type: 'Feature', geometry: {type: 'MultiLineString', coordinates: arc(at, [d.lon, d.lat])}, properties: {kind: 'route'}});
@@ -192,8 +275,7 @@ function drawExtras() {
   map.getSource('ww-air-extra').setData({type: 'FeatureCollection', features: feats});
 }
 function posTime(h) {   // when the position the symbol is drawn at was reported
-  if (h.from !== 'world') { const r = hist.get(h.a.hex); return r?.length ? Math.min(now() - DELAY, r[r.length - 1].t) : (info.aircraft_military?.data_time ?? 0) - (h.a.seen_pos_s ?? 0); }
-  return h.a.last_contact ?? 0;
+  return where(h).t;
 }
 export function select(id) {
   if (id !== sel) { flown = null; route = null; }
@@ -227,8 +309,8 @@ function detail(id) {
       ${a.nac_p != null ? `<dt>Position accuracy it reports</dt><dd>${ACCURACY[a.nac_p] || 'unknown'} <span class="soft">(NACp ${a.nac_p})</span></dd>` : ''}`;
   }
   const flags = [isMil && 'Military', a.ladd && 'On the FAA\'s limited-display list', a.pia && 'Privacy address'].filter(Boolean).join(' · ');
-  const pb = from !== 'world' ? playback(a) : null;
-  const fresh = from !== 'world' ? `Drawn ${DELAY} seconds behind real time, moving between its real reports (no guessing ahead)${pb.held ? '; no newer report yet, so it waits at the last one' : ''}.`
+  const pb = from !== 'world' ? display(a) : null;
+  const fresh = from !== 'world' ? `Drawn ${Math.round(pb?.delay ?? DELAY)} seconds behind real time, moving between its real reports (no guessing ahead)${pb.held ? '; no newer report yet, so it waits at the last one' : ''}.`
     : 'The world view refreshes every 20 minutes; the aircraft is drawn where it last reported and has kept moving since. Zoom in on it for live positions.';
   const v = vipList[a.hex];
   const role = v?.category === 'Doomsday' ? DOOM_ROLE.find(([re]) => re.test(v.type || ''))?.[1] : null;
@@ -318,8 +400,10 @@ export const civil = {
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-allow-overlap': true}});
     map.addLayer(symbol('ww-air', 'ww-air'));
     map.addLayer(symbol('ww-air-live', 'ww-air-live'));
+    // zoomed in, the 3D models take over: flat icons, ground ring and ground lines stop at MODEL_ZOOM (once the models are loaded)
+    onReady(() => setTimeout(() => { for (const l of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-route', 'ww-air-trail', 'ww-vip-halo', 'ww-vip-label', 'ww-doom-halo', 'ww-doom-label']) if (map.getLayer(l)) map.setLayerZoomRange(l, 0, MODEL_ZOOM); }, 0));   // after the military and VIP layers exist
     setInterval(() => { if (!document.hidden && (shown.aircraft || shown.military) && (view.length || mil.length)) glide(); }, 200);
-    setInterval(loadView, 10000);
+    setInterval(loadView, VIEW_POLL);
     let t = null;
     map.on('moveend', () => { clearTimeout(t); t = setTimeout(loadView, 600); });   // a moment after the map stops moving
   },
@@ -337,8 +421,9 @@ export const civil = {
   count: () => new Set([...world.filter(a => !a.on_ground), ...view].map(a => a.hex)).size,
   rows: () => [],
   locate(id) { const h = find(id); return h && position(h); },
-  heading(id) { const h = find(id); return h ? (h.a.track ?? null) : undefined; },
-  ring: () => 15,
+  locate3d(id) { const h = find(id); if (!h) return null; const w = where(h); return [w.lon, w.lat, w.altM ?? 0]; },
+  heading(id) { const h = find(id); return h ? (where(h).track ?? null) : undefined; },
+  ring: () => isOn() ? 0 : 15,   // zoomed in, the model layer draws the ring around the aircraft in the air
   moving: true,
   detail,
   owns: id => !!find(id) && !military.owns(id),
@@ -348,14 +433,15 @@ export const military = {
   id: 'military', title: 'Military', color: ['#af52de', '#da8fff'], feeds: {aircraft_military: 30}, layers: ['ww-air-mil'],
   addTo(map) { map.addLayer(symbol('ww-air-mil', 'ww-air-mil')); },
   paint(map, dark) { civil.paint(map, dark); },
-  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; record(mil, d.data_time); },
+  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; record(mil, d.data_time, false); },
   render: () => glide(true),
   visible(on) { shown.military = on; if (on) loadView(); },
   count: () => mil.length,
   rows: () => [],
   locate: id => civil.locate(id),
+  locate3d: id => civil.locate3d(id),
   heading: id => civil.heading(id),
-  ring: () => 16,
+  ring: () => isOn() ? 0 : 16,
   moving: true,
   detail,
   owns: id => mil.some(a => a.hex === id) || view.some(a => a.hex === id && a.military),
@@ -398,8 +484,9 @@ export const vip = {
     title: `${vipLabel(h)}: ${vipList[h.a.hex].type || 'aircraft'} airborne`, meta: `${VIP_NAME[vipList[h.a.hex].category] || vipList[h.a.hex].category} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
   owns: id => !!vipList[id] && vipList[id].category !== 'Doomsday' && !!find(id),
   locate: id => civil.locate(id),
+  locate3d: id => civil.locate3d(id),
   heading: id => civil.heading(id),
-  ring: () => 18,
+  ring: () => isOn() ? 0 : 18,
   moving: true,
   detail,
 };
@@ -436,26 +523,41 @@ export const doomsday = {
     title: `${(vipList[h.a.hex].type || 'Doomsday plane')} airborne`, meta: `${vipList[h.a.hex].operator || ''} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
   owns: id => vipList[id]?.category === 'Doomsday' && !!find(id),
   locate: id => civil.locate(id),
+  locate3d: id => civil.locate3d(id),
   heading: id => civil.heading(id),
-  ring: () => 20,
+  ring: () => isOn() ? 0 : 20,
   moving: true,
   detail,
 };
 
-// live and military aircraft for the 3D models (models3d.js), at their playback positions
-addModelProvider(() => {
+// every aircraft on screen for the 3D models (models3d.js), where display() puts it
+const TINTS = {civil: ['#5856d6', '#eef0ff'], mil: ['#af52de', '#dcb8ff'], world: ['#8e8e93', '#aeb2bb'], vip: ['#c69200', '#ffd426'], doom: ['#d70015', '#ff6961']};
+addModelProvider(inView => {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   const out = [], milHex = new Set(mil.map(a => a.hex)), seen = new Set();
-  const add = (a, isMil) => {
-    if (seen.has(a.hex) || a.alt_ft === 'ground' && !shown.aircraft) return;
-    if (isMil ? !shown.military : !shown.aircraft) return;
+  const add = (h, isMil) => {
+    const a = h.a;
+    if (seen.has(a.hex)) return;
     seen.add(a.hex);
-    const p = playback(a);
-    out.push({id: a.hex, layer: isMil ? 'military' : 'aircraft', lon: p.lon, lat: p.lat, altM: (p.alt || 0) * 0.3048, heading: p.track, type: a.type, category: a.category,
-      tint: isMil ? '#d2b6ff' : '#f4f6fb'});
+    if (isMil ? !shown.military : !shown.aircraft) return;
+    if (h.from === 'world' ? a.on_ground : a.alt_ft === 'ground') return;
+    if (!inView(a.lon, a.lat)) return;
+    const w = where(h), v = vipList[a.hex];
+    // the same colours as the flat icons (light) / near-white (dark), so a model stands out on either base map
+    const tint = (v?.category === 'Doomsday' ? TINTS.doom : v ? TINTS.vip : isMil ? TINTS.mil : h.from === 'world' ? TINTS.world : TINTS.civil)[+dark];
+    out.push({id: a.hex, layer: isMil ? 'military' : 'aircraft', lon: w.lon, lat: w.lat, altM: w.altM, heading: w.track, type: a.type, category: a.category,
+      tint, label: v ? vipLabel({a}) : a.flight || a.reg || '', sel: a.hex === sel});
   };
-  for (const a of view) add(a, a.military || milHex.has(a.hex));
-  for (const a of mil) add(a, true);
+  for (const a of view) add({a, from: 'view'}, a.military || milHex.has(a.hex));
+  for (const a of mil) add({a, from: 'military'}, true);
+  for (const a of world) if (!inLive(a) || a.hex === sel) add({a, from: 'world'}, false);
   return out;
+});
+// the selected aircraft's flown path and route line, in the air with it
+addPathProvider(() => {
+  const h = sel && find(sel); if (!h) return null;
+  const w = where(h);
+  return {trail: flownLine(h, w), route: routeLine(w), color: matchMedia('(prefers-color-scheme: dark)').matches ? civil.color[1] : civil.color[0]};
 });
 civil.hit = point => { const d = hitModel(point); return d && d.layer === 'aircraft' ? d.id : null; };
 military.hit = point => { const d = hitModel(point); return d && d.layer === 'military' ? d.id : null; };

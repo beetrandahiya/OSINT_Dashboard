@@ -169,7 +169,7 @@ async def track(request):
                 r = await c.get(f"https://opensky-network.org/api/tracks/all?icao24={hex_}&time=0")
             if r.status_code == 200:
                 d = r.json()
-                body = {"source": "OpenSky Network", "points": [[p[0], p[2], p[1]] for p in d.get("path") or [] if p[1] is not None and p[2] is not None],
+                body = {"source": "OpenSky Network", "points": [[p[0], p[2], p[1], p[3]] for p in d.get("path") or [] if p[1] is not None and p[2] is not None],
                         "start": d.get("startTime"), "note": None}
             elif r.status_code == 429:
                 body = {"source": None, "points": [], "note": "OpenSky's free daily allowance is used up"}
@@ -766,7 +766,7 @@ _area = {"at": 0.0, "key": None, "body": None}
 
 async def area(request):
     """Live aircraft for the part of the map someone is looking at, from adsb.fi, fetched only on request.
-    Answers are reused for 8 seconds, so several open pages cannot multiply the requests."""
+    Answers are reused for 4 seconds, so several open pages cannot multiply the requests."""
     try:
         lat, lon = float(request.query_params["lat"]), float(request.query_params["lon"])
         radius = max(10, min(250, int(float(request.query_params.get("r", 100)))))
@@ -777,7 +777,7 @@ async def area(request):
     lon = (lon + 180) % 360 - 180
     key, now = (round(lat, 1), round(lon, 1), radius), time.time()
     st = collector.states["aircraft_view"]
-    if _area["key"] != key or now - _area["at"] > 8:
+    if _area["key"] != key or now - _area["at"] > 4:
         started, t0 = now, time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=15, headers={"User-Agent": config.USER_AGENT}) as c:

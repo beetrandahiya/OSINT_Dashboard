@@ -48,7 +48,7 @@ export default {
       busy = false;
       if (again) { again = false; pull(); }
     };
-    map.on('moveend', pull);
+    let wait = null; map.on('moveend', () => { clearTimeout(wait); wait = setTimeout(pull, 400); });   // the chase camera moves the map every frame
     this.pull = pull;
   },
   visible(on) { if (on) setTimeout(() => this.pull?.(), 0); },   // after main.js has made the layer visible

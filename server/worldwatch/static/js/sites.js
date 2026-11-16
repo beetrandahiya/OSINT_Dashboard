@@ -49,7 +49,7 @@ export const bases = {
       busy = false;
       if (again) { again = false; pull(); }
     };
-    map.on('moveend', pull);
+    let wait = null; map.on('moveend', () => { clearTimeout(wait); wait = setTimeout(pull, 400); });   // the chase camera moves the map every frame
     this.pull = pull;
     map.addLayer({id: 'ww-bases-name', type: 'symbol', source: 'ww-bases', minzoom: 7.5, filter: ['has', 'name'],
       layout: {'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true},
