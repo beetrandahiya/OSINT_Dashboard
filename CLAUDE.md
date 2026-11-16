@@ -1318,3 +1318,35 @@ detection, 3D at close zoom, chase camera, situation room). He picked **3D, hots
 - **Wrong photo**: TUAF161 (4B820A, register: Cessna Citation VII 93-005, Turkish Air Force) got planespotters' photo of a
   Korean KF-21 ("005-korea-aerospace-...") filed under that address. `_photo_fits()` now drops a photo whose page address
   names neither the register's registration nor its maker; the card says what the photo showed. Cache key `photo2:`.
+
+### 2026-11-16, 3D aircraft after studying God's Eye View (in progress, owner judging the look)
+
+He found the 3D aircraft view "weird, not good enough" and asked me to study bilawalsidhu/gods-eye-view (MIT; cloned
+read-only to /home/user/bilawalsidhu/gods-eye-view). What it does: CesiumJS globe; Google Photorealistic 3D Tiles via a
+free Cesium ion token (keyless fallback: Esri imagery + Re:Earth/Mapterhorn terrain); aircraft are a GPU icon set far
+away and procedural glTF models (35 aircraft, 12 helicopters, 27 ships; MIT; 2.4 MB) below ~800 km camera height:
+nearest 150 within 150 km (keep 185 km), on-screen first, life-size by type length, min 24 px; positions drawn 30 s
+behind real time, interpolated between real fixes, course slew capped 60 deg/s, jumps absorbed over 900 ms.
+**His decisions:** upgrade our own map (no Cesium, no keys); **30 s delayed playback replaces gliding** (the earlier
+"gliding allowed" exception is withdrawn: nothing is drawn ahead of its last report any more); fix flat icons, altitude,
+jerky motion and fake ground.
+Built:
+- `static/vendor/three/` (three.js r186.1, GLTFLoader, meshopt decoder; imports made relative), `static/models/` (GEV
+  aircraft, helicopters, ships, types.json, catalog.json; MIT; README.txt names the commit).
+- `models3d.js`: custom MapLibre layer `ww-models` (renderingMode 3d, shares the depth buffer); per model the projection
+  is mainMatrix x `transform.getMatrixForModel(lngLat, altitude)`. **MapLibre's local frame there is x east, y up,
+  z south** (measured: a step along y does not move on screen when looking straight down); the glTF is y-up, nose -x,
+  so only `makeRotationY(-(heading+90))` is needed. First version rotated as if z were up and drew every model on
+  its side. Lambert materials keeping vertex colours, hemisphere + sun light, drop line to the ground when tilted >25 deg,
+  `hitModel()` for clicks, `modelled` set hides those icons. Providers: `aircraft.js` (live + military, playback
+  positions, civil near-white, military light purple).
+- `aircraft.js`: `record()` keeps the last 12 real reports per hex (4 min), `playback(a, now-30)` interpolates
+  position, altitude and track; waits at the last report when no newer one exists ("held"). Icons, models, trail join
+  (`posTime`), chase camera and the card text use it.
+- 3D mode: terrain now Mapterhorn (`tiles.mapterhorn.com/{z}/{x}/{y}.webp`, terrarium 512, keyless, CC BY 4.0),
+  exaggeration 1 (models at true altitude must not sink into mountains), MapLibre sky + haze, and the sharp satellite
+  photo switched on as the ground while 3D is on (off again only if 3D turned it on).
+- Owner on the first screenshots (models drawn on their side, tiny, flat grey): "the models look ugly". Orientation fixed;
+  the look itself (low-poly, untextured, no liveries) is GEV's procedural set; waiting for his verdict on his GPU.
+- Testing limits here: software GL; terrain plus continuous redraw times the browser out, so 3D-with-terrain screenshots
+  could not be taken; flat and tilted views without terrain checked.

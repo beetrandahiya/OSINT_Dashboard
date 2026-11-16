@@ -24,8 +24,8 @@ export function createMap(container, leftPadding) {
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
   // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many
   // layers, its tiles were requested but never finished loading
-  map.once('style.load', () => { if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
-    attribution: 'Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)'}); });
+  map.once('style.load', () => { if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
+    attribution: 'Elevation: © Mapterhorn (CC BY 4.0)'}); });
   map.touchZoomRotate.disableRotation();
   map.setPadding({left: leftPadding, top: 0, right: 0, bottom: 0});
   return map;
@@ -74,16 +74,18 @@ export function paintSky(map, dark) {
 }
 
 // ---- 3D: real terrain relief and building heights when zoomed in; tilting and turning allowed while it is on ----
-// Elevation: AWS Terrain Tiles (Mapzen "terrarium" encoding; SRTM and other public elevation data, free, no key).
+// Elevation: Mapterhorn (terrarium encoding, 512 px webp, keyless, CC BY 4.0; sharper than AWS Terrain Tiles, the
+// source God's Eye View falls back to as well). Heights are drawn true (exaggeration 1) so aircraft models at their
+// real altitude never sink into exaggerated mountains.
 // Buildings: the heights OpenStreetMap mappers entered (OpenFreeMap's "building" layer, render_height).
-const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const DEM = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp';
 let threeOn = false;
 export const is3D = () => threeOn;
 export function set3D(map, on, dark) {
   threeOn = on;
   if (on) {
-    if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
-      attribution: 'Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)'});
+    if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
+      attribution: 'Elevation: © Mapterhorn (CC BY 4.0)'});
     const firstOwn = map.getStyle().layers.find(l => l.id.startsWith('ww-'))?.id;
     if (!map.getLayer('ww-relief')) map.addLayer({id: 'ww-relief', type: 'hillshade', source: 'ww-dem', paint: {'hillshade-exaggeration': 0.35}}, firstOwn);
     if (!map.getLayer('ww-buildings')) {
@@ -93,7 +95,8 @@ export function set3D(map, on, dark) {
           'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.85]}}, firstOwn);
     }
     paint3D(map, dark);
-    try { map.setTerrain({source: 'ww-dem', exaggeration: 1.4}); } catch (e) { /* terrain not available in this projection */ }
+    try { map.setTerrain({source: 'ww-dem', exaggeration: 1}); } catch (e) { /* terrain not available in this projection */ }
+    sky3D(map, dark);
     map.dragRotate.enable(); map.touchZoomRotate.enableRotation(); map.keyboard.enable();
     map.setMaxPitch(75);
     if (map.getPitch() < 20) map.easeTo({pitch: map.getZoom() >= 8 ? 60 : 45, duration: 700});
@@ -101,10 +104,19 @@ export function set3D(map, on, dark) {
     try { map.setTerrain(null); } catch (e) { /* ignore */ }
     for (const id of ['ww-relief', 'ww-buildings']) if (map.getLayer(id)) map.removeLayer(id);
     map.dragRotate.disable(); map.touchZoomRotate.disableRotation();
+    try { map.setSky({'atmosphere-blend': 0}); } catch (e) { /* older engines */ }
     map.easeTo({pitch: 0, bearing: 0, duration: 600});
   }
 }
+// a sky and haze towards the horizon, so a tilted view has depth (MapLibre's sky; colours for light and dark)
+function sky3D(map, dark) {
+  try {
+    map.setSky(dark ? {'sky-color': '#0b1427', 'horizon-color': '#22324d', 'fog-color': '#161e2e', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0}
+      : {'sky-color': '#7fb2e5', 'horizon-color': '#dce9f5', 'fog-color': '#e6edf4', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.35, 'atmosphere-blend': 0});
+  } catch (e) { /* older engines */ }
+}
 export function paint3D(map, dark) {
+  if (threeOn) sky3D(map, dark);
   if (map.getLayer('ww-buildings')) map.setPaintProperty('ww-buildings', 'fill-extrusion-color', dark ? '#3a3b42' : '#e2ddd2');
   if (map.getLayer('ww-relief')) {
     map.setPaintProperty('ww-relief', 'hillshade-shadow-color', dark ? '#000000' : '#6b6456');

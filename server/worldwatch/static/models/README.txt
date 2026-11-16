@@ -1,0 +1,1 @@
+Procedural 3D vehicle models (aircraft, helicopters, ships), types.json and catalog.json from God's Eye View by Bilawal Sidhu (https://github.com/bilawalsidhu/gods-eye-view, public/models/fleet), MIT licence: see LICENSE-gods-eye-view. Copied unchanged at commit da81cf7.

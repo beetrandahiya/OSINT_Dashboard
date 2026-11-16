@@ -32,6 +32,7 @@ import * as munichView from './munich.js';
 import * as markets from './markets.js';
 import {renderLegend} from './legend.js';
 import {attachImaged} from './imaged.js';
+import {attachModels} from './models3d.js';
 
 // Order = drawing order on the map, bottom first.
 const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sdr, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, hotspots, rain, lightning];
@@ -126,6 +127,7 @@ map.on('load', () => {
   // one ring for whatever is selected: Apple's guidance asks for an outline as well as a colour change
   map.addSource('ww-pick', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
   map.addLayer({id: 'ww-pick', type: 'circle', source: 'ww-pick', paint: {'circle-radius': ['get', 'r'], 'circle-color': 'transparent', 'circle-stroke-width': 2.5}});
+  attachModels(map);        // 3D aircraft models, above everything else
   repaint();
   loadFlags();
   for (const l of LAYERS) {
@@ -265,10 +267,15 @@ $('#flat').onclick = () => shape(false);
 $('#globe').onclick = () => shape(true);
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });
 // ---- 3D: terrain and buildings, tilt and turn ----
-function three(on) {
-  set3D(map, on, dark.matches);
-  $('#three').setAttribute('aria-pressed', on);
-  try { localStorage.setItem('ww-3d', on ? '1' : ''); } catch (e) { /* private window */ }
+const on3 = l => !!on[l.id];
+let sharpBy3D = false;      // the sharp satellite photo is the ground in 3D; switched off again only if 3D turned it on
+function three(want) {
+  set3D(map, want, dark.matches);
+  const sharp = byId.sharp;
+  if (sharp && want && !on3(sharp)) { on[sharp.id] = true; sharpBy3D = true; show(sharp); renderChips(); legend(); }
+  if (sharp && !want && sharpBy3D) { on[sharp.id] = false; sharpBy3D = false; show(sharp); renderChips(); legend(); }
+  $('#three').setAttribute('aria-pressed', want);
+  try { localStorage.setItem('ww-3d', want ? '1' : ''); } catch (e) { /* private window */ }
 }
 $('#three').onclick = () => three(!is3D());
 map.on('load', () => { try { if (localStorage.getItem('ww-3d')) three(true); } catch (e) { /* private window */ } });

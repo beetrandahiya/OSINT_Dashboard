@@ -1,0 +1,1 @@
+three.js r186.1 (MIT, see LICENSE): build/three.module.js, build/three.core.js, examples/jsm/loaders/GLTFLoader.js, examples/jsm/utils/BufferGeometryUtils.js, examples/jsm/utils/SkeletonUtils.js, examples/jsm/libs/meshopt_decoder.module.js (MIT, meshoptimizer by Arseny Kapoulkine). Imports rewritten to relative paths; nothing else changed.
