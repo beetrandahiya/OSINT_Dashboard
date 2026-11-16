@@ -189,6 +189,60 @@ async def track(request):
     return JSONResponse({"hex": hex_, **body, "fetched": hit[0], "now": now}, headers={"Cache-Control": "no-store"})
 
 
+async def _aircraft_about(hex_: str) -> dict | None:
+    """Maker, model, registration and owner of an aircraft by its transponder address, from the free registers that
+    adsbdb and hexdb keep (compiled from national registers and spotters). Remembered two weeks; None when unknown."""
+    key = "acabout:" + hex_
+    hit = await asyncio.to_thread(db.lookup_get, key, 14 * 86400)
+    if hit:
+        return hit["body"]
+    body, answered = None, False
+    try:
+        async with httpx.AsyncClient(timeout=10, headers={"User-Agent": config.USER_AGENT}) as c:
+            r = await c.get(f"https://api.adsbdb.com/v0/aircraft/{hex_}")
+            if r.status_code in (200, 404):
+                answered = True
+                a = (r.json().get("response") or {}).get("aircraft") if r.status_code == 200 else None
+                if isinstance(a, dict):
+                    body = {"maker": a.get("manufacturer"), "model": a.get("type"), "code": a.get("icao_type"), "reg": a.get("registration"),
+                            "owner": a.get("registered_owner"), "country": a.get("registered_owner_country_name"), "source": "adsbdb"}
+            if not body:
+                r = await c.get(f"https://hexdb.io/api/v1/aircraft/{hex_}")
+                if r.status_code in (200, 404):
+                    answered = True
+                    a = r.json() if r.status_code == 200 else {}
+                    if a.get("Type") or a.get("Manufacturer"):
+                        body = {"maker": a.get("Manufacturer"), "model": a.get("Type"), "code": a.get("ICAOTypeCode"), "reg": a.get("Registration"),
+                                "owner": a.get("RegisteredOwners"), "country": None, "source": "hexdb.io"}
+    except (httpx.HTTPError, ValueError):
+        return None
+    if answered:
+        await asyncio.to_thread(db.lookup_put, key, time.time(), body)
+    return body
+
+
+async def aircraft_about(request):
+    hex_ = request.path_params["hex"].lower()
+    if not re.fullmatch(r"[0-9a-f]{6}", hex_):
+        return JSONResponse({"error": "not a transponder address"}, status_code=400)
+    return JSONResponse({"about": await _aircraft_about(hex_)})
+
+
+def _photo_fits(link: str, about: dict | None) -> tuple[bool, str | None]:
+    """planespotters' page address names the registration, maker and model of the aircraft in the photo
+    ("/photo/1853742/005-korea-aerospace-industries-korea-aerospace-kf-21a-boramae"). When the register knows this
+    address and neither its registration nor its maker appears there, the photo shows another aircraft."""
+    if not about or not link:
+        return True, None
+    slug = (link.split("/photo/", 1)[-1].split("?", 1)[0]).lower()
+    norm = lambda x: re.sub(r"[^a-z0-9]+", "-", (x or "").lower()).strip("-")
+    reg, maker = norm(about.get("reg")), norm((about.get("maker") or "").split()[0] if about.get("maker") else "")
+    if (reg and reg in slug) or (maker and len(maker) > 2 and maker in slug):
+        return True, None
+    shown = re.sub(r"^\d+/", "", slug).replace("-", " ").strip()
+    return False, shown
+
+
 async def photo(request):
     """A photo of this very aircraft from planespotters.net. Their rules: identify yourself, credit the
     photographer, link back to their page, and keep the answer no longer than a day."""
@@ -198,7 +252,7 @@ async def photo(request):
     who = config.contact()
     if not who:
         return JSONResponse({"photo": None, "off": True})
-    key = "photo:" + hex_
+    key = "photo2:" + hex_
     hit = await asyncio.to_thread(db.lookup_get, key, 86400)
     if not hit:
         try:
@@ -208,6 +262,10 @@ async def photo(request):
                 return JSONResponse({"photo": None, "error": f"planespotters.net answered {r.status_code}"})
             ph = (r.json().get("photos") or [None])[0]
             body = ph and {"src": (ph.get("thumbnail_large") or ph["thumbnail"])["src"], "link": ph["link"], "photographer": ph["photographer"]}
+            if body:
+                ok, shown = _photo_fits(body["link"], await _aircraft_about(hex_))
+                if not ok:      # e.g. a Turkish Air Force Citation's address filed against a photo of a Korean KF-21
+                    body = {"rejected": shown}
             hit = {"fetched": time.time(), "body": body}
             await asyncio.to_thread(db.lookup_put, key, hit["fetched"], body)
         except httpx.HTTPError as e:
@@ -980,6 +1038,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/cam/image", camera_image),
     Route("/api/ship/photos", ship_photos),
     Route("/api/imaged", imaged_search),
+    Route("/api/aircraft/about/{hex}", aircraft_about),
     Route("/api/hotspots", hotspot_list),
     Route("/api/imaged/pic", imaged_pic),
     Route("/api/sanctioned/live", sanctioned_live),

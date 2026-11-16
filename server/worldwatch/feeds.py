@@ -270,6 +270,7 @@ async def unrest(feed: Feed, f: Fetcher) -> Result:
     """Protests and clashes over the last 24 hours from GDELT's event coding (see unrest.py)."""
     ev, men, slots = await unrest_window.window.refresh(f)
     groups = unrest_window.window.groups()
+    await asyncio.to_thread(unrest_window.window.save_heads)
     newest = max((g["last"] for g in groups), default=None)
     filling = ev < slots - 4 or men < slots - 4
     return Result(len(groups), {"groups": groups, "files": ev, "mention_files": men, "slots": slots, "window_h": 24}, data_time=newest,

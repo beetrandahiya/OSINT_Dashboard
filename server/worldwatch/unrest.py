@@ -15,11 +15,13 @@ Headlines and pictures come from the GKG news windows (news.py) when the same ar
 import asyncio
 import calendar
 import io
+import json
 import re
 import time
 import zipfile
 from urllib.parse import urlparse
 
+from . import config
 from . import news as news_window
 
 WINDOW = 24 * 3600
@@ -131,6 +133,29 @@ class Unrest:
         self.events: dict[str, list[dict]] = {}       # slot -> events coded in that slot (filtered)
         self.mentions: dict[str, list[tuple]] = {}    # slot -> mentions of our events found in that slot
         self.missing: dict[tuple, float] = {}         # (kind, slot) -> last 404
+        # headline, language and picture of each event article, kept once seen in the 6-hour news window: events stay on
+        # the map 24 hours, so without this the card lost its headline and picture after 6 (saved across restarts)
+        self.heads_seen: dict[str, list] = self._load_heads()
+
+    HEADS_FILE = config.DATA / "unrest-heads.json"
+
+    def _load_heads(self) -> dict:
+        try:
+            d = json.loads(self.HEADS_FILE.read_text())
+            cut = time.time() - 30 * 3600
+            return {u: v for u, v in d.items() if v[-1] > cut}
+        except (OSError, ValueError):
+            return {}
+
+    def save_heads(self) -> None:
+        cut = time.time() - 30 * 3600
+        self.heads_seen = {u: v for u, v in self.heads_seen.items() if v[-1] > cut}
+        try:
+            tmp = self.HEADS_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.heads_seen))
+            tmp.replace(self.HEADS_FILE)
+        except OSError:
+            pass
 
     def _wanted(self) -> set[int]:
         return {e["id"] for evs in self.events.values() for e in evs}
@@ -232,6 +257,14 @@ class Unrest:
             want = THEME_FIT.get(g["cat"], 1)
             for a in arts:
                 h = heads.get(a["url"])
+                if h:
+                    self.heads_seen[a["url"]] = [h[4], h[6], h[7], h[10] if len(h) > 10 else None, time.time()]
+                elif a["url"] in self.heads_seen:             # out of the 6-hour news window, but we saw it earlier
+                    t, lang, img, flags, _ = self.heads_seen[a["url"]]
+                    a.update(title=t, lang=lang, image=img)
+                    if flags is not None:
+                        known += 1
+                        fits += bool(flags & want)
                 if h:
                     a.update(title=h[4], lang=h[6], image=h[7])
                     if len(h) > 10:                           # rows cached before the theme flags existed have none

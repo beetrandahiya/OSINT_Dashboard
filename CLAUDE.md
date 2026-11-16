@@ -1300,3 +1300,21 @@ detection, 3D at close zoom, chase camera, situation room). He picked **3D, hots
   (ships 11), then each frame centres on `locate()` (live aircraft glide, so it moves smoothly; ships jump each minute,
   world-feed aircraft are up to 20 min old) and turns gently towards the heading. Wheel zoom stays centred; dragging or
   "Stop" hands the camera back. Tested: DLH585 followed at pitch 60, bearing turned to its track.
+
+### 2026-11-16 morning, his notes: protest pictures, Delhi "breaking", wrong aircraft photo
+
+- **Protest cards lost their picture after 6 hours**: headlines/pictures are borrowed from the 6-hour news window while
+  protests stay 24 h. `Unrest.heads_seen` now keeps headline, language, picture and theme flags per article once matched
+  (30 h, saved to `data/unrest-heads.json` each run). Protests older than 6 h at the time of the update stay without.
+- **"Breaking" in Delhi was random news**: the rule only counted 8 different headlines from 8 outlets at 3x the place's rate;
+  a busy city clears that with unrelated stories, more so right after a restart (short baseline). Now also needs a shared
+  story (`_story()` in `news.py`): 4+ headlines from 4+ outlets sharing a distinctive word or word pair (place-name and
+  common words excluded); the card shows the words and lists those headlines first. Tested on made-up headlines only:
+  unrelated Delhi headlines rejected, "Red Fort blast" kept.
+- **Aircraft maker and model** (owner asked): "Aircraft" row first in every aircraft card (`fillType()`), from the free
+  registers behind adsbdb (`/v0/aircraft/{hex}`) then hexdb.io, via `/api/aircraft/about/{hex}` (`_aircraft_about`, cached
+  14 days): maker, model, ICAO type code, registration, owner; says so when the broadcast type code differs. Fallbacks:
+  plane-alert-db's model, then the broadcast type code, then "not known".
+- **Wrong photo**: TUAF161 (4B820A, register: Cessna Citation VII 93-005, Turkish Air Force) got planespotters' photo of a
+  Korean KF-21 ("005-korea-aerospace-...") filed under that address. `_photo_fits()` now drops a photo whose page address
+  names neither the register's registration nor its maker; the card says what the photo showed. Cache key `photo2:`.

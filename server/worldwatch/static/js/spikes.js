@@ -32,7 +32,7 @@ export default {
   },
   count: () => d.spikes.length,
   rows: () => d.spikes.map((s, i) => ({id: 'spike:' + i, time: d.newest || s.first, badge: '!', strong: true, title: `Breaking: ${s.place.split(',')[0]} · ${s.articles[0]?.title || ''}`,
-    thumb: img(s.articles.find(a => a.image)?.image), meta: `${s.headlines} headlines from ${s.outlets} outlets in the last hour, ${s.times}× its usual rate`})),
+    thumb: img(s.articles.find(a => a.image)?.image), meta: `${s.story_headlines || s.headlines} headlines from ${s.story_outlets || s.outlets} outlets on one story${s.story_words ? ' (“' + s.story_words.join(' ') + '”)' : ''}, ${s.times}× the usual rate`})),
   owns: id => String(id).startsWith('spike:'),
   locate(id) { const s = d.spikes[+id.slice(6)]; return s && [s.lon, s.lat]; },
   ring: () => 16,
@@ -40,7 +40,8 @@ export default {
     const s = d.spikes[+id.slice(6)]; if (!s) return null;
     return `<p class="eyebrow">Breaking · news picked up</p><h2>${esc(s.place.split(',')[0])}</h2><p class="where">${esc(s.place)}</p>
       <dl><dt>Last hour</dt><dd>${s.headlines} different headlines from ${s.outlets} outlets</dd>
-        <dt>Before</dt><dd>${s.rate_before} different headlines an hour over the previous ${d.baseline_h} hours <span class="soft">(${s.times}× now)</span></dd></dl>
+        <dt>Before</dt><dd>${s.rate_before} different headlines an hour over the previous ${d.baseline_h} hours <span class="soft">(${s.times}× now)</span></dd>
+        ${s.story_words ? `<dt>Shared story</dt><dd>${s.story_headlines} headlines from ${s.story_outlets} outlets share “${s.story_words.map(esc).join('” and “')}”; they are listed first</dd>` : ''}</dl>
       <ol class="stories">${s.articles.map(a => `<li>${a.image ? `<img src="${esc(img(a.image))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span class="st">
         <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a><span class="by">${esc(a.outlet)} · ${ago(a.time)}${a.lang !== 'eng' ? ' · not in English' : ''}</span></span></li>`).join('')}</ol>
       ${countryBtn({lat: s.lat, lon: s.lon})} ${spyPass(s.lat, s.lon)}

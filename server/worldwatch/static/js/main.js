@@ -213,7 +213,7 @@ function renderDetail() {
   if (!picked) { detailKey = ''; return; }
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
   if (key === detailKey && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
-  const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  const keep = key === detailKey ? ['#route', '#photo', '#actype', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
   const chaseable = byId[picked.layer].heading && byId[picked.layer].heading(picked.id) !== undefined;
   const chaseBtn = chaseable ? `<p class="links"><button class="btn" data-chase>${chase && chase.id === picked.id ? 'Stop following' : 'Follow it (chase camera)'}</button></p>` : '';
   el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + (chaseBtn && /<\/h2>[\s\S]*?<\/p>/.test(html) ? html.replace(/(<\/h2>[\s\S]*?<\/p>)/, '$1' + chaseBtn) : html + chaseBtn);

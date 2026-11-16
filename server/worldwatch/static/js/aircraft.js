@@ -198,8 +198,7 @@ function detail(id) {
       <dt>Position reported</dt><dd>${local(a.last_contact)} <span class="soft">(${ago(a.last_contact)})</span></dd>`;
   } else {
     const at = f.data_time - (a.seen_pos_s ?? 0);
-    rows = `<dt>Type</dt><dd>${esc(a.type || 'not reported')}${a.reg ? ` <span class="soft">· ${esc(a.reg)}</span>` : ''}</dd>
-      <dt>Altitude</dt><dd>${ft(a.alt_ft)}</dd>
+    rows = `<dt>Altitude</dt><dd>${ft(a.alt_ft)}</dd>
       <dt>Ground speed</dt><dd>${kt(a.gs_kt)}</dd>
       <dt>Heading</dt><dd>${a.track == null ? 'not reported' : Math.round(a.track) + '°'}</dd>
       ${a.squawk ? `<dt>Transponder code</dt><dd>${esc(a.squawk)}${{7500: ' (hijack)', 7600: ' (radio failure)', 7700: ' (emergency)'}[a.squawk] || ''}</dd>` : ''}
@@ -222,7 +221,7 @@ function detail(id) {
     <h2>${esc(a.flight || a.reg || a.hex.toUpperCase())}${planeFlag(a.hex) ? ' ' + flagImg(planeFlag(a.hex).cc, planeFlag(a.hex).name) : ''}</h2>
     <p class="where" id="route" data-callsign="${esc(a.flight || '')}">${a.flight ? 'Looking up the route' : 'No callsign reported'}</p>
     ${vipBlock}
-    <dl>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
+    <dl><dt>Aircraft</dt><dd id="actype" data-hex="${esc(a.hex)}" data-code="${esc(a.type || '')}" data-reg="${esc(a.reg || '')}" data-vip="${esc(v?.type || '')}">${a.type ? esc(a.type) + ' <span class="soft">(type code it broadcasts; looking it up…)</span>' : 'Looking it up…'}</dd>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
     <p class="source">Position: ${SOURCE[from]}, fetched ${ago(f.fetched)}. ${fresh}</p>
@@ -233,6 +232,7 @@ function detail(id) {
 export async function fillRoute() {
   noteTrack();
   fillPhoto();
+  fillType();
   const el = $('#route'); if (!el || !el.dataset.callsign || el.dataset.done) return;
   el.dataset.done = '1';
   const cs = el.dataset.callsign, id = sel, hit = find(id), at = hit && position(hit);
@@ -249,6 +249,30 @@ export async function fillRoute() {
     route = {...r.route, fits: true, for: id}; drawExtras();
   } catch (e) { const now2 = $('#route'); if (now2) now2.textContent = 'Route lookup failed'; }
 }
+// Maker and model: the free aircraft registers behind adsbdb / hexdb, by transponder address. When they do not know it,
+// the best we have is the type code the aircraft broadcasts (adsb.fi) or the model plane-alert-db lists.
+const abouts = new Map();
+async function fillType() {
+  const el = $('#actype'); if (!el || el.dataset.done) return;
+  el.dataset.done = '1';
+  const hex = el.dataset.hex;
+  if (!abouts.has(hex)) { try { abouts.set(hex, (await api('/api/aircraft/about/' + hex)).about || null); } catch (e) { abouts.set(hex, null); } }
+  const ab = abouts.get(hex), now2 = $('#actype');
+  if (!now2 || now2.dataset.hex !== hex) return;
+  const code = now2.dataset.code, reg = now2.dataset.reg, vipType = now2.dataset.vip;
+  if (ab && (ab.model || ab.maker)) {
+    const name = [ab.maker, ab.model].filter(Boolean).join(' ');
+    const extra = [ab.code, ab.reg && 'registration ' + ab.reg, ab.owner].filter(Boolean).map(esc).join(' · ');
+    const clash = code && ab.code && code.toUpperCase() !== ab.code.toUpperCase();
+    now2.innerHTML = `<b>${esc(name)}</b>${extra ? `<br><span class="soft">${extra}</span>` : ''}<br><span class="soft">From the aircraft register kept by ${esc(ab.source)}, by its transponder address${clash ? `; the aircraft itself broadcasts type code ${esc(code)}, which differs, so treat this as an estimate` : ''}.</span>`;
+  } else if (vipType) {
+    now2.innerHTML = `${esc(vipType)}<br><span class="soft">As plane-alert-db lists it; not in the free registers.</span>`;
+  } else if (code) {
+    now2.innerHTML = `Type code ${esc(code)}${reg ? ' · ' + esc(reg) : ''}<br><span class="soft">The ICAO type code the aircraft broadcasts; the free registers do not know this address.</span>`;
+  } else {
+    now2.innerHTML = '<span class="soft">Not known: the free registers do not list this transponder address and the aircraft broadcasts no type.</span>';
+  }
+}
 const photos = new Map();
 async function fillPhoto() {
   const el = $('#photo'); if (!el || el.dataset.done) return;
@@ -258,6 +282,7 @@ async function fillPhoto() {
   const ph = photos.get(hex), now2 = $('#photo');
   if (!now2 || now2.dataset.hex !== hex) return;
   if (!ph) { now2.innerHTML = '<p class="pic-wait">No photo of this aircraft on planespotters.net.</p>'; return; }
+  if (ph.rejected) { now2.innerHTML = `<p class="pic-wait">planespotters.net files a photo under this transponder address, but it shows another aircraft (${esc(ph.rejected)}), so it is left out.</p>`; return; }
   now2.innerHTML = `<a href="${esc(ph.link)}" target="_blank" rel="noopener"><img src="${esc(ph.src)}" alt="Photo of this aircraft" loading="lazy"></a><span>Photo: ${esc(ph.photographer)}, planespotters.net</span>`;
 }
 

@@ -370,6 +370,43 @@ _SKIP_SPIKE = re.compile(r"/(sports?|football|soccer|cricket|rugby|nfl|nba|nhl|m
                          r"entertainment|bollywood|hollywood|celebrit(y|ies)|showbiz|gossip|movies?|films?|tv|music|lifestyle|horoscopes?)(/|-|$)", re.I)
 
 
+_SPLIT = re.compile(r"[\s,.;:!?'\"“”‘’«»()\[\]{}|/\\–—\-_#@&+*=<>%$0-9]+")
+_STOP = set("""about above after again against also among amid amidst another around away back been before being below between
+both cannot could does doing down during each even every from further have having here into just like live latest make many more
+most much must near news next only other over said says should since some such than that their them then there these they this
+those three through today under until update updates very video watch were what when where which while will with without would
+your year years week first last over amid hours watch photos read full story report reports breaking says said""".split())
+
+
+def _story(arts: list[dict], place: str):
+    """The story the newest headlines share, if any: the distinctive word (or pair of words) found in the most
+    headlines from different outlets. Words of the place's own name and common words do not count."""
+    own = {w for w in _SPLIT.split(place.lower()) if w}
+    docs = []
+    for a in arts:
+        words = {w for w in _SPLIT.split((a["title"] or "").lower()) if len(w) >= 4 and w not in _STOP and w not in own}
+        docs.append((a, words))
+    df = {}
+    for _, ws in docs:
+        for w in ws:
+            df[w] = df.get(w, 0) + 1
+    best = None
+    for w1, n1 in sorted(df.items(), key=lambda kv: -kv[1])[:12]:
+        if n1 < 4:
+            break
+        with1 = [d for d in docs if w1 in d[1]]
+        pair = {}
+        for _, ws in with1:
+            for w in ws - {w1}:
+                pair[w] = pair.get(w, 0) + 1
+        w2, n2 = max(pair.items(), key=lambda kv: kv[1], default=(None, 0))
+        group, words = (([d for d in with1 if w2 in d[1]], [w1, w2]) if n2 >= 4 else (with1, [w1]))
+        outlets = {d[0]["outlet"] for d in group}
+        if len(outlets) >= 4 and (best is None or len(outlets) > best[2]):
+            best = ([d[0] for d in group], words, len(outlets))
+    return best
+
+
 def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
     """Places where the news suddenly picked up: in the newest hour, at least `min_heads` different headlines (copies of
     one agency story count once) from `min_outlets` outlets, and at least `factor` times the place's own hourly rate in
@@ -405,11 +442,19 @@ def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
     for c in by.values():
         n, rate = len(c["now"]), c["before"]
         if n >= min_heads and len(c["outlets"]) >= min_outlets and n >= factor * max(rate, 0.5):
-            arts = sorted(c["now"].values(), key=lambda a: (a["lang"] != "eng", -(a["image"] is not None), -a["time"]))
+            # more news alone is not breaking news: a busy city can get eight unrelated stories in an hour. Keep the
+            # place only when at least four headlines from four outlets share a story, and show that story first.
+            story = _story(list(c["now"].values()), c["place"])
+            if not story:
+                continue
+            same, words, n_out = story
+            ids = {id(a) for a in same}
+            arts = sorted(c["now"].values(), key=lambda a: (id(a) not in ids, a["lang"] != "eng", -(a["image"] is not None), -a["time"]))
             out.append({"place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
+                        "story_words": words, "story_headlines": len(same), "story_outlets": n_out,
                         "rate_before": round(rate, 1), "times": round(n / max(rate, 0.5), 1), "first": min(a["time"] for a in arts),
                         "articles": arts[:10]})
     out.sort(key=lambda s: -s["times"])
     return {"spikes": out, "series": used, "newest": max(u["newest"] for u in used), "baseline_h": min(u["baseline_h"] for u in used),
-            "rule": f"newest hour of each news series: >= {min_heads} different headlines from >= {min_outlets} outlets and >= {factor:g}x the place's own hourly rate in the hours before ("
+            "rule": f"newest hour of each news series: >= {min_heads} different headlines from >= {min_outlets} outlets, >= {factor:g}x the place's own hourly rate in the hours before, and >= 4 headlines from 4 outlets sharing distinctive words ("
                     + ", ".join(f"{u['series']}: {u['baseline_h']} h" for u in used) + ")"}
