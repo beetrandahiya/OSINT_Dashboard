@@ -1,6 +1,6 @@
 import {$, ago, api, esc, now} from './util.js';
 import {loadFlags} from './flags.js';
-import {createMap, paintBase, paintSky, setGlobe, setPhoto} from './map.js';
+import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D} from './map.js';
 import news from './news.js';
 import navwarn from './navwarn.js';
 // import maxarLayer from './maxar.js';   // disaster imagery: off for now, see CHIPS
@@ -25,6 +25,7 @@ import {bases, nuclear} from './sites.js';
 import hijacks from './netwatch.js';
 import cameras from './cameras.js';
 import sdr from './sdr.js';
+import hotspots from './hotspots.js';
 import sanctioned from './sanctioned.js';
 import spikes from './spikes.js';
 import * as munichView from './munich.js';
@@ -33,8 +34,8 @@ import {renderLegend} from './legend.js';
 import {attachImaged} from './imaged.js';
 
 // Order = drawing order on the map, bottom first.
-const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sdr, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, rain, lightning];
-const CHIPS = [news, spikes, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, sanctioned, cameras, sdr, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
+const LAYERS = [photo, livephoto, sharp, night, aurora, gps, gpsLive, front, bases, nuclear, airspace, hijacks, cables, fires, ships, warships, cameras, sdr, sanctioned, people, leadersToday, civil, military, orbits, tankers, vip, doomsday, satellites, outages, launches, hazards, navwarn, quakes, unrestSingle, unrest, news, spikes, hotspots, rain, lightning];
+const CHIPS = [hotspots, news, spikes, unrest, unrestSingle, front, navwarn, airspace, quakes, hazards, outages, hijacks, bases, nuclear, civil, military, orbits, tankers, vip, doomsday, satellites, launches, ships, warships, sanctioned, cameras, sdr, people, leadersToday, fires, gps, gpsLive, cables, rain, lightning, night, aurora, photo, livephoto, sharp];   // disaster imagery (maxar.js) is off for now at the owner's request; code and feeds kept
 const byId = Object.fromEntries(LAYERS.map(l => [l.id, l]));
 
 const SIDEBAR_SPACE = 420;   // the sidebar's width plus its margins; the map centres on what is left
@@ -85,6 +86,7 @@ minimiser('legend-mini', 'legend', 'ww-min-legend');
 let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
 
 const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
+window.wwMap = map;   // handy in the browser console
 window.wwWatchTiles?.(map);
 attachImaged(map);
 
@@ -98,6 +100,7 @@ onPhoto(v => { setPhoto(v); if (map.isStyleLoaded()) paintBase(map, dark.matches
 function repaint() {
   paintBase(map, dark.matches);
   paintSky(map, dark.matches);
+  paint3D(map, dark.matches);
   for (const l of LAYERS) l.paint(map, dark.matches);
   map.setPaintProperty('ww-pick', 'circle-stroke-color', dark.matches ? '#ffffff' : '#000000');
 }
@@ -211,7 +214,9 @@ function renderDetail() {
   const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
   if (key === detailKey && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
   const keep = key === detailKey ? ['#route', '#photo', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
-  el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + html;
+  const chaseable = byId[picked.layer].heading && byId[picked.layer].heading(picked.id) !== undefined;
+  const chaseBtn = chaseable ? `<p class="links"><button class="btn" data-chase>${chase && chase.id === picked.id ? 'Stop following' : 'Follow it (chase camera)'}</button></p>` : '';
+  el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + (chaseBtn && /<\/h2>[\s\S]*?<\/p>/.test(html) ? html.replace(/(<\/h2>[\s\S]*?<\/p>)/, '$1' + chaseBtn) : html + chaseBtn);
   el.classList.toggle('min', detailMin);
   for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
   el.scrollTop = key === detailKey ? scroll : 0;
@@ -240,6 +245,12 @@ $('#detail').addEventListener('click', e => {
 });
 onSatChange(() => { detailKey = ''; renderDetail(); });
 addEventListener('ww-pick', e => pick(e.detail, true));
+// a link to an item on another layer: pick it when that layer is on and holds it, otherwise just fly there
+addEventListener('ww-try-pick', e => {
+  const {layer, id, lon, lat} = e.detail, l = byId[layer];
+  if (l && on[layer] && id && l.owns?.(id)) pick({layer, id}, true);
+  else map.flyTo({center: [lon, lat], zoom: Math.max(map.getZoom(), 7), duration: calm.matches ? 0 : 1200});
+});
 addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ? 0 : 1500}));
 addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
 
@@ -253,6 +264,58 @@ function shape(globe) {
 $('#flat').onclick = () => shape(false);
 $('#globe').onclick = () => shape(true);
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });
+// ---- 3D: terrain and buildings, tilt and turn ----
+function three(on) {
+  set3D(map, on, dark.matches);
+  $('#three').setAttribute('aria-pressed', on);
+  try { localStorage.setItem('ww-3d', on ? '1' : ''); } catch (e) { /* private window */ }
+}
+$('#three').onclick = () => three(!is3D());
+map.on('load', () => { try { if (localStorage.getItem('ww-3d')) three(true); } catch (e) { /* private window */ } });
+
+// ---- chase camera: lock onto a moving aircraft or ship, tilted, turning with its heading ----
+let chase = null;
+function chaseStop(level = true) {
+  if (!chase) return;
+  cancelAnimationFrame(chase.raf); chase = null;
+  $('#chasebar')?.remove();
+  map.scrollZoom.enable();
+  if (level && !is3D()) map.easeTo({pitch: 0, bearing: 0, duration: 600});
+  detailKey = ''; renderDetail();
+}
+function chaseStart() {
+  if (!picked) return;
+  const layer = byId[picked.layer], id = picked.id;
+  const start = layer.locate(id); if (!start) return;
+  chaseStop(false);
+  chase = {layer, id, bearing: map.getBearing(), raf: 0};
+  map.scrollZoom.enable({around: 'center'});
+  const z = Math.max(map.getZoom(), picked.layer === 'ships' || picked.layer === 'warships' || picked.layer === 'sanctioned' ? 11 : 8.5);
+  map.easeTo({center: start, zoom: z, pitch: 62, bearing: layer.heading?.(id) ?? map.getBearing(), duration: calm.matches ? 0 : 1200});
+  const bar = document.createElement('div');
+  bar.id = 'chasebar'; bar.className = 'glass chasebar';
+  bar.innerHTML = `<span>Following</span><b>${esc(document.querySelector('#detail h2')?.textContent || 'it')}</b><button class="btn" id="chasestop">Stop</button>`;
+  document.body.appendChild(bar);
+  $('#chasestop').onclick = () => chaseStop();
+  detailKey = ''; renderDetail();   // the card's button now reads "Stop following"
+  setTimeout(() => {
+    const step = () => {
+      if (!chase) return;
+      const at = chase.layer.locate(chase.id);
+      if (!at || !picked || picked.id !== chase.id) { chaseStop(); return; }
+      const want = chase.layer.heading?.(chase.id);
+      if (want != null) { let d = ((want - chase.bearing + 540) % 360) - 180; chase.bearing += d * 0.04; }   // turn gently with it
+      if (!map.isMoving() || map.isZooming()) map.jumpTo({center: at, bearing: chase.bearing, pitch: Math.max(map.getPitch(), 45)});
+      chase.raf = requestAnimationFrame(step);
+    };
+    chase.raf = requestAnimationFrame(step);
+  }, calm.matches ? 0 : 1250);
+}
+// dragging the map hands the camera back
+map.getCanvas().addEventListener('mousedown', () => chase && chaseStop(false));
+map.getCanvas().addEventListener('touchstart', () => chase && chaseStop(false), {passive: true});
+document.addEventListener('click', e => { if (e.target.closest('[data-chase]')) { e.preventDefault(); chase ? chaseStop() : chaseStart(); } });
+
 
 // ---- the feeds card: one honest line when closed, every feed when open ----
 async function loadStatus() {

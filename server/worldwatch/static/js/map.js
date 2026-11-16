@@ -14,11 +14,18 @@ const PALETTE = {
 };
 
 export function createMap(container, leftPadding) {
+  // MapLibre gives itself few background workers by default (one on a 4-core machine); our many data layers kept a
+  // single worker so busy that 3D terrain tiles were never decoded. Use more, leaving a core for the page itself.
+  try { maplibregl.setWorkerCount(Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1))); } catch (e) { /* engine without it */ }
   const map = new maplibregl.Map({
     container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.3, maxZoom: 16,
     attributionControl: false, dragRotate: false, pitchWithRotate: false, renderWorldCopies: true,
   });
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
+  // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many
+  // layers, its tiles were requested but never finished loading
+  map.once('style.load', () => { if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
+    attribution: 'Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)'}); });
   map.touchZoomRotate.disableRotation();
   map.setPadding({left: leftPadding, top: 0, right: 0, bottom: 0});
   return map;
@@ -64,4 +71,44 @@ export function setGlobe(map, on) {
 export function paintSky(map, dark) {
   try { map.setSky({'atmosphere-blend': 0}); } catch (e) { /* older engines */ }
   map.getContainer().style.background = dark ? '#0e0f11' : '#e9edf2';
+}
+
+// ---- 3D: real terrain relief and building heights when zoomed in; tilting and turning allowed while it is on ----
+// Elevation: AWS Terrain Tiles (Mapzen "terrarium" encoding; SRTM and other public elevation data, free, no key).
+// Buildings: the heights OpenStreetMap mappers entered (OpenFreeMap's "building" layer, render_height).
+const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+let threeOn = false;
+export const is3D = () => threeOn;
+export function set3D(map, on, dark) {
+  threeOn = on;
+  if (on) {
+    if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
+      attribution: 'Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)'});
+    const firstOwn = map.getStyle().layers.find(l => l.id.startsWith('ww-'))?.id;
+    if (!map.getLayer('ww-relief')) map.addLayer({id: 'ww-relief', type: 'hillshade', source: 'ww-dem', paint: {'hillshade-exaggeration': 0.35}}, firstOwn);
+    if (!map.getLayer('ww-buildings')) {
+      const src = Object.entries(map.getStyle().sources).find(([, s]) => s.type === 'vector')?.[0];
+      if (src) map.addLayer({id: 'ww-buildings', type: 'fill-extrusion', source: src, 'source-layer': 'building', minzoom: 13,
+        paint: {'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.85]}}, firstOwn);
+    }
+    paint3D(map, dark);
+    try { map.setTerrain({source: 'ww-dem', exaggeration: 1.4}); } catch (e) { /* terrain not available in this projection */ }
+    map.dragRotate.enable(); map.touchZoomRotate.enableRotation(); map.keyboard.enable();
+    map.setMaxPitch(75);
+    if (map.getPitch() < 20) map.easeTo({pitch: map.getZoom() >= 8 ? 60 : 45, duration: 700});
+  } else {
+    try { map.setTerrain(null); } catch (e) { /* ignore */ }
+    for (const id of ['ww-relief', 'ww-buildings']) if (map.getLayer(id)) map.removeLayer(id);
+    map.dragRotate.disable(); map.touchZoomRotate.disableRotation();
+    map.easeTo({pitch: 0, bearing: 0, duration: 600});
+  }
+}
+export function paint3D(map, dark) {
+  if (map.getLayer('ww-buildings')) map.setPaintProperty('ww-buildings', 'fill-extrusion-color', dark ? '#3a3b42' : '#e2ddd2');
+  if (map.getLayer('ww-relief')) {
+    map.setPaintProperty('ww-relief', 'hillshade-shadow-color', dark ? '#000000' : '#6b6456');
+    map.setPaintProperty('ww-relief', 'hillshade-highlight-color', dark ? '#4a4c55' : '#ffffff');
+    map.setPaintProperty('ww-relief', 'hillshade-accent-color', dark ? '#111214' : '#8a8274');
+  }
 }

@@ -391,3 +391,13 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 .img-row img { width: 72px; height: 58px; object-fit: cover; border-radius: 6px; background: var(--fill); flex: none; display: block; }
 .img-row .img-none { width: 72px; height: 58px; border-radius: 6px; background: var(--fill); flex: none; font-size: 10px; color: var(--text-2); display: grid; place-items: center; }
 .img-row:hover { background: var(--fill); border-radius: 8px; }
+/* ---- 3D toggle (sidebar header) and the chase camera's bar ---- */
+.toggle3d { flex: none; border: 0; border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 600; background: var(--fill); color: var(--text); cursor: default; transition: background-color var(--move), color var(--move); }
+.toggle3d[aria-pressed="true"] { background: var(--accent, #007aff); color: #fff; }
+.chasebar { position: fixed; z-index: 5; left: 50%; transform: translateX(-50%); top: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 999px; font-size: 13px; }
+.chasebar span { color: var(--text-2); }
+.chasebar b { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chasebar .btn { padding: 4px 12px; margin: 0; }
+.side-head h1 { white-space: nowrap; }
+.side-head .seg button { padding: 4px 11px; }
+.side-head .toggle3d { padding: 6px 9px; }

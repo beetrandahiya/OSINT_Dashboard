@@ -87,6 +87,7 @@ const shipsLayer = {
   count: () => list.length,
   rows: () => [],
   locate(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat]; },
+  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s ? (s.heading ?? s.course ?? null) : undefined; },
   ring: () => 13,
   owns: id => String(id).startsWith('ship:') && !list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,
@@ -168,6 +169,7 @@ export const warships = {
     if (String(id).startsWith('usni:')) { const f = fleetFeatures().find(x => x.properties.id === id); return f?.geometry.coordinates; }
     const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat];
   },
+  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s ? (s.heading ?? s.course ?? null) : undefined; },
   ring: () => 15,
   owns: id => String(id).startsWith('usni:') || !!list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,

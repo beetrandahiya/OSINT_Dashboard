@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import cams, config, db, imaged, maxar, patterns, sanctions, satinfo, sites, translate
+from . import cams, config, db, hotspots, imaged, maxar, patterns, sanctions, satinfo, sites, translate
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -912,6 +912,20 @@ async def flight_patterns(request):
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
 
+async def hotspot_list(request):
+    """Places where several kinds of signal coincide (hotspots.py), from what the server holds right now."""
+    st = collector.states.get("aircraft_military")
+    mil = (st.payload or {}).get("aircraft", []) if st else []
+    vst = collector.states.get("vip_aircraft")
+    vip = (vst.payload or {}).get("aircraft", {}) if vst else {}
+    orbits = (await asyncio.to_thread(patterns.analyse, collector.trails, mil, time.time(), vip)).get("orbits", [])
+    try:
+        spikes = (await asyncio.to_thread(news_window.spikes)).get("spikes", [])
+    except Exception:
+        spikes = []
+    return JSONResponse(await asyncio.to_thread(hotspots.compute, collector.states, spikes, orbits), headers={"Cache-Control": "no-store"})
+
+
 async def trail(request):
     hex_ = request.path_params["hex"].lower()
     return JSONResponse({"hex": hex_, "points": collector.trails.get(hex_, []), "now": time.time()}, headers={"Cache-Control": "no-store"})
@@ -966,6 +980,7 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/api/cam/image", camera_image),
     Route("/api/ship/photos", ship_photos),
     Route("/api/imaged", imaged_search),
+    Route("/api/hotspots", hotspot_list),
     Route("/api/imaged/pic", imaged_pic),
     Route("/api/sanctioned/live", sanctioned_live),
     Route("/api/news/spikes", news_spikes),

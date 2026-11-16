@@ -38,6 +38,7 @@ export default {
     meta: x.kind === 'ship' ? `${(x.risk || []).join(', ')} · matched by ${x.matched_by}` : `sanctioned aircraft · matched by ${x.matched_by}`})),
   owns: id => /^s(ship|plane):/.test(String(id)),
   locate(id) { const x = all().find(v => v.id === id); return x && [x.lon, x.lat]; },
+  heading(id) { const x = all().find(v => v.id === id); return x ? (x.heading ?? x.course ?? x.track ?? null) : undefined; },
   ring: () => 13,
   fill(id) { if (String(id).startsWith('sship:')) fillShip(); },   // aircraft photos are filled by main.js for every card
   detail(id) {

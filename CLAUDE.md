@@ -1268,3 +1268,35 @@ he does not trust the layer), UCDP, restricted airspace (has airspace already).
   schedule (calendar2.priyom.org JSON, CC BY-NC-SA), Cloudflare Radar DDoS origin->target pairs, ransomware.live victims,
   OONI + Tor Metrics censorship, spy-ship watchlist (Wikidata too thin, hand list needed), FBI wanted state hackers (named
   people: ask first), OpenSanctions deltas. Blocked here: Taiwan MND, China MSA, NTI, embassy alerts, Interpol, CORDS.
+
+### 2026-11-16, 3D, hotspots and chase camera (built, waiting for review)
+
+He found my second list of feeds "stupid"; I proposed features of a different kind instead (watch a place, hotspot
+detection, 3D at close zoom, chase camera, situation room). He picked **3D, hotspots and chase camera**.
+- **3D** (`set3D()` / `paint3D()` in `map.js`, "3D" button in the sidebar header, remembered): AWS Terrain Tiles
+  (terrarium, free, no key, CORS ok) as terrain (exaggeration 1.4) and a faint hillshade from the same source; OpenFreeMap
+  building heights (`render_height`) as extrusions from zoom 13; tilt/turn enabled only while 3D is on (right-drag or
+  Ctrl-drag), maxPitch 75. The `ww-dem` source is added at style load. Raster layers (sharp photo etc.) drape on it.
+- **Why terrain looked flat in testing:** in this sandbox the browser's downloads through the agent proxy stall at random
+  when the page has many parallel requests (fetch resolves, `arrayBuffer()` never does); a bare MapLibre page with few
+  requests always got the heights (1,325 / 2,214 m at Innsbruck), our full page got some (2,219 m at one point) and not
+  others. Not reproducible as an engine problem; **unverified on his Mac**. Two real fixes found while chasing it:
+  - `glide()` in `aircraft.js` re-sent all ~6,000 world aircraft to the map every 200 ms to move the few hundred live
+    ones. Now live (gliding) aircraft have their own source `ww-air-live`; the world source is sent only on new data.
+  - MapLibre gave itself one worker on a 4-core machine; `createMap()` now sets 2-4 (`setWorkerCount`).
+  - `window.wwMap` is exposed for debugging in the browser console.
+- **Hotspots** (`hotspots.py`, `/api/hotspots`, `hotspots.js`, chip on by default, first in the list): signals from unrest
+  (2+ outlets), news spikes, navy warnings, new US TFRs (started within 2 days, lasting 7 days or less, from the name's
+  YYMMDD-YYMMDD), GPS interference (3+ bad aircraft), military orbits, M5+ quakes, GDACS orange/red (not drought), front
+  changes (48 h), IODA outages. A hotspot = 3+ different kinds within 250 km in 24 h, 2+ tied to a point; quakes and
+  disasters are context only (a quake beside a clash is chance); a country-wide outage counts only when the hotspot lies
+  in that country (`geo.where`). No score: the card lists every signal with a link (`ww-try-pick`: picks the item when
+  its layer is on, else flies there), country dossier, spy passes and imagery. First tries gave nonsense (a months-long
+  Beale AFB TFR + a news jump about waves + a small protest in San Francisco; a Tajikistan outage + an Afghan quake +
+  a Peshawar clash), hence the rules. Today: one hotspot, Shenzhen (China outage signal, news jump about the
+  Xi-Trump-Putin summit, an attack reported by 2 outlets). Expect few; that is the point.
+- **Chase camera** (`chaseStart/chaseStop` in `main.js`): a "Follow it (chase camera)" button on cards of layers with a
+  `heading(id)` hook (aircraft, military, VIP, doomsday, ships, warships, sanctioned). Eases to pitch 62 and zoom 8.5
+  (ships 11), then each frame centres on `locate()` (live aircraft glide, so it moves smoothly; ships jump each minute,
+  world-feed aircraft are up to 20 min old) and turns gently towards the heading. Wheel zoom stays centred; dragging or
+  "Stop" hands the camera back. Tested: DLH585 followed at pitch 60, bearing turned to its track.

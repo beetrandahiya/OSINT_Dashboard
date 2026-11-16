@@ -105,12 +105,18 @@ function find(id) {
 const position = h => h.from === 'view' ? shownAt(h.a) : [h.a.lon, h.a.lat];
 
 // ---- drawing ----
-function glide() {
+// The ~6,000 world aircraft change only when a new snapshot arrives: they are sent to the map then (full = true). The
+// few hundred live ones on screen glide, and only they are re-sent every 200 ms, in their own small source. Re-sending
+// everything five times a second kept the map's workers busy for good (3D terrain tiles never got decoded).
+function glide(full = false) {
   const map = theMap; if (!map || !map.getSource('ww-air')) return;
   const milHex = new Set(mil.map(a => a.hex)), viewHex = new Set(view.map(a => a.hex));
-  const feats = view.filter(a => !milHex.has(a.hex) && !a.military).map(a => feature(a, 'civil', shownAt(a)));
-  for (const a of world) if (!viewHex.has(a.hex) && !milHex.has(a.hex) && !a.on_ground) feats.push(feature(a, 'civil'));
-  map.getSource('ww-air').setData({type: 'FeatureCollection', features: feats});
+  map.getSource('ww-air-live').setData({type: 'FeatureCollection', features: view.filter(a => !milHex.has(a.hex) && !a.military).map(a => feature(a, 'civil', shownAt(a)))});
+  if (full) {
+    const feats = [];
+    for (const a of world) if (!viewHex.has(a.hex) && !milHex.has(a.hex) && !a.on_ground) feats.push(feature(a, 'civil'));
+    map.getSource('ww-air').setData({type: 'FeatureCollection', features: feats});
+  }
   map.getSource('ww-air-mil').setData({type: 'FeatureCollection', features: [...mil.filter(a => !viewHex.has(a.hex)).map(a => feature(a, 'mil')),
     ...view.filter(a => a.military || milHex.has(a.hex)).map(a => feature(a, 'mil', shownAt(a)))]});
   drawExtras();
@@ -121,13 +127,13 @@ let asking = false;
 async function loadView() {
   const map = theMap;
   if (!map || asking || document.hidden || !(shown.aircraft || shown.military)) return;
-  if (map.getZoom() < VIEW_MIN_ZOOM) { if (view.length) { view = []; viewInfo = null; glide(); } return; }
+  if (map.getZoom() < VIEW_MIN_ZOOM) { if (view.length) { view = []; viewInfo = null; glide(true); } return; }
   const c = map.getCenter(), b = map.getBounds();
   const km = 111.2 * Math.hypot(b.getNorth() - c.lat, (b.getEast() - c.lng) * Math.cos(c.lat * Math.PI / 180));
   asking = true;
   try {
     const d = await api(`/api/aircraft/area?lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&r=${Math.min(250, Math.ceil(km / 1.852))}`);
-    viewInfo = d; view = d.aircraft; glide();
+    viewInfo = d; view = d.aircraft; glide(true);
   } catch (e) { /* the feeds card shows adsb.fi failing; the world positions stay on screen */ }
   asking = false;
 }
@@ -256,15 +262,16 @@ async function fillPhoto() {
 }
 
 export const civil = {
-  id: 'aircraft', title: 'Aircraft', color: ['#5856d6', '#7d7aff'], feeds: {aircraft_world: 120}, layers: ['ww-air'],
+  id: 'aircraft', title: 'Aircraft', color: ['#5856d6', '#7d7aff'], feeds: {aircraft_world: 120}, layers: ['ww-air', 'ww-air-live'],
   addTo(map) {
     theMap = map;
-    for (const s of ['ww-air', 'ww-air-mil', 'ww-air-extra']) map.addSource(s, {type: 'geojson', data: empty});
+    for (const s of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-extra']) map.addSource(s, {type: 'geojson', data: empty});
     map.addLayer({id: 'ww-air-route', type: 'line', source: 'ww-air-extra', filter: ['==', ['get', 'kind'], 'route'], paint: {'line-width': 2, 'line-dasharray': [2.5, 2.5], 'line-opacity': 0.9}});
     map.addLayer({id: 'ww-air-trail', type: 'line', source: 'ww-air-extra', filter: ['==', ['get', 'kind'], 'trail'], layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-width': 2.5}});
     map.addLayer({id: 'ww-air-airport', type: 'symbol', source: 'ww-air-extra', filter: ['==', ['get', 'kind'], 'airport'],
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-allow-overlap': true}});
     map.addLayer(symbol('ww-air', 'ww-air'));
+    map.addLayer(symbol('ww-air-live', 'ww-air-live'));
     setInterval(() => { if (!document.hidden && (shown.aircraft || shown.military) && view.length) glide(); }, 200);
     setInterval(loadView, 10000);
     let t = null;
@@ -273,17 +280,18 @@ export const civil = {
   paint(map, dark) {
     icons(map, dark);
     const ink = dark ? '#e5e5ea' : '#3a3a3c', halo = dark ? '#1c1c1e' : '#ffffff';
-    for (const l of ['ww-air', 'ww-air-mil', 'ww-air-airport']) if (map.getLayer(l)) {
+    for (const l of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-airport']) if (map.getLayer(l)) {
       map.setPaintProperty(l, 'text-color', ink); map.setPaintProperty(l, 'text-halo-color', halo); map.setPaintProperty(l, 'text-halo-width', 1.3);
     }
     if (map.getLayer('ww-air-route')) for (const l of ['ww-air-route', 'ww-air-trail']) map.setPaintProperty(l, 'line-color', civil.color[+dark]);
   },
   onData(feed, d) { info[feed] = d; world = d.payload.aircraft; },
-  render: glide,
+  render: () => glide(true),
   visible(on) { shown.aircraft = on; if (on) loadView(); },
   count: () => new Set([...world.filter(a => !a.on_ground), ...view].map(a => a.hex)).size,
   rows: () => [],
   locate(id) { const h = find(id); return h && position(h); },
+  heading(id) { const h = find(id); return h ? (h.a.track ?? null) : undefined; },
   ring: () => 15,
   moving: true,
   detail,
@@ -295,11 +303,12 @@ export const military = {
   addTo(map) { map.addLayer(symbol('ww-air-mil', 'ww-air-mil')); },
   paint(map, dark) { civil.paint(map, dark); },
   onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; },
-  render: glide,
+  render: () => glide(true),
   visible(on) { shown.military = on; if (on) loadView(); },
   count: () => mil.length,
   rows: () => [],
   locate: id => civil.locate(id),
+  heading: id => civil.heading(id),
   ring: () => 16,
   moving: true,
   detail,
@@ -343,6 +352,7 @@ export const vip = {
     title: `${vipLabel(h)}: ${vipList[h.a.hex].type || 'aircraft'} airborne`, meta: `${VIP_NAME[vipList[h.a.hex].category] || vipList[h.a.hex].category} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
   owns: id => !!vipList[id] && vipList[id].category !== 'Doomsday' && !!find(id),
   locate: id => civil.locate(id),
+  heading: id => civil.heading(id),
   ring: () => 18,
   moving: true,
   detail,
@@ -380,6 +390,7 @@ export const doomsday = {
     title: `${(vipList[h.a.hex].type || 'Doomsday plane')} airborne`, meta: `${vipList[h.a.hex].operator || ''} · ${h.a.flight || vipList[h.a.hex].reg || h.a.hex.toUpperCase()}`})),
   owns: id => vipList[id]?.category === 'Doomsday' && !!find(id),
   locate: id => civil.locate(id),
+  heading: id => civil.heading(id),
   ring: () => 20,
   moving: true,
   detail,

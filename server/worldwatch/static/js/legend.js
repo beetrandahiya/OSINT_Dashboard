@@ -6,6 +6,7 @@ const L = (light, dark) => d => d ? dark : light;
 const BROWN = L('#a2845e', '#ac8e68'), RED = L('#d70015', '#ff6961'), ORANGE = L('#c93400', '#ff9f0a'), GREY = L('#8e8e93', '#aeaeb2'), EDGE = L('#ffffff', '#1c1c1e');
 // shapes: dot, ring, halo (soft fill + ring), letter (dot with a letter), ringletter, line, dash, area, plane, diamond, ship
 const LEGENDS = {
+  hotspots: [['letter', L('#ff2d55', '#ff375f'), 'Hotspot: number = kinds of security signal within 250 km in a day', '3'], ['halo', L('#ff2d55', '#ff375f'), 'The 250 km area the signals fall in']],
   news: [['halo', L('#ff3b30', '#ff453a'), 'Group of nearby places (number = places; zoom in to split)'],
     ['letter', L('#ff3b30', '#ff453a'), 'A place in the news; size and number = different outlets, last 6 h', '12'],
     ['dot', L('#ff3b30', '#ff453a'), 'Faint: only 1 or 2 outlets', '', 0.4]],
