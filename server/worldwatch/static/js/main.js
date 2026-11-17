@@ -359,9 +359,9 @@ addEventListener('keydown', e => {
 // The projection the user chose (Globe / Map buttons, remembered) and the one drawn are kept apart: while the chase
 // camera follows something the map is drawn flat (see there). What is drawn is always worked out from the two in
 // project(), so no sequence of follows, stops and button presses can lose the choice. The buttons show the choice.
-let userGlobe = false;
+let userGlobe = false, lent = false;   // lent: a layer has the globe for a moment (satellites' "Look down" from the flat map)
 function project() {
-  const want = userGlobe && !chase;
+  const want = (userGlobe || lent) && !chase;
   $('#flat').setAttribute('aria-pressed', !userGlobe);
   $('#globe').setAttribute('aria-pressed', userGlobe);
   $('#globe').title = chase && userGlobe ? 'The globe comes back when you stop following' : '';
@@ -370,13 +370,14 @@ function project() {
   setTimeout(() => { for (const l of LAYERS) l.shape?.(map); ring(); }, 60);
 }
 function shape(globe, save = true) {
-  userGlobe = globe;
+  userGlobe = globe; lent = false;
   if (save) try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
   project();
 }
 $('#flat').onclick = () => shape(false);
 $('#globe').onclick = () => shape(true);
-document.addEventListener('ww-shape', e => shape(!!e.detail?.globe, false));   // a layer switching for a moment (satellites' "Look down"), not saved
+// a layer borrowing the globe for a moment (satellites' "Look down") and handing it back: never the user's choice, never saved
+document.addEventListener('ww-shape', e => { lent = !!e.detail?.globe && !userGlobe; project(); });
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });
 // ---- 3D: terrain and buildings, tilt and turn ----
 const on3 = l => !!on[l.id];
@@ -467,7 +468,7 @@ function chaseStart() {
     from: {lon: c0.lng, lat: c0.lat, alt: map.getCenterElevation() || 0, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()},
     zoom: Math.max(map.getZoom(), ship ? 12 : 10.5), pitch: 62, pitchWant: 62, bearing: layer.heading?.(id) ?? map.getBearing(),
     mode: 'behind', free: 0, intro: calm.matches ? 0 : 1600, padWas, pad: {...padWas}, padAt: 0, landed: false};
-  project();   // drawn flat while following
+  lent = false; project();   // drawn flat while following (a borrowed globe is not given back afterwards)
   map.setCenterClampedToGround(false);
   map.scrollZoom.enable({around: 'center'});
   map.dragPan.disable();   // a drag orbits around the target instead (below)
