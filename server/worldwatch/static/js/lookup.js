@@ -33,8 +33,11 @@ try { tab = localStorage.getItem('ww-lookup-tab') || 'dossier'; } catch (e) { /*
 let S = null, picked = null, showHidden = false, view = {x: 0, y: 0, k: 1}, sheetOpen = false, chosen = null;
 try { chosen = JSON.parse(localStorage.getItem('ww-lookup-run') || 'null'); } catch (e) { /* private window */ }
 
+// Changes go out as JSON with the X-WW header: the server refuses anything else, so other websites cannot drive this API.
 async function call(path, method = 'GET', body) {
-  const r = await fetch(path, {method, cache: 'no-store', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  if (method === 'POST') body = body || {};
+  const r = await fetch(path, {method, cache: 'no-store', headers: method === 'GET' ? {} : {'X-WW': '1', ...(body ? {'Content-Type': 'application/json'} : {})},
+    body: body ? JSON.stringify(body) : undefined});
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'The server answered ' + r.status);
   return d;

@@ -1,9 +1,11 @@
 """The lookup page's API. It handles personal identifiers, so by default it answers only to this computer
 itself (127.0.0.1), even when the map is opened up to other devices. Set WW_LOOKUP_REMOTE=1 to change that."""
 import asyncio
+import ipaddress
 import os
 import re
 import time
+from urllib.parse import urlsplit
 
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -14,14 +16,64 @@ job = {"running": None, "step": "", "done": 0, "total": 0, "problems": [], "fini
 
 
 def _local(request) -> bool:
+    # request.client is the socket peer, or the address uvicorn took from X-Forwarded-For when the peer is a local
+    # proxy (uvicorn's own rule). We never read X-Forwarded-For ourselves.
     return os.environ.get("WW_LOOKUP_REMOTE") == "1" or (request.client and request.client.host in ("127.0.0.1", "::1"))
+
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostname(netloc: str) -> str:
+    """'[::1]:8710' -> '::1', 'Localhost:8710' -> 'localhost'."""
+    netloc = netloc.strip().lower()
+    if netloc.startswith("["):
+        return netloc[1:netloc.find("]")] if "]" in netloc else ""
+    return netloc.rsplit(":", 1)[0] if netloc.count(":") == 1 else netloc
+
+
+def _host_ok(name: str) -> bool:
+    """Which Host headers the lookup API answers. Checking it stops DNS rebinding: a hostile page whose own name
+    has been pointed at 127.0.0.1 sends its own name as Host. Remote use (WW_LOOKUP_REMOTE=1, e.g. over Tailscale)
+    adds IP addresses, single-word machine names (Tailscale's short names), *.ts.net and WW_ALLOWED_HOSTS:
+    names a hostile site cannot hand to the browser as its own."""
+    if name in LOOPBACK:
+        return True
+    extra = {h.strip().lower() for h in os.environ.get("WW_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if name in extra or (name and name == os.environ.get("WW_HOST", "").lower() and name not in ("0.0.0.0", "::")):
+        return True
+    if os.environ.get("WW_LOOKUP_REMOTE") != "1":
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        return bool(re.fullmatch(r"[a-z0-9-]{1,63}", name)) or name.endswith(".ts.net")
+
+
+def refuse(request, write: bool):
+    """None when the request may go on, else the refusal. One rule for every lookup route:
+    - Host must be this computer's own name (see _host_ok);
+    - Origin (or, without it, Referer) must be absent or this same page's origin, so other websites can neither
+      drive nor read the API;
+    - a request that changes something must be JSON and carry the X-WW header our page sends. A cross-site form
+      or no-cors fetch cannot add either without a CORS preflight, which this server never grants."""
+    host = request.headers.get("host", "")
+    if not _local(request) or not _host_ok(_hostname(host)):
+        return JSONResponse({"error": "The lookup tool only answers on the computer it runs on."}, status_code=403)
+    src = request.headers.get("origin") or request.headers.get("referer")
+    if src is not None and (src == "null" or urlsplit(src).netloc.lower() != host.lower()):
+        return JSONResponse({"error": "The lookup tool only answers its own page."}, status_code=403)
+    if write:
+        ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if request.headers.get("x-ww") != "1" or (request.method == "POST" and ctype != "application/json"):
+            return JSONResponse({"error": "The lookup tool only answers its own page."}, status_code=403)
+    return None
 
 
 def guarded(fn):
     async def wrapped(request):
-        if not _local(request):
-            return JSONResponse({"error": "The lookup tool only answers on the computer it runs on."}, status_code=403)
-        return await fn(request)
+        return refuse(request, request.method not in ("GET", "HEAD")) or await fn(request)
     return wrapped
 
 
