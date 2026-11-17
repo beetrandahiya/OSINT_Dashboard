@@ -1,7 +1,8 @@
 import {$, ago, api, esc, now} from './util.js';
 import {rate, statusEvery, listRows} from './prefs.js';
 import {loadFlags} from './flags.js';
-import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D} from './map.js';
+import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D, setGround} from './map.js';
+import {look, ground, openSettings, closeSettings} from './look.js';
 import news from './news.js';
 import navwarn from './navwarn.js';
 // import maxarLayer from './maxar.js';   // disaster imagery: off for now, see CHIPS
@@ -119,6 +120,7 @@ onPhoto(v => {
 });
 
 function repaint() {
+  setGround(map, ground(), look.theme, dark.matches);
   paintBase(map, dark.matches);
   paintSky(map, dark.matches);
   paint3D(map, dark.matches);
@@ -228,6 +230,9 @@ map.on('load', () => {
   schedule();   // first downloads (status may not have answered yet: then every feed a switched-on layer uses)
 });
 dark.addEventListener('change', () => ready && repaint());
+// Settings sheet: theme, ground, palette, motion (look.js); a change of look repaints the map's ground and colours
+$('#settings-btn').onclick = () => openSettings();
+document.addEventListener('ww-look', () => { if (ready) repaint(); renderChips(); legend(); });
 
 // ---- layer chips: each one shows and hides a layer, and says how many items it holds ----
 let chipsHtml = '';
@@ -393,6 +398,7 @@ addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ?
 // Escape closes the top-most thing only: the search list, else the dossier (profile.js closes it), else the card
 addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if (closeSettings()) { e.stopImmediatePropagation(); return; }
   const fl = $('#find-list');
   if (fl && !fl.hidden) { fl.hidden = true; document.activeElement?.blur?.(); e.stopImmediatePropagation(); return; }
   if (document.querySelector('#profile:not([hidden])')) return;

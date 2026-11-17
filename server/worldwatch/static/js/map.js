@@ -11,7 +11,20 @@ const PALETTE = {
   dark:  {land: '#25262a', water: '#152334', park: '#1f3327', wood: '#213226', ice: '#3a3c42', urban: '#2a2b30', building: '#303137',
           road: '#3b3d44', casing: '#1d1e21', rail: '#3a3b40', border: '#5a5c63', aero: '#2f2f38',
           label: '#c9c9ce', labelSoft: '#8e8e93', waterLabel: '#6d94bf', halo: '#1c1c1e'},
+  // God's eye: cold steel greys (no orange or warm tones anywhere in this theme)
+  eyeLight: {land: '#e6ebef', water: '#c3d2dd', park: '#dde5e6', wood: '#d9e2e3', ice: '#f4f7f9', urban: '#dfe5ea', building: '#d3dbe1',
+          road: '#f4f7f9', casing: '#cdd6dd', rail: '#c2ccd4', border: '#8a9cab', aero: '#d8dfe5',
+          label: '#2c3a45', labelSoft: '#5d6d79', waterLabel: '#4d7189', halo: '#e6ebef'},
+  eyeDark: {land: '#121a21', water: '#070c11', park: '#131d1f', wood: '#131c1e', ice: '#26313a', urban: '#162029', building: '#1b2630',
+          road: '#1f2b35', casing: '#0d1419', rail: '#202c36', border: '#4f6879', aero: '#18222b',
+          label: '#b7c8d3', labelSoft: '#7f95a3', waterLabel: '#5f8aa6', halo: '#070c11'},
+  // the Outline ground: coasts and borders only
+  outline: {land: '#0a1016', water: '#03060a', park: '#0a1016', wood: '#0a1016', ice: '#0d151c', urban: '#0a1016', building: '#0a1016',
+          road: '#0a1016', casing: '#0a1016', rail: '#0a1016', border: '#4c7a94', aero: '#0a1016',
+          label: '#a9c0cd', labelSoft: '#6f8795', waterLabel: '#4d7189', halo: '#03060a'},
 };
+// which of the palettes above the vector map uses: 'apple', 'eye' or 'outline' (set by setBase from the look)
+let baseMode = 'apple';
 
 export function createMap(container, leftPadding) {
   // MapLibre gives itself few background workers by default (one on a 4-core machine); our many data layers kept a
@@ -33,8 +46,8 @@ export function createMap(container, leftPadding) {
   return map;
 }
 
-let photoOn = false;
-export function setPhoto(on) { photoOn = on; }
+let photoLayer = false, groundPhoto = false;   // a photo layer is on / the ground itself is a picture: place names turn white
+export function setPhoto(on) { photoLayer = on; }
 
 // ---- where our own pictures sit in the layer stack ----
 // Fixed slots, bottom first, all under the base map's place names: the photos (daily, sharp, live: a live photo the
@@ -43,7 +56,7 @@ export function setPhoto(on) { photoOn = on; }
 // slot is an invisible marker layer and a layer is always inserted just below its slot's marker, so the order no longer
 // depends on which chip was switched on first or when a picture was replaced (before, the photos landed on top of
 // night, rain and GPS, and 3D switches the sharp photo on by itself). Markers of ours are added above the place names.
-const SLOTS = ['photo', 'sharp', 'live', 'night', 'aurora', 'rain', 'lightning', 'gps', 'area'];
+const SLOTS = ['ground', 'photo', 'sharp', 'live', 'night', 'aurora', 'rain', 'lightning', 'gps', 'area'];
 export function slot(map, name) {
   if (!map.getLayer('ww-z-area')) {
     const labels = map.getStyle().layers.find(l => l.type === 'symbol' && !l.id.startsWith('ww-'))?.id;
@@ -53,7 +66,8 @@ export function slot(map, name) {
 }
 
 export function paintBase(map, dark) {
-  const c = PALETTE[dark ? 'dark' : 'light'], onPhoto = PALETTE.dark;   // over the satellite photo, place names use the dark-map colours so they stay readable
+  const c = baseMode === 'outline' ? PALETTE.outline : baseMode === 'eye' ? PALETTE[dark ? 'eyeDark' : 'eyeLight'] : PALETTE[dark ? 'dark' : 'light'];
+  const onPhoto = PALETTE.dark, photoOn = photoLayer || groundPhoto;   // over the satellite photo, place names use the dark-map colours so they stay readable
   const set = (id, prop, v) => { try { map.setPaintProperty(id, prop, v); } catch (e) { /* layer lacks that property */ } };
   for (const l of map.getStyle().layers) {
     const id = l.id;
@@ -77,6 +91,56 @@ export function paintBase(map, dark) {
   }
 }
 
+// ---- the ground: what lies under everything (Settings > Ground) ----
+// Pictures are raster layers in the lowest slot, above the vector map's areas and roads and below its place names.
+// All keyless. NASA GIBS (public domain): Blue Marble Next Generation (cloud-free 2004 composite, to zoom 8), Black
+// Marble (2016 night composite, to zoom 8), ASTER GDEM shaded relief (to zoom 12). Closer than zoom 8.5 the photo
+// grounds switch to Esri World Imagery (each area from its own date), the same pictures as the Sharp photo layer.
+const GIBS = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/';
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const PHOTO = [
+  {tiles: GIBS + 'BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', maxzoom: 8, until: 8.5, attribution: 'Ground: NASA Blue Marble (cloud-free composite)'},
+  {tiles: ESRI, maxzoom: 19, from: 8.5, attribution: 'Ground: Esri, Vantor, Earthstar Geographics'}];
+const GROUNDS = {
+  map: [], outline: [], photo: PHOTO, mono: PHOTO,
+  lights: [{tiles: GIBS + 'VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maxzoom: 8, attribution: 'Ground: NASA Black Marble (2016 night composite)'}],
+  relief: [{tiles: GIBS + 'ASTER_GDEM_Greyscale_Shaded_Relief/default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpg', maxzoom: 12, attribution: 'Ground: NASA/METI ASTER GDEM shaded relief'}],
+};
+let groundNow = null;
+// look: {theme, ground}. Returns true when the place names need repainting (photo under them or not).
+export function setGround(map, g, theme, dark) {
+  baseMode = g === 'outline' ? 'outline' : theme === 'eye' ? 'eye' : 'apple';
+  const key = g + '|' + theme + '|' + (dark ? 1 : 0);
+  if (key === groundNow) return;
+  groundNow = key;
+  for (let i = 0; i < 3; i++) {
+    if (map.getLayer('ww-ground-' + i)) map.removeLayer('ww-ground-' + i);
+    if (map.getSource('ww-ground-' + i)) map.removeSource('ww-ground-' + i);
+  }
+  if (map.getLayer('ww-ground-tint')) map.removeLayer('ww-ground-tint');
+  const parts = GROUNDS[g] || [];
+  groundPhoto = parts.length > 0;
+  const eye = theme === 'eye';
+  parts.forEach((p, i) => {
+    map.addSource('ww-ground-' + i, {type: 'raster', tiles: [p.tiles], tileSize: 256, maxzoom: p.maxzoom, attribution: p.attribution});
+    const paint = {'raster-fade-duration': 150};
+    if (g === 'mono') paint['raster-saturation'] = -1;
+    // God's eye grades pictures cold and dark so the symbols read on top (the mock-ups' "graded photo")
+    if (eye && (g === 'photo' || g === 'mono')) Object.assign(paint, {'raster-saturation': -0.75, 'raster-brightness-max': dark ? 0.62 : 0.9, 'raster-contrast': 0.12});
+    if (eye && g === 'relief') Object.assign(paint, {'raster-brightness-max': dark ? 0.55 : 1, 'raster-contrast': 0.1});
+    if (g === 'lights') Object.assign(paint, {'raster-saturation': eye ? -0.8 : -0.3, 'raster-hue-rotate': eye ? 180 : 0});
+    const layer = {id: 'ww-ground-' + i, type: 'raster', source: 'ww-ground-' + i, paint};
+    if (p.until) layer.maxzoom = p.until;
+    if (p.from) layer.minzoom = p.from;
+    map.addLayer(layer, slot(map, 'ground'));
+  });
+  // the cold cast of the graded photo: a thin blue-grey wash over the picture, under everything of ours
+  if (eye && (g === 'photo' || g === 'relief' || g === 'mono')) map.addLayer({id: 'ww-ground-tint', type: 'background',
+    paint: {'background-color': dark ? '#0c2a40' : '#9fc3db', 'background-opacity': dark ? 0.28 : 0.16}}, slot(map, 'ground'));
+  return true;
+}
+export const groundIsPicture = () => groundPhoto;
+
 // On the globe you can zoom out until the geostationary ring (6.6 Earth radii) fits; the flat map stops earlier,
 // where the world would otherwise repeat in tiny copies.
 export function setGlobe(map, on) {
@@ -87,8 +151,14 @@ export function setGlobe(map, on) {
 
 // Colour of the space around the globe.
 export function paintSky(map, dark) {
-  try { map.setSky({'atmosphere-blend': 0}); } catch (e) { /* older engines */ }
-  map.getContainer().style.background = dark ? '#0e0f11' : '#e9edf2';
+  const eye = baseMode !== 'apple';
+  // God's eye: the thin blue rim of atmosphere around the globe when zoomed out (MapLibre's own atmosphere), as in the mock-ups
+  try {
+    map.setSky(eye ? {'sky-color': dark ? '#000814' : '#cfe0ec', 'horizon-color': dark ? '#1b4a6b' : '#9fc3db', 'fog-color': dark ? '#000814' : '#cfe0ec',
+      'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0, 'fog-ground-blend': 1, 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 0.45, 5, 0.45, 7, 0]}
+      : {'atmosphere-blend': 0});
+  } catch (e) { /* older engines */ }
+  map.getContainer().style.background = eye ? (dark ? '#010306' : '#dfe6ec') : dark ? '#0e0f11' : '#e9edf2';
 }
 
 // ---- 3D: real terrain relief and building heights when zoomed in; tilting and turning allowed while it is on ----
