@@ -174,7 +174,7 @@ export const photo = {
 // ---- lightning: EUMETSAT's MTG Lightning Imager, flashes seen from geostationary orbit over Europe, Africa and the
 // Atlantic. The picture is EUMETSAT's own (transparent where there was none), the newest they serve. ----
 const EUM = 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&styles=&crs=EPSG:3857&format=image/png&transparent=true';
-let lightMap = null, lightAt = 0, lightOn = true, lightTime = null, lightFail = false;
+let lightMap = null, lightAt = 0, lightOn = true, lightTime = null, lightFail = false, lightAsk = null;
 export const lightning = {
   id: 'lightning', title: 'Lightning', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-lightning'], local: true,
   addTo(map) {
@@ -193,10 +193,14 @@ export const lightning = {
         {paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, slot(map, 'lightning'));
       document.dispatchEvent(new Event('ww-chips'));
     };
-    add(); every(60, add, {scaled: false});   // EUMETSAT adds a new picture every five minutes (prefs.js: not while hidden)
+    // EUMETSAT adds a new picture every five minutes (prefs.js: not while hidden); while the layer is off only every
+    // 15 minutes, for the chip's time, like the feeds of other layers that are off
+    let asked = 0;
+    lightAsk = () => { asked = performance.now(); add(); };
+    lightAsk(); every(60, () => { if (lightOn || performance.now() - asked > 900000) lightAsk(); }, {scaled: false});
   },
   paint() {}, onData() {}, render() {},
-  visible(on) { lightOn = on; },
+  visible(on) { const was = lightOn; lightOn = on; if (on && !was) lightAsk?.(); },
   count: () => 0, note: () => lightFail ? 'no answer' : lightAt ? local(lightAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
   about: () => (lightFail ? `EUMETSAT did not say which lightning picture is newest${lightAt ? '; the one shown is from ' + utc(lightAt) + ' (' + ago(lightAt) + ')' : ', so nothing is shown'}. ` : '') + `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area) in the picture of ${lightAt ? utc(lightAt) + ' (' + ago(lightAt) + ')' : 'the newest time'}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
 };
