@@ -480,7 +480,7 @@ export const vip = {
     map.addLayer({id: 'ww-vip-halo', type: 'circle', source: 'ww-air-vip', paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 7, 6, 13], 'circle-opacity': 0.18, 'circle-stroke-width': 2}});
     map.addLayer({id: 'ww-vip-label', type: 'symbol', source: 'ww-air-vip',
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true}, paint: {'text-halo-width': 1.3}});
-    setInterval(() => { if (!document.hidden && vipInfo) this.render(map); }, 2000);
+    setInterval(() => { if (!document.hidden && vipInfo && map.getLayoutProperty(this.layers[0], 'visibility') !== 'none') this.render(map); }, 2000);   // only while shown
   },
   paint(map, dark) {
     const c = this.color[+dark];
@@ -519,7 +519,7 @@ export const doomsday = {
     map.addLayer({id: 'ww-doom-halo', type: 'circle', source: 'ww-air-doom', paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 9, 6, 16], 'circle-opacity': 0.15, 'circle-stroke-width': 2.5}});
     map.addLayer({id: 'ww-doom-label', type: 'symbol', source: 'ww-air-doom',
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11.5, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-allow-overlap': true}, paint: {'text-halo-width': 1.4}});
-    setInterval(() => { if (!document.hidden && vipInfo) this.render(map); }, 2000);
+    setInterval(() => { if (!document.hidden && vipInfo && map.getLayoutProperty(this.layers[0], 'visibility') !== 'none') this.render(map); }, 2000);   // only while shown
   },
   paint(map, dark) {
     const c = this.color[+dark];

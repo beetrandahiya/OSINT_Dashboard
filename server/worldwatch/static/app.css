@@ -34,6 +34,8 @@
   --radius-ctl: 12px;
   --gap: 20px;
   --side-w: 380px;
+  --left: calc(var(--side-w) + var(--gap) * 2);   /* where the map's free part starts: right of the sidebar */
+  --right-col: 340px;                              /* the card / feeds column on the right */
   --move: .25s ease-in-out;
   color-scheme: light;
 }
@@ -60,7 +62,9 @@ button { font: inherit; color: inherit; }
 
 #map { position: absolute; inset: 0; }
 .maplibregl-ctrl-attrib { font: 10px var(--font); }
-.maplibregl-ctrl-bottom-left { left: calc(var(--side-w) + var(--gap) * 2 - 4px); bottom: 58px; }
+.maplibregl-ctrl-bottom-left { left: calc(var(--left) - 4px); bottom: 58px; }
+/* a minimised sidebar is only its header: the bottom row (legend, markets, attribution) uses the whole width */
+body:has(#sidebar.min) { --left: var(--gap); }
 
 .right { position: absolute; z-index: 2; top: var(--gap); right: var(--gap); bottom: var(--gap); width: 340px; display: flex; flex-direction: column; gap: var(--gap); pointer-events: none; }
 .right > * { pointer-events: auto; }
@@ -104,7 +108,8 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .m-air span { color: var(--text-2); font-size: 13px; }
 .m-air .r { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .munich .link { display: inline-block; margin-top: 8px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 16px 14px; border-bottom: 0.5px solid var(--sep); }
+.chips { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 2px 16px 14px; border-bottom: 0.5px solid var(--sep);
+  flex: 0 1 auto; min-height: 72px; max-height: 42%; overflow-y: auto; scrollbar-width: thin; }   /* on a short window the chips scroll and the list keeps its room */
 .chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px 0 7px; border: 0; border-radius: 14px; background: var(--fill); font-size: 13px; font-weight: 500; cursor: default; transition: background-color var(--move), opacity var(--move); }
 .chip .swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
 .chip .n { color: var(--text-2); font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -113,7 +118,7 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .chip[aria-pressed="false"] .n { display: none; }
 .chip:active { opacity: 0.7; }
 
-.list { list-style: none; margin: 0; padding: 6px 10px 10px; overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; }
+.list { list-style: none; margin: 0; padding: 6px 10px 10px; overflow-y: auto; flex: 1 1 0; min-height: 150px; scrollbar-width: thin; }
 .list li { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; cursor: default; position: relative; }
 .list li + li::before { content: ""; position: absolute; top: 0; left: 58px; right: 10px; border-top: 0.5px solid var(--sep); }
 .list li:hover { background: var(--hover); }
@@ -161,6 +166,7 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .photo { margin: -18px -20px 14px; }
 .photo img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--radius) var(--radius) 0 0; }
 .photo span { display: block; padding: 4px 20px 0; color: var(--text-2); font-size: 11px; }
+.photo .pic-wait { margin: 0; border-radius: var(--radius) var(--radius) 0 0; padding: 20px 96px 16px 20px; text-align: left; }   /* clear of the close and minimise buttons */
 .detail .eyebrow { margin: 0 0 2px; color: var(--text-2); font-size: 13px; font-weight: 600; }
 .detail h2 { margin: 0; font: 700 22px/26px var(--font); padding-right: 34px; }
 .detail .where { margin: 2px 0 14px; color: var(--text-2); font-size: 15px; line-height: 20px; }
@@ -207,7 +213,7 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .feeds-body li + li { border-top: 0.5px solid var(--sep); }
 .age { color: var(--text-2); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.markets { left: calc(var(--side-w) + var(--gap) * 2); right: calc(340px + var(--gap) * 2); bottom: var(--gap); height: 46px; border-radius: var(--radius-ctl); display: flex; align-items: center; gap: 22px; padding: 0 18px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+.markets { left: var(--left); right: calc(var(--right-col) + var(--gap) * 2); bottom: var(--gap); height: 46px; border-radius: var(--radius-ctl); display: flex; align-items: center; gap: 22px; padding: 0 18px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
 .markets::-webkit-scrollbar { display: none; }
 .quotes { display: contents; }
 .quote { font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -372,7 +378,8 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 @keyframes livepulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .live-dot::before { animation: none; } }
 /* ---- legend: what the symbols of the switched-on layers mean ---- */
-.legend { left: calc(var(--side-w) + var(--gap) * 2); bottom: calc(46px + var(--gap) * 2 + 34px); width: 290px; max-height: min(46vh, 460px); border-radius: var(--radius-ctl); display: flex; flex-direction: column; overflow: hidden; }
+/* as wide as fits between the sidebar and the zoom / compass control (36 px + its 10 px margin), never over it */
+.legend { left: var(--left); bottom: calc(46px + var(--gap) * 2 + 34px); width: min(290px, calc(100vw - var(--left) - var(--right-col) - var(--gap) * 3 - 46px)); max-height: min(46vh, 460px); border-radius: var(--radius-ctl); display: flex; flex-direction: column; overflow: hidden; }
 .lg-head { display: flex; align-items: center; padding: 10px 12px 6px 14px; }
 .lg-head h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .lg-body { overflow-y: auto; padding: 0 14px 10px; scrollbar-width: thin; }
@@ -404,10 +411,17 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 
 /* compass and zoom (MapLibre's navigation control): just left of the right-hand column, above the markets strip,
    in the panels' glass */
-.maplibregl-ctrl-bottom-right { right: calc(340px + var(--gap) * 2); bottom: calc(var(--gap) + 72px); }
+.maplibregl-ctrl-bottom-right { right: calc(var(--right-col) + var(--gap) * 2); bottom: calc(var(--gap) + 72px); }
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   border-radius: var(--radius-ctl); box-shadow: 0 -2px 20px #0000001a, 0 0 12px #0000001a; overflow: hidden; }
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button { width: 36px; height: 36px; }
 @media (prefers-color-scheme: dark) {
   .maplibregl-ctrl-bottom-right .maplibregl-ctrl-icon { filter: invert(1); } }
 .chasebar .btn.icon { width: 30px; padding: 4px 0; text-align: center; font-weight: 600; }
+
+/* hotspot pulse: a page element per hotspot (hotspots.js), animated by the browser, so the map is not redrawn for it */
+.hot-pulse { width: 28px; height: 28px; pointer-events: none; }
+.hot-pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--hot, #ff2d55); opacity: 0;
+  animation: hotpulse 2.4s linear infinite; will-change: transform, opacity; }
+@keyframes hotpulse { from { transform: scale(1); opacity: .9; } to { transform: scale(2.86); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .hot-pulse { display: none; } }

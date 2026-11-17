@@ -2,20 +2,24 @@
 // A pulsing ring on the map; the card lists every signal behind it, each with its source and a way to show it.
 import {ago, esc, local, countryBtn, spyPass} from './util.js';
 
-let d = {hotspots: [], families: {}}, theMap = null, raf = 0, on = true, at = 0;
-const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+let d = {hotspots: [], families: {}}, theMap = null, on = true, at = 0, pulses = [];
 const place = h => {
   const s = h.signals.find(x => x.fam === 'unrest' || x.fam === 'spike') || h.signals[0];
   const m = s?.title.match(/ in ([^,:]+)/);
   return m ? m[1] : `${h.lat.toFixed(1)}°, ${h.lon.toFixed(1)}°`;
 };
-function pulse(t) {
-  raf = 0;
-  if (!theMap?.getLayer('ww-hot-pulse') || !on || reduce.matches || !d.hotspots.length) return;
-  const q = (t % 2400) / 2400;
-  theMap.setPaintProperty('ww-hot-pulse', 'circle-radius', 14 + q * 26);
-  theMap.setPaintProperty('ww-hot-pulse', 'circle-stroke-opacity', 0.9 * (1 - q));
-  raf = requestAnimationFrame(pulse);
+// The pulse is a small page element per hotspot with a CSS animation (.hot-pulse in app.css), placed by a map marker:
+// the browser animates it on its own, so the map is not redrawn 60 times a second for it (setting a paint property
+// every frame did that, forever, while the layer was on). Off under Reduce Motion (CSS) and while the layer is off.
+function pulse() {
+  for (const m of pulses) m.remove();
+  pulses = [];
+  if (!theMap || !on) return;
+  for (const h of d.hotspots) {
+    const el = document.createElement('div');
+    el.className = 'hot-pulse';
+    pulses.push(new maplibregl.Marker({element: el, anchor: 'center', opacityWhenCovered: '0'}).setLngLat([h.lon, h.lat]).addTo(theMap));
+  }
 }
 async function load() {
   try { d = await fetch('/api/hotspots').then(r => r.json()); at = Date.now() / 1000; } catch (e) { return; }
@@ -31,17 +35,17 @@ const hotspots = {
     map.addSource('ww-hot', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-hot-area', type: 'circle', source: 'ww-hot',
       paint: {'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['*', ['get', 'r0'], 1], 20, ['*', ['get', 'r0'], 1048576]], 'circle-opacity': 0.08, 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.5}});
-    map.addLayer({id: 'ww-hot-pulse', type: 'circle', source: 'ww-hot', paint: {'circle-radius': 14, 'circle-opacity': 0, 'circle-stroke-width': 2}});
     map.addLayer({id: 'ww-hot', type: 'circle', source: 'ww-hot', paint: {'circle-radius': 11, 'circle-stroke-width': 2}});
     map.addLayer({id: 'ww-hot-label', type: 'symbol', source: 'ww-hot',
       layout: {'text-field': ['to-string', ['get', 'kinds']], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
     load(); setInterval(load, 5 * 60 * 1000);
   },
-  layers: ['ww-hot-area', 'ww-hot-pulse', 'ww-hot', 'ww-hot-label'],
-  visible(v) { on = v; if (v && !raf) raf = requestAnimationFrame(pulse); },
+  layers: ['ww-hot-area', 'ww-hot', 'ww-hot-label'],
+  visible(v) { on = v; pulse(); },
   paint(map, dark) {
     const c = this.color[+dark];
-    for (const [id, p] of [['ww-hot', 'circle-color'], ['ww-hot-pulse', 'circle-stroke-color'], ['ww-hot-area', 'circle-color'], ['ww-hot-area', 'circle-stroke-color']]) map.setPaintProperty(id, p, c);
+    for (const [id, p] of [['ww-hot', 'circle-color'], ['ww-hot-area', 'circle-color'], ['ww-hot-area', 'circle-stroke-color']]) map.setPaintProperty(id, p, c);
+    map.getContainer().style.setProperty('--hot', c);
     map.setPaintProperty('ww-hot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData() {},
@@ -50,7 +54,7 @@ const hotspots = {
     // r0: the 250 km radius in pixels at zoom 0 (512 px world), so the area ring is true to scale at any zoom
     map.getSource('ww-hot').setData({type: 'FeatureCollection', features: d.hotspots.map((h, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [h.lon, h.lat]},
       properties: {id: 'hot:' + i, kinds: h.kinds, r0: d.radius_km / (40075 * Math.cos(h.lat * Math.PI / 180)) * 512}}))});
-    if (!raf && on) raf = requestAnimationFrame(pulse);
+    pulse();
   },
   count: () => d.hotspots.length,
   rows: () => d.hotspots.map((h, i) => ({id: 'hot:' + i, time: h.last, badge: String(h.kinds), strong: true,

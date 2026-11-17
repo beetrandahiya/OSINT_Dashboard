@@ -55,7 +55,14 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
     Object.assign(bar.style, {left: r.left + inset + 'px', top: r.top + 1 + 'px', width: Math.max(0, r.width - inset * 2) + 'px'});
   };
   let tiles = false;                          // picture layers (photo, live photo, sharp photo, rain, lightning) loading tiles
-  const show = () => { if (open || tiles) place(); bar.hidden = !(open || tiles); };
+  // while it shows, it follows the panel (a card or dossier can open or close during a request)
+  let follow = 0;
+  const show = () => {
+    const vis = !!(open || tiles);
+    if (vis) place();
+    bar.hidden = !vis;
+    if (vis && !follow) follow = setInterval(place, 200); else if (!vis && follow) { clearInterval(follow); follow = 0; }
+  };
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (!url.includes('/api/') || url.includes('/api/status')) return real(input, init);   // the status poll is constant; not "loading"
@@ -75,18 +82,22 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
   };
 }
 // ---- every panel can be minimised; the choice is remembered on this computer ----
-function minimiser(btnId, panelId, key) {
+function minimiser(btnId, panelId, key, then) {
   const b = document.getElementById(btnId), p = document.getElementById(panelId); if (!b || !p) return;
   let on = false; try { on = localStorage.getItem(key) === '1'; } catch (e) { /* private window */ }
-  const set = v => { on = v; p.classList.toggle('min', v); b.setAttribute('aria-expanded', !v); try { localStorage.setItem(key, v ? '1' : ''); } catch (e) { /* ignore */ } };
+  const set = v => { on = v; p.classList.toggle('min', v); b.setAttribute('aria-expanded', !v); try { localStorage.setItem(key, v ? '1' : ''); } catch (e) { /* ignore */ } then?.(v); };
   set(on); b.addEventListener('click', e => { e.stopPropagation(); set(!on); });
 }
-minimiser('side-mini', 'sidebar', 'ww-min-side');
+// the map centres on the part the sidebar leaves free; a minimised sidebar is only its header, so it leaves all of it
+const sidePad = () => innerWidth > 900 && !$('#sidebar').classList.contains('min') ? SIDEBAR_SPACE : 0;
+let mapRef = null;
+minimiser('side-mini', 'sidebar', 'ww-min-side', () => { if (mapRef && !chase) mapRef.easeTo({padding: {...mapRef.getPadding(), left: sidePad()}, duration: calm.matches ? 0 : 250}); });
 minimiser('markets-mini', 'marketsbar', 'ww-min-markets');
 minimiser('legend-mini', 'legend', 'ww-min-legend');
 let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
 
-const map = createMap('map', innerWidth > 900 ? SIDEBAR_SPACE : 0);
+const map = createMap('map', sidePad());
+mapRef = map;
 window.wwMap = map;   // handy in the browser console
 window.wwWatchTiles?.(map);
 attachImaged(map);
@@ -111,15 +122,47 @@ function show(layer) {
   layer.visible?.(on[layer.id]);
 }
 
-async function load(layer, feed) {
+// One timer and one request per feed, handed to every layer that uses it (ships and warships share "ships", VIP jets
+// and doomsday planes "vip_aircraft", ...). Nothing is asked while the tab is hidden; feeds that came due meanwhile
+// are asked once when it shows again. Chips, list and card are redrawn at most once per frame, however many answer.
+const users = {};                 // feed -> {layers, secs}
+for (const l of LAYERS) for (const [feed, secs] of Object.entries(l.feeds)) {
+  const u = users[feed] ||= {layers: [], secs};
+  u.layers.push(l); u.secs = Math.min(u.secs, secs);
+}
+const busy = new Set(), retry = {}, due = new Set(), changed = new Set();
+async function load(feed) {
+  if (document.hidden) { due.add(feed); return; }
+  if (busy.has(feed)) return;
+  busy.add(feed);
   try {
     const d = await api('/api/data/' + feed);
-    if (!d.payload) { setTimeout(() => load(layer, feed), 5000); return; }   // the server has not fetched this feed yet: ask again shortly
-    layer.onData(feed, d);
-    got.add(layer.id);
-    layer.render(map);
-    renderChips(); renderList(); refreshPick();
+    if (!d.payload) {   // the server has not fetched this feed yet: ask again shortly (one pending retry per feed, never a pile)
+      retry[feed] ||= setTimeout(() => { retry[feed] = 0; load(feed); }, 5000);
+      return;
+    }
+    for (const l of users[feed].layers) {
+      try { l.onData(feed, d); got.add(l.id); l.render(map); changed.add(l.id); }
+      catch (e) { console.error(`layer ${l.id} could not take feed ${feed}:`, e); }   // one layer's fault must not stop the others
+    }
+    redraw();
   } catch (e) { /* the banner reports a server that stopped answering; one bad answer must not stop the rest */ }
+  finally { busy.delete(feed); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !ready) return;
+  const list = [...due]; due.clear();
+  for (const feed of list) load(feed);
+});
+let frame = 0;
+function redraw() {
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    renderChips(); renderList();
+    if (picked && changed.has(picked.layer)) refreshPick();   // other layers' answers leave the open card alone
+    changed.clear();
+  });
 }
 
 map.on('load', () => {
@@ -130,10 +173,8 @@ map.on('load', () => {
   attachModels(map);        // 3D aircraft models, above everything else
   repaint();
   loadFlags();
-  for (const l of LAYERS) {
-    show(l);
-    for (const [feed, secs] of Object.entries(l.feeds)) { load(l, feed); setInterval(() => load(l, feed), secs * 1000); }
-  }
+  for (const l of LAYERS) show(l);
+  for (const [feed, u] of Object.entries(users)) { load(feed); setInterval(() => load(feed), u.secs * 1000); }
   const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
@@ -152,24 +193,28 @@ map.on('load', () => {
 dark.addEventListener('change', () => ready && repaint());
 
 // ---- layer chips: each one shows and hides a layer, and says how many items it holds ----
+let chipsHtml = '';
 function renderChips() {
-  $('#chips').innerHTML = CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
+  const html = CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
     <span class="swatch"></span>${l.title}<span class="n">${l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : ''}</span></button>`).join('');
+  if (html !== chipsHtml) { $('#chips').innerHTML = html; chipsHtml = html; }
 }
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   const l = byId[b.dataset.id];
   on[l.id] = !on[l.id];
   try { localStorage.setItem('ww-layers', JSON.stringify(on)); } catch (err) { /* private window */ }
-  show(l); renderChips(); renderList(); legend();
+  show(l);
+  if (on[l.id] && got.has(l.id)) try { l.render(map); } catch (err) { console.error(err); }
+  renderChips(); renderList(); legend();
   if (picked?.layer === l.id && !on[l.id]) pick(null);
 });
 dark.addEventListener('change', renderChips);
 const legend = () => renderLegend($('#legend'), CHIPS, on);
 legend(); dark.addEventListener('change', legend);
-document.addEventListener('ww-chips', renderChips);
-document.addEventListener('ww-detail', () => { detailKey = ''; renderDetail(); });
-document.addEventListener('ww-flags', () => { if (ready) { detailKey = ''; renderDetail(); } });
+document.addEventListener('ww-chips', redraw);
+document.addEventListener('ww-detail', () => renderDetail(true));
+document.addEventListener('ww-flags', () => { if (ready) renderDetail(true); });
 
 // ---- the list: what is coming up first, then the newest things across the layers that are switched on ----
 function renderList() {
@@ -182,9 +227,11 @@ function renderList() {
       <span class="row-text"><span class="row-title">${esc(r.title)}</span><span class="row-meta">${esc(r.meta)}</span></span>${r.thumb ? `<img class="row-thumb" src="${esc(r.thumb)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</li>`;
   const html = (coming.length ? `<li class="group">Coming up</li>${coming.map(li).join('')}<li class="group">Latest</li>` : '') + past.map(li).join('');
   const list = $('#list');
-  if (list.contains(document.activeElement) && list.dataset.html) return;   // don't pull the list from under the keyboard
-  if (list.dataset.html !== html) { list.innerHTML = html || '<li class="empty">Nothing to list for the layers that are switched on.</li>'; list.dataset.html = html; }
+  if (html === listHtml) return;
+  if (list.contains(document.activeElement) && listHtml != null) return;   // don't pull the list from under the keyboard
+  list.innerHTML = html || '<li class="empty">Nothing to list for the layers that are switched on.</li>'; listHtml = html;
 }
+let listHtml = null;
 
 function ring() {
   const l = picked && byId[picked.layer], at = l?.locate(picked.id);
@@ -204,31 +251,69 @@ function pick(p, fly = false) {
   if (p && !fly) document.querySelector(`#list li[data-layer="${p.layer}"][data-id="${CSS.escape(String(p.id))}"]`)?.scrollIntoView({block: 'nearest', behavior: calm.matches ? 'auto' : 'smooth'});
 }
 
-let detailKey = '';
-function renderDetail() {
+// The open card. A new item is drawn from scratch; the same item drawn again is patched: only the parts whose HTML the
+// layer changed are touched in the page, so a picture already loaded, a section filled in after drawing, a button the
+// user pressed (the satellite picture's day), focus, scroll and the element under the mouse all stay as they are.
+let detailKey = '', detailHtml = '', detailWait = false, pressing = false;
+const KEEP = ['#route', '#photo', '#actype', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'];
+const parse = html => { const t = document.createElement('template'); t.innerHTML = html; return t.content; };
+// bring `live` (in the page) from `prev` (what it was drawn from) to `next`; false when the children do not line up
+function patch(live, prev, next) {
+  const a = live.childNodes, p = prev.childNodes, n = next.childNodes;
+  if (a.length !== p.length || p.length !== n.length) return false;
+  for (let i = 0; i < n.length; i++) {
+    const ai = a[i], pi = p[i], ni = n[i];
+    if (pi.isEqualNode(ni)) continue;                                  // unchanged by the layer: leave the page's version alone
+    if (pi.nodeType === 3 && ni.nodeType === 3 && ai.nodeType === 3) { ai.nodeValue = ni.nodeValue; continue; }
+    if (pi.nodeType === 1 && ni.nodeType === 1 && ai.nodeType === 1 && pi.tagName === ni.tagName && ai.tagName === ni.tagName) {
+      for (const {name} of [...pi.attributes]) if (!ni.hasAttribute(name)) ai.removeAttribute(name);
+      for (const {name, value} of [...ni.attributes]) if (pi.getAttribute(name) !== value) ai.setAttribute(name, value);
+      if (patch(ai, pi, ni)) continue;
+    }
+    ai.replaceWith(document.importNode(ni, true));
+  }
+  return true;
+}
+function renderDetail(force = false) {
   const el = $('#detail'), html = picked && byId[picked.layer].detail(picked.id);
   if (picked && html == null) {   // the item left its feed (a plane landed, a quake aged out): say so, don't keep a ghost
     el.hidden = false;
     el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><p class="eyebrow">No longer in the feed</p><p class="where">This item is not in the latest data any more.</p>';
-    detailKey = ''; return;
+    detailKey = ''; detailHtml = ''; return;
   }
   el.hidden = !picked;
-  if (!picked) { detailKey = ''; return; }
-  const key = picked.layer + '|' + picked.id, scroll = el.scrollTop;
-  if (key === detailKey && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
-  const keep = key === detailKey ? ['#route', '#photo', '#actype', '#tracknote', '#more', '#satwho', '#satabout', '#spypass', '#imaged', '#shippic', '#shipabout', '#mxacq', '#cableabout', '#windycam'].map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done]) : [];
+  if (!picked) { detailKey = ''; detailHtml = ''; return; }
+  const key = picked.layer + '|' + picked.id, same = key === detailKey;
+  if (same && !force && byId[picked.layer].still) return;   // cards that play video or a stream: redrawing would restart it
+  if (same && pressing) { detailWait = true; return; }     // never swap the page under a click; done when the button is let go
   const chaseable = byId[picked.layer].heading && byId[picked.layer].heading(picked.id) !== undefined;
   const chaseBtn = chaseable ? `<p class="links"><button class="btn" data-chase>${chase && chase.id === picked.id ? 'Stop following' : 'Follow it (chase camera)'}</button></p>` : '';
-  el.innerHTML = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + (chaseBtn && /<\/h2>[\s\S]*?<\/p>/.test(html) ? html.replace(/(<\/h2>[\s\S]*?<\/p>)/, '$1' + chaseBtn) : html + chaseBtn);
+  const full = '<button class="close" id="close" aria-label="Close"></button><button class="mini" id="detail-mini" aria-label="Minimise the card" title="Minimise"></button>' + (chaseBtn && /<\/h2>[\s\S]*?<\/p>/.test(html) ? html.replace(/(<\/h2>[\s\S]*?<\/p>)/, '$1' + chaseBtn) : html + chaseBtn);
   el.classList.toggle('min', detailMin);
-  for (const [q, inner, done] of keep) if (done && $(q)) { $(q).innerHTML = inner; $(q).dataset.done = '1'; } else if (q === '#tracknote' && inner && $(q)) $(q).innerHTML = inner;
-  el.scrollTop = key === detailKey ? scroll : 0;
-  detailKey = key;
+  if (same && full === detailHtml) return;                  // nothing changed: touch nothing
+  if (same) {
+    const prev = parse(detailHtml), next = parse(full);
+    // sections filled in after drawing (photo, route, spy passes...) survive whenever the layer left their placeholder as it was
+    const keep = KEEP.map(q => [q, $(q)?.innerHTML, $(q)?.dataset.done, prev.querySelector(q)?.outerHTML === next.querySelector(q)?.outerHTML]);
+    const scroll = el.scrollTop;
+    if (!patch(el, prev, next)) el.innerHTML = full;
+    for (const [q, inner, done, untouched] of keep) {
+      const x = $(q); if (!x || !untouched || inner == null || x.innerHTML === inner) continue;
+      if (done) { x.innerHTML = inner; x.dataset.done = '1'; } else if (q === '#tracknote' && inner) x.innerHTML = inner;
+    }
+    el.scrollTop = scroll;
+  } else {
+    el.innerHTML = full;
+    el.scrollTop = 0;
+  }
+  detailKey = key; detailHtml = full;
   fillRoute();
   byId[picked.layer].fill?.(picked.id);   // a layer can fetch more for its card after it is drawn
 }
 const el0 = () => $('#detail');
-function refreshPick() { if (picked && !$('#detail').matches(':hover')) { renderDetail(); ring(); } }
+function refreshPick() { if (picked) { renderDetail(); ring(); } }
+$('#detail').addEventListener('pointerdown', () => { pressing = true; });
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { if (!pressing) return; pressing = false; if (detailWait) { detailWait = false; setTimeout(() => renderDetail(), 0); } });
 
 $('#list').addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) pick({layer: li.dataset.layer, id: li.dataset.id}, true); });
 $('#list').addEventListener('keydown', e => {
@@ -244,9 +329,9 @@ $('#detail').addEventListener('click', e => {
   if (e.target.id === 'close') return pick(null);
   if (e.target.id === 'detail-mini') { detailMin = !detailMin; el0().classList.toggle('min', detailMin); try { localStorage.setItem('ww-min-detail', detailMin ? '1' : ''); } catch (err) { /* ignore */ } return; }
   const a = e.target.closest('[data-act]');
-  if (a && picked) { byId[picked.layer].act?.(a.dataset.act, map); detailKey = ''; renderDetail(); }
+  if (a && picked) { byId[picked.layer].act?.(a.dataset.act, map); renderDetail(true); }
 });
-onSatChange(() => { detailKey = ''; renderDetail(); });
+onSatChange(() => renderDetail(true));
 addEventListener('ww-pick', e => pick(e.detail, true));
 // a link to an item on another layer: pick it when that layer is on and holds it, otherwise just fly there
 addEventListener('ww-try-pick', e => {
@@ -255,7 +340,14 @@ addEventListener('ww-try-pick', e => {
   else map.flyTo({center: [lon, lat], zoom: Math.max(map.getZoom(), 7), duration: calm.matches ? 0 : 1200});
 });
 addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ? 0 : 1500}));
-addEventListener('keydown', e => { if (e.key === 'Escape') { document.activeElement?.blur?.(); pick(null); } });
+// Escape closes the top-most thing only: the search list, else the dossier (profile.js closes it), else the card
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const fl = $('#find-list');
+  if (fl && !fl.hidden) { fl.hidden = true; document.activeElement?.blur?.(); e.stopImmediatePropagation(); return; }
+  if (document.querySelector('#profile:not([hidden])')) return;
+  document.activeElement?.blur?.(); pick(null);
+});
 
 function shape(globe, save = true) {
   setGlobe(map, globe);
@@ -318,7 +410,7 @@ function chaseStop(level = true) {
   map.scrollZoom.enable();
   map.dragPan.enable();
   groundAgain(level && !is3D(), padWas, wasGlobe ? () => shape(true, false) : null);
-  detailKey = ''; renderDetail();
+  renderDetail(true);
 }
 function chaseStart() {
   if (!picked) return;
@@ -347,7 +439,7 @@ function chaseStart() {
   bar.title = 'Drag the map to look around it; the wheel zooms';
   document.body.appendChild(bar);
   $('#chasestop').onclick = () => chaseStop();
-  detailKey = ''; renderDetail();   // the card's button now reads "Stop following"
+  renderDetail(true);   // the card's button now reads "Stop following"
   const step = () => {
     if (!chase) return;
     const t = performance.now(), dt = Math.min(0.1, (t - chase.last) / 1000); chase.last = t;
@@ -442,7 +534,7 @@ renderChips();
 loadStatus();
 markets.start();
 setInterval(loadStatus, 5000);
-setInterval(() => { renderFeeds(); renderList(); }, 20000);   // keep the "x min ago" texts moving
+setInterval(() => { if (document.hidden) return; renderFeeds(); renderList(); refreshPick(); }, 20000);   // keep the "x min ago" texts moving (the card is patched, not redrawn)
 
 // ---- find a person (header search) ----
 let findTimer = null;
