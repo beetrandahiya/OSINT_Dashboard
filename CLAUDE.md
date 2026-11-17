@@ -1586,3 +1586,20 @@ the Blue Marble photo) before drawing the other screens or building anything.
 - Rendered and overflow-checked locally like the previous seven. Limits: the relief ground came out flat (little
   terrain visible); the chase and low-orbit grounds are soft at that zoom; the view switcher shows 7 views with a
   "4 more" chip on the older boards and all 11 on the new camera boards.
+
+### 2026-11-17, God's eye: icons and legends (mock-ups)
+
+- He asked for "newer versions and variations for all the legends and icons". New canvas page "God's eye: icons and
+  legends" (same link), eight 1920 x 1080 boards, rendered and overflow-checked locally:
+  - Four icon sheets: **69 symbols** (every map symbol: aircraft types, VIP / doomsday / tanker / surveillance orbit,
+    ships, carriers, sanctioned, satellite classes, launches, the five unrest kinds, front, hotspot, news, leaders,
+    quakes, disasters, fires, lightning, outages, hijacks, cables, warnings, bases, nuclear, cameras, receivers), each
+    in **four families** (solid, line with glow, badge, point and code) on four grounds (photo land / desert, mono,
+    dark). Library in `docs/design-eye/icons.py` (glyphs on a 64 grid; modes f/k/s/d/a/x).
+  - States: normal, hover (thin white ring), selected (ice ring + ticks), low confidence (half strength), last known
+    (grey, dashed, labelled), grouped (count), labelled, sized.
+  - The four families on the same map crop with real items (military aircraft by broadcast type code).
+  - Legend variants: A grouped key with counts in view and source, B key strip, C explain on hover, D key inside the
+    layers panel, E counters of items beyond each screen edge (by direction; far side counted separately), F ambient
+    icons-only key.
+- Same day he added: **"keep the icons in general very low key"** and look online for spy-style icons (next round).
