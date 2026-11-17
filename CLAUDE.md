@@ -1614,3 +1614,5 @@ the Blue Marble photo) before drawing the other screens or building anything.
   red diamond reads "enemy"). If he ever wants the real standard: milsymbol (MIT, JavaScript, APP-6 / 2525E).
 - Lesson: a marker layer must use the camera of the picture under it. I first laid theatre-camera marks over the
   horizon picture on the low-key map board; caught in my own check and swapped to the outline ground (same camera).
+- **His verdict (same day): "the normal icons are good, low key look weird"** (the frame / reticle / scope families
+  are dropped; do not re-propose them). Next: go deeper into the normal set of 69; he invited questions first.
