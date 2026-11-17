@@ -738,27 +738,73 @@ async def eumetsat_time(request):
     return JSONResponse({"time": hit[1]})
 
 
+_unrest_imgs = {"key": None, "set": set()}
+
+
+def _unrest_images() -> set[str]:
+    """Pictures the protests layer hands out: from its current payload (articles keep their picture 30 h through
+    Unrest.heads_seen, longer than the 6-hour news window) and from that store itself."""
+    from .unrest import window as uw
+    st = collector.states.get("unrest")
+    payload = st.payload if st else None
+    key = (id(payload), len(uw.heads_seen))
+    if key != _unrest_imgs["key"]:
+        out = {v[2] for v in uw.heads_seen.values() if len(v) > 2 and v[2]}
+        for g in (payload or {}).get("groups", []):
+            out.update(a["image"] for a in g.get("articles", []) if a.get("image"))
+        _unrest_imgs.update(key=key, set=out)
+    return _unrest_imgs["set"]
+
+
+async def _public_url(url: str) -> bool:
+    """True when the address is http(s) and its host resolves only to public internet addresses: the picture proxy must
+    never be steered at this machine, the home network, link-local or carrier-grade NAT addresses."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+    try:
+        u = urlsplit(url)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            return False
+        infos = await asyncio.to_thread(socket.getaddrinfo, u.hostname, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    except (ValueError, OSError):
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not ip.is_global or ip in ipaddress.ip_network("100.64.0.0/10"):
+            return False
+    return bool(infos)
+
+
 async def news_image(request):
     """An outlet's preview picture, fetched by this server so the outlet never sees the browser. Only pictures
-    named in the current news data are fetched; this is not an open proxy."""
+    named in the current data are fetched (news window, protests and their 30-hour headline store, USNI's fleet map),
+    only from public addresses, also after each redirect; this is not an open proxy."""
     url = request.query_params.get("u", "")
     fleet = (collector.states.get("usni_fleet") and collector.states["usni_fleet"].payload) or {}
-    if url not in news_window.images() and url != fleet.get("graphic"):
+    if url not in news_window.images() and url != fleet.get("graphic") and url not in _unrest_images():
         return Response(status_code=404)
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True, headers={"User-Agent": config.USER_AGENT}) as c:
-            async with c.stream("GET", url) as r:
-                kind = r.headers.get("content-type", "")
-                if r.status_code != 200 or not kind.startswith("image/"):
-                    return Response(status_code=502)
-                body = b""
-                async for chunk in r.aiter_bytes():
-                    body += chunk
-                    if len(body) > 3_000_000:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=False, headers={"User-Agent": config.USER_AGENT}) as c:
+            for _ in range(5):                      # redirects followed by hand so every hop is checked
+                if not await _public_url(url):
+                    return Response(status_code=403)
+                async with c.stream("GET", url) as r:
+                    if r.is_redirect and r.headers.get("location"):
+                        url = str(r.url.join(r.headers["location"]))
+                        continue
+                    kind = r.headers.get("content-type", "")
+                    if r.status_code != 200 or not kind.startswith("image/"):
                         return Response(status_code=502)
+                    body = b""
+                    async for chunk in r.aiter_bytes():
+                        body += chunk
+                        if len(body) > 3_000_000:
+                            return Response(status_code=502)
+                    return Response(body, media_type=kind.split(";")[0], headers={"Cache-Control": "private, max-age=86400"})
     except httpx.HTTPError:
         return Response(status_code=502)
-    return Response(body, media_type=kind.split(";")[0], headers={"Cache-Control": "private, max-age=86400"})
+    return Response(status_code=502)            # too many redirects
 
 
 _area = {"at": 0.0, "key": None, "body": None}
