@@ -1492,3 +1492,14 @@ glass pills, amber target ring), 3 Glass cockpit (B612, status colours only, ann
 4 Case file (paper, serif + typewriter, map plate, subject sheet), 5 Atlas (equal-area map, serif, gazetteer and key).
 Static boards, not checked in a browser (the canvas type says not to). None is built; the earlier "Apple Maps, tidied"
 proposal still stands beside them. The God's eye board is an original look in that spirit, not a copy of either.
+
+### 2026-11-17, his pick among the design systems: 1 and 2, with an "analog" feel
+
+He finds **1 Command deck and 2 God's eye** interesting and sent a frame of the film's God's Eye screen: he likes the
+"analog vibe", text that is "a bit movey". Read as: a projected-display feel (labels flicker and shift by a fraction of
+a pixel, glow with a faint colour fringe, globe made of points of light, panels as thin frames). Added board
+**6 "Live signal"** to the same canvas (https://claude.ai/artifact/5hDJgW4M7dkGq4iAC73d2D): 1 + 2 merged, dot-matrix
+globe (generated from Natural Earth), jitter/flicker/glow classes, scan lines, off under Reduce Motion. Our own design
+in that spirit, not a copy of the film's screen. Rule kept: only presentation moves; no animated or invented numbers.
+Not checked in a browser. Waiting for his reaction (how strong the movement should be; which ground: points of light or
+the Blue Marble photo) before drawing the other screens or building anything.
