@@ -61,7 +61,7 @@ def _forget_names(c, names):
         for hit in (json.loads(row[0]) if row else []):
             qid = hit.get("qid") if isinstance(hit, dict) else None
             if qid:
-                c.execute("DELETE FROM cache WHERE key GLOB ? OR key = ?", ("profile*:" + qid, "wdent:" + qid))
+                c.execute("DELETE FROM cache WHERE key GLOB ? OR key GLOB ?", ("profile*:" + qid, "wdent*:" + qid))
                 if hit.get("name"):
                     c.execute("DELETE FROM cache WHERE key = ?", ("ukcase2:" + courts.fold(hit["name"]),))
         c.execute("DELETE FROM cache WHERE key = ?", (key,))
