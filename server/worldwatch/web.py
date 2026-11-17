@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import cams, config, db, hotspots, imaged, maxar, patterns, sanctions, satinfo, sites, translate
+from . import cams, config, db, hotspots, imaged, maxar, patterns, sanctions, satinfo, sites, translate, wire
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -71,28 +71,53 @@ async def status(request):
 
 
 async def data(request):
-    st = collector.states.get(request.path_params["name"])
+    name = request.path_params["name"]
+    st = collector.states.get(name)
     if not st:
         return JSONResponse({"error": "no such feed"}, status_code=404)
     now = time.time()
-    payload = st.payload
     # ?since=<fetched from the last answer>: when the feed has not been fetched again since, answer without the payload
     # (news is ~0.8 MB and changes every 15 minutes, but pages poll it every minute). Ships are merged live, never.
     since = request.query_params.get("since")
-    if since and st.fetched and request.path_params["name"] != "ships":
+    if since and st.fetched and name != "ships":
         try:
             if abs(float(since) - st.fetched) < 1e-3:
                 return JSONResponse({**st.public(now), "now": now, "unchanged": True}, headers={"Cache-Control": "no-store"})
         except ValueError:
             pass
-    if request.path_params["name"] == "ships":
-        # Finland's feed (stored) plus the worldwide stream (in memory only, merged here); the newer report wins
+    if name == "ships":
+        enc = await _ships_merged(st)
+    else:
+        enc = await collector.encode(st)
+    if enc is None:          # nothing yet, or a payload that is not plain JSON: the ordinary way
+        return JSONResponse({**st.public(now), "now": now, "payload": st.payload}, headers={"Cache-Control": "no-store"})
+    # the payload part is kept encoded (wire.py); only the state and `now` are added per request. The ETag is the
+    # payload's version plus the fetch, so a client asking again with If-None-Match gets 304 until either moves.
+    # (The page itself does not use that: a cached body would hand its clock an old `now`. It asks only when
+    # /api/status shows a new version.)
+    tag = f'"{enc.version}-{st.fetched or 0:.3f}"'
+    return wire.respond(request, enc, {**st.public(now), "now": now}, etag=None if name == "ships" else tag)
+
+
+_SHIPS = {"at": 0.0, "of": None, "enc": None}
+
+
+async def _ships_merged(st):
+    """Finland's feed (stored) plus the worldwide stream (in memory only, merged here); the newer report wins.
+    Kept 10 s: every tab asks every minute and a merge of the world stream is tens of thousands of ships."""
+    if _SHIPS["enc"] is not None and _SHIPS["of"] is st.payload and time.time() - _SHIPS["at"] < 10:
+        return _SHIPS["enc"]
+    def build(payload, world, world_state):
         merged = {s["mmsi"]: {**s, "source": "Digitraffic"} for s in (payload or {}).get("ships", [])}
-        for s in ais_stream.ships():
+        for s in world:
             if s["mmsi"] not in merged or s["time"] > merged[s["mmsi"]]["time"]:
                 merged[s["mmsi"]] = s
-        payload = {"ships": list(merged.values()), "world": ais_stream.status()}
-    return JSONResponse({**st.public(now), "now": now, "payload": payload}, headers={"Cache-Control": "no-store"})
+        return wire.encode_payload({"ships": list(merged.values()), "world": world_state})
+    payload = st.payload
+    # the stream's dict is read here, in the event loop that writes it, not in the thread
+    enc = await asyncio.to_thread(build, payload, ais_stream.ships(), ais_stream.status())
+    _SHIPS.update(at=time.time(), of=payload, enc=enc)
+    return enc
 
 
 async def route(request):
@@ -922,7 +947,18 @@ async def news_spikes(request):
     """Places where the news suddenly picked up in the newest hour (news.spikes), worked out from our own windows."""
     q = request.query_params
     kw = {k: float(q[k]) if k == "factor" else int(q[k]) for k in ("min_heads", "min_outlets", "factor") if q.get(k, "").replace(".", "", 1).isdigit()}
-    return JSONResponse(await asyncio.to_thread(news_window.spikes, **kw), headers={"Cache-Control": "no-store"})
+    if kw:
+        return JSONResponse(await asyncio.to_thread(news_window.spikes, **kw), headers={"Cache-Control": "no-store"})
+    enc = await _SPIKES.get(news_window._files_key(), news_window.spikes)
+    return wire.respond(request, enc, {"now": time.time()})
+
+
+# Answers worked out from what the server holds (spikes, hotspots, orbits, sanctioned, leaders): each was computed per
+# request (0.3-8 s of CPU) and asked by every tab every few minutes. Now computed once per change of their inputs
+# (the fetch times of the feeds they read; the news windows' slots) or when they are older than max_age, because some
+# also depend on the clock (a 24 h window moves on). `now` is added fresh to every answer.
+_SPIKES, _HOT, _PATTERNS, _SANCTIONED = wire.Memo(3600), wire.Memo(300), wire.Memo(60), wire.Memo(30)
+_fetched = lambda *names: tuple(collector.states[n].fetched if n in collector.states else None for n in names)
 
 
 async def sanctioned_live(request):
@@ -931,28 +967,35 @@ async def sanctioned_live(request):
     lists = (st.payload if st else None) or {}
     if not lists:
         return JSONResponse({"ships": [], "aircraft": [], "note": "the sanctions lists have not been read yet"})
+    world = ais_stream.status()
+    key = (_fetched("sanctioned", "ships", "aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view"), world["last_message"])
+    if _SANCTIONED.enc is not None and key == _SANCTIONED.key and time.time() - _SANCTIONED.at < _SANCTIONED.max_age:
+        return wire.respond(request, _SANCTIONED.enc, {"now": time.time()})
     ships = list({x["mmsi"]: x for x in [*((collector.states["ships"].payload or {}).get("ships", []) if collector.states.get("ships") else []),
-                                        *ais_stream.ships()]}.values())
+                                        *ais_stream.ships()]}.values())      # read here: the stream's dict is written in this loop
+    feeds = [(collector.states[n].payload or {}, collector.states[n].data_time or 0) for n in ("aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view") if n in collector.states]
+    enc = await _SANCTIONED.get(key, _sanctioned, lists, ships, feeds, st.fetched)
+    return wire.respond(request, enc, {"now": time.time()})
+
+
+def _sanctioned(lists, ships, feeds, lists_read):
     planes = {}
-    for name in ("aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view"):
-        fs = collector.states.get(name)
-        dt = (fs.data_time or 0) if fs else 0
-        for a in ((fs.payload or {}).get("aircraft", []) if fs else []):
+    for payload, dt in feeds:
+        for a in payload.get("aircraft", []):
             if a.get("lat") is None or not a.get("hex"):
                 continue
             t = a.get("last_contact") or dt - (a.get("seen_pos_s") or 0)
             old = planes.get(a["hex"])
             if not old or t > old["time"]:
                 planes[a["hex"]] = {**a, "time": t, "reg": a.get("reg") or (old or {}).get("reg")}
-    sh = await asyncio.to_thread(sanctions.match_ships, ships, lists.get("vessels", {"imo": {}, "mmsi": {}}))
-    ac = await asyncio.to_thread(sanctions.match_planes, list(planes.values()), lists.get("planes", []), lists.get("hexes", {}))
+    sh = sanctions.match_ships(ships, lists.get("vessels", {"imo": {}, "mmsi": {}}))
+    ac = sanctions.match_planes(list(planes.values()), lists.get("planes", []), lists.get("hexes", {}))
     from .lookup import store as lookup_store
     titles = (lookup_store.cache_get("os-datasets", 30 * 86400) or {}).get("body") or {}
     for x in sh:
         x["lists"] = [{"code": c, "title": (titles.get(c) or [c])[0], "publisher": (titles.get(c) or [None, None])[1], "country": (titles.get(c) or [None, None, None])[2]} for c in x["lists"]]
         x["risk"] = [sanctions.RISK_WORDS.get(r, r) for r in x["risk"]]
-    return JSONResponse({"ships": sh, "aircraft": ac, "lists_read": st.fetched, "ships_seen": len(ships), "aircraft_seen": len(planes)},
-                        headers={"Cache-Control": "no-store"})
+    return {"ships": sh, "aircraft": ac, "lists_read": lists_read, "ships_seen": len(ships), "aircraft_seen": len(planes)}
 
 
 async def camera_image(request):
@@ -1015,29 +1058,40 @@ async def military_areas(request):
     return JSONResponse({"areas": await asyncio.to_thread(sites.areas_in, w, s_, e, n)}, headers={"Cache-Control": "no-store"})
 
 
+def _patterns_now():
+    st, vst = collector.states.get("aircraft_military"), collector.states.get("vip_aircraft")
+    mil = (st.payload or {}).get("aircraft", []) if st else []
+    vip = (vst.payload or {}).get("aircraft", {}) if vst else {}
+    body = patterns.analyse(collector.trails, mil, time.time(), vip)
+    body["fetched"] = st.fetched if st else None
+    return body
+
+
+async def _patterns():
+    # trails grow with the military and Munich feeds; the 2-hour orbit window moves with the clock (max_age)
+    return await _PATTERNS.get(_fetched("aircraft_military", "aircraft_near", "vip_aircraft"), _patterns_now)
+
+
 async def flight_patterns(request):
     """Orbiting military aircraft and tankers in the air, worked out from the positions we received (patterns.py)."""
-    st = collector.states.get("aircraft_military")
-    mil = (st.payload or {}).get("aircraft", []) if st else []
-    vst = collector.states.get("vip_aircraft")
-    vip = (vst.payload or {}).get("aircraft", {}) if vst else {}
-    body = await asyncio.to_thread(patterns.analyse, collector.trails, mil, time.time(), vip)
-    body["fetched"] = st.fetched if st else None
-    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+    return wire.respond(request, await _patterns(), {"now": time.time()})
+
+
+HOT_INPUTS = ("unrest", "navwarn", "airspace", "gps_live", "quakes", "gdacs", "front_ukraine", "outages")
 
 
 async def hotspot_list(request):
     """Places where several kinds of signal coincide (hotspots.py), from what the server holds right now."""
-    st = collector.states.get("aircraft_military")
-    mil = (st.payload or {}).get("aircraft", []) if st else []
-    vst = collector.states.get("vip_aircraft")
-    vip = (vst.payload or {}).get("aircraft", {}) if vst else {}
-    orbits = (await asyncio.to_thread(patterns.analyse, collector.trails, mil, time.time(), vip)).get("orbits", [])
+    await _patterns()
+    orbits = (_PATTERNS.value or {}).get("orbits", [])
     try:
-        spikes = (await asyncio.to_thread(news_window.spikes)).get("spikes", [])
+        await _SPIKES.get(news_window._files_key(), news_window.spikes)
+        spikes = (_SPIKES.value or {}).get("spikes", [])
     except Exception:
         spikes = []
-    return JSONResponse(await asyncio.to_thread(hotspots.compute, collector.states, spikes, orbits), headers={"Cache-Control": "no-store"})
+    key = (_fetched(*HOT_INPUTS), news_window._files_key(), _PATTERNS.key)
+    enc = await _HOT.get(key, hotspots.compute, collector.states, spikes, orbits)
+    return wire.respond(request, enc, {"now": time.time()})
 
 
 async def trail(request):
@@ -1078,7 +1132,7 @@ async def lifespan(app):
     await collector.stop()
 
 
-app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimum_size=2000)], routes=[
+app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimum_size=2000, compresslevel=6)], routes=[
     Route("/", page("index.html")),
     Route("/feeds", page("feeds.html")),
     Route("/lookup", page("lookup.html")),

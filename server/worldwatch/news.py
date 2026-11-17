@@ -19,7 +19,7 @@ import zipfile
 from urllib.parse import urlparse
 from email.utils import parsedate_to_datetime
 
-from . import config
+from . import config, wire
 
 CACHE = config.DATA / "gdelt"     # each slot's reduced rows, written once, so a restart does not refill six hours
 
@@ -304,6 +304,13 @@ def _travel_headlines(titles: list[str], name: str, place: str) -> int:
 
 
 def leaders_today(leaders: list[dict]) -> list[dict]:
+    """See _leaders_today; kept until the windows or the leaders list change (asked by every tab and every dossier).
+    Callers get the kept list: they must not change it."""
+    key = (_files_key(), tuple(l.get("qid") or l.get("name") for l in leaders), frozenset(WATCH))
+    return _today_memo.get(key, lambda: _leaders_today(leaders))
+
+
+def _leaders_today(leaders: list[dict]) -> list[dict]:
     """For each leader: the places the news put them in the last six hours, counted by distinct outlets. For each
     article naming a leader, the place is the city mentioned nearest to their name in the text (GDELT gives the
     character position of every name and place); without positions, the article's first city. This says where the
@@ -417,7 +424,23 @@ def _story(arts: list[dict], place: str):
     return best
 
 
+def _files_key():
+    """Changes exactly when a window gains or drops a slot (a slot's rows never change once held)."""
+    return tuple(english.files), tuple(translated.files)
+
+
+_spikes_memo, _today_memo = wire.Cached(), wire.Cached()
+
+
 def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
+    """See _spikes. The usual question (the defaults) is answered from the last result until the windows change: it
+    walks ~30,000 articles (0.3-2 s) and was asked by every tab every two minutes, and again by every hotspot query."""
+    if (min_heads, min_outlets, factor) != (8, 8, 3.0):
+        return _spikes(min_heads, min_outlets, factor)
+    return _spikes_memo.get(_files_key(), _spikes)
+
+
+def _spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
     """Places where the news suddenly picked up: in the newest hour, at least `min_heads` different headlines (copies of
     one agency story count once) from `min_outlets` outlets, and at least `factor` times the place's own hourly rate in
     the hours before (up to five). Each series is compared with its own past: the translated one runs about an hour
