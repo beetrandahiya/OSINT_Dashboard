@@ -25,9 +25,13 @@ function draw(hot = -1) {
   src.setData({type: 'FeatureCollection', features: shown.filter(c => c.geometry).map((c, i) => ({type: 'Feature', geometry: c.geometry, properties: {kind: c.kind, hot: i === hot}}))});
 }
 // the outlines go away when the card that asked for them closes or shows something else
-function keepWatching(box) {
+// (a closed card stays in the page, hidden, so a hidden box counts as gone too)
+function keepWatching(lat, lon) {
   clearInterval(watch);
-  watch = setInterval(() => { if (!document.getElementById('imaged')?.dataset.done) { shown = []; draw(); clearInterval(watch); } }, 1500);
+  watch = setInterval(() => {
+    const b = document.getElementById('imaged');
+    if (!b || !b.dataset.done || b.closest('[hidden]') || +b.dataset.lat !== lat || +b.dataset.lon !== lon) { shown = []; draw(); clearInterval(watch); }
+  }, 1000);
 }
 
 const pic = u => '/api/imaged/pic?u=' + encodeURIComponent(u);
@@ -41,11 +45,15 @@ function row(c, i) {
 
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-imaged]'); if (!b) return;
-  const box = b.closest('.imaged'), lat = +box.dataset.lat, lon = +box.dataset.lon;
+  const lat = +b.closest('.imaged').dataset.lat, lon = +b.closest('.imaged').dataset.lon;
   b.disabled = true; b.textContent = 'Asking the satellite catalogues…';
+  b.closest('.imaged').dataset.done = 'wait';   // a card redrawn while waiting keeps this box as it is (main.js keeps boxes marked done)
+  // the card can be redrawn while the catalogues answer (any feed update does it): find the box that is there now
+  const current = () => [...document.querySelectorAll('.imaged')].find(x => +x.dataset.lat === lat && +x.dataset.lon === lon && !x.closest('[hidden]'));
   let d;
-  try { d = await fetch(`/api/imaged?lat=${lat}&lon=${lon}&days=30`).then(r => r.json()); } catch (err) { b.disabled = false; b.textContent = 'The catalogues did not answer. Try again'; return; }
-  if (!document.body.contains(box)) return;
+  try { d = await fetch(`/api/imaged?lat=${lat}&lon=${lon}&days=30`).then(r => r.json()); }
+  catch (err) { const x = current(); if (x) { x.dataset.done = ''; const bb = x.querySelector('[data-imaged]'); if (bb) { bb.disabled = false; bb.textContent = 'The catalogues did not answer. Try again'; } } return; }
+  const box = current(); if (!box) return;
   shown = d.captures || [];
   const radar = shown.filter(c => c.kind === 'radar').length, clear = shown.filter(c => c.kind === 'optical' && c.cloud != null && c.cloud < 30);
   box.dataset.done = '1';
@@ -54,7 +62,7 @@ document.addEventListener('click', async e => {
     ${shown.length ? `<ul class="img-list">${shown.slice(0, 30).map(row).join('')}</ul>` : ''}
     ${d.failed?.length ? `<p class="source">Could not ask: ${d.failed.map(esc).join('; ')}.</p>` : ''}
     <p class="source">Real acquisitions from the public catalogues of Sentinel-1 (ESA, via the Alaska Satellite Facility), Sentinel-2 (ESA, Copernicus Data Space) and Landsat 8/9 (USGS). Previews are the catalogues' own small pictures; a click opens the scene in the catalogue, where the full picture is free. Outlines on the map: purple radar, blue optical; point at a row to light its outline. Commercial and military satellites publish no catalogue.</p>`;
-  draw(); keepWatching(box);
+  draw(); keepWatching(lat, lon);
 });
 document.addEventListener('mouseover', e => {
   const r = e.target.closest('.img-row'); if (!r || !shown.length) return;
