@@ -1,6 +1,7 @@
 // Public road and traffic cameras that their operators publish openly (TfL, NYC DOT, Caltrans, Singapore LTA, Hong
 // Kong Transport Department, Fintraffic). Pictures are fetched through our server when a card opens and refreshed
 // while it stays open. No private or unsecured cameras, ever.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc} from './util.js';
 
 let cams = [], byId = new Map(), info = null, timer = null, windy = [], windyNote = null;
@@ -18,7 +19,7 @@ const imgUrl = (c, u) => c.src === 'sg' ? '/api/cam/image?sg=' + encodeURICompon
 
 export default {
   id: 'cameras', title: 'Cameras', color: ['#0071a4', '#64d2ff'], feeds: {cameras: 21600}, defaultOff: true,
-  layers: ['ww-cams', 'ww-cams-windy'],
+  layers: ['ww-cams', 'ww-cams-windy', 'ww-cams-eye', 'ww-cams-windy-eye'],
   still: true,
   about: () => 'Public cameras: road and traffic cameras of London, New York, California, Singapore, Hong Kong and Finland, and, with a free key, Windy\'s public webcams worldwide (from zoom 3).',
   addTo(map) {
@@ -53,6 +54,9 @@ export default {
   },
   visible(on) { if (on) setTimeout(() => this.pull?.(), 0); },   // after main.js has made the layer visible
   paint(map, dark) {
+    if (!map.getLayer('ww-cams-eye')) { addEye(map, 'ww-cams-eye', 'ww-cams', 'eye-camera', ['interpolate', ['linear'], ['zoom'], 2, 0.22, 8, 0.42, 12, 0.55]);
+      addEye(map, 'ww-cams-windy-eye', 'ww-cams-windy', ['case', ['==', ['get', 'live'], true], 'eye-camlive', 'eye-camera'], ['interpolate', ['linear'], ['zoom'], 3, 0.26, 8, 0.45, 12, 0.55], {minzoom: 3}); }
+    eyeImages(map, dark); eyeSwap(map, ['ww-cams-eye', 'ww-cams-windy-eye'], ['ww-cams', 'ww-cams-windy']);
     map.setPaintProperty('ww-cams', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-cams', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-cams-windy', 'circle-color', ['case', ['==', ['get', 'live'], true], dark ? '#30d158' : '#248a3d', dark ? '#5ac8fa' : '#0a84ff']);

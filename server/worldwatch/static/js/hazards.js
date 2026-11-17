@@ -1,5 +1,6 @@
 // Disasters: alerts from GDACS (the UN and EU alert system) and open events from NASA's EONET.
 // Each marker carries a two-letter code for the kind of event; the alert level is GDACS's own.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc, local, skyShot, utc, spyPass} from './util.js';
 
 const SRC = 'ww-hazards';
@@ -11,7 +12,7 @@ const when = e => e.modified;
 const at = t => { const d = new Date(t * 1000); return d.getFullYear() === new Date().getFullYear() ? local(t)
   : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'}) + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 export default {
-  id: 'hazards', title: 'Disasters', color: ['#ff2d55', '#ff375f'], feeds: {gdacs: 300, eonet: 600}, layers: ['ww-hazards-track', 'ww-hazards', 'ww-hazards-label'],
+  id: 'hazards', title: 'Disasters', color: ['#ff2d55', '#ff375f'], feeds: {gdacs: 300, eonet: 600}, layers: ['ww-hazards-track', 'ww-hazards', 'ww-hazards-label', 'ww-hazards-eye'],
 
   addTo(map) {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -20,11 +21,15 @@ export default {
       paint: {'circle-radius': ['match', ['get', 'level'], 'Red', 12, 'Orange', 10, 8], 'circle-opacity': 0.95, 'circle-stroke-width': 1.2}});
     map.addLayer({id: 'ww-hazards-label', type: 'symbol', source: SRC, filter: ['==', ['geometry-type'], 'Point'],
       layout: {'text-field': ['get', 'letter'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
+    // God's eye: one symbol per GDACS / EONET kind, larger for orange and red alerts
+    addEye(map, 'ww-hazards-eye', SRC, ['match', ['get', 'letter'], 'C', 'eye-cyclone', 'F', 'eye-flood', 'V', 'eye-volcano', 'D', 'eye-drought', 'W', 'eye-wildfire',
+      'I', 'eye-ice', 'L', 'eye-landslide', 'H', 'eye-dust', 'eye-storm'], ['match', ['get', 'level'], 'Red', 0.72, 'Orange', 0.6, 0.48], {filter: ['==', ['geometry-type'], 'Point']});
   },
   paint(map, dark) {
     const c = this.color[+dark];
     map.setPaintProperty('ww-hazards', 'circle-color', c); map.setPaintProperty('ww-hazards', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-hazards-track', 'line-color', c);
+    eyeImages(map, dark); eyeSwap(map, ['ww-hazards-eye'], ['ww-hazards', 'ww-hazards-label']);
   },
   onData(feed, d) { sets[feed] = d.payload.events; info[feed] = d; events = [...(sets.gdacs || []), ...(sets.eonet || [])]; },
   render(map) {

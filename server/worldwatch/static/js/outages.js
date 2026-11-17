@@ -1,5 +1,6 @@
 // Country-level internet outage signals from IODA (Georgia Tech). A country has no single point, so each
 // marker sits at the country's geographic centre; the card says so.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc, local, now, utc, countryBtn} from './util.js';
 import {radarStale} from './netwatch.js';
 
@@ -16,7 +17,7 @@ const ends = e => e.start + e.duration_s;
 const span = s => s < 5400 ? Math.round(s / 60) + ' min' : s < 172800 ? (s / 3600).toFixed(1) + ' h' : Math.round(s / 86400) + ' days';
 
 export default {
-  id: 'outages', title: 'Outages', color: ['#636366', '#aeaeb2'], feeds: {outages: 120, cf_radar: 600}, layers: ['ww-outages', 'ww-outages-label'],
+  id: 'outages', title: 'Outages', color: ['#636366', '#aeaeb2'], feeds: {outages: 120, cf_radar: 600}, layers: ['ww-outages', 'ww-outages-label', 'ww-outages-eye'],
 
   addTo(map) {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -28,6 +29,10 @@ export default {
       layout: {'text-field': ['coalesce', ['get', 'k'], ['get', 'cc'], '!'], 'text-font': ['Noto Sans Bold'], 'text-size': ['case', ['has', 'k'], 12, 10.5], 'text-allow-overlap': true, 'text-ignore-placement': true}});
   },
   paint(map, dark) {
+    if (!map.getLayer('ww-outages-eye')) addEye(map, 'ww-outages-eye', SRC, ['case', ['has', 'k'], ['match', ['get', 'k'], 'P', 'eye-out_power', 'M', 'eye-out_mil', 'C', 'eye-out_cable',
+      'G', 'eye-out_gov', 'X', 'eye-out_cyber', 'N', 'eye-out_nat', 'W', 'eye-out_nat', 'eye-cfnote'], 'eye-outage'],
+      ['case', ['has', 'k'], 0.5, ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 0.42, 3, 0.6, 6, 0.85]], {opacity: ['case', ['==', ['get', 'over'], true], 0.45, 1]});
+    eyeImages(map, dark); eyeSwap(map, ['ww-outages-eye'], ['ww-outages', 'ww-outages-label']);
     map.setPaintProperty('ww-outages', 'circle-color', ['case', ['has', 'k'], dark ? '#ff9f0a' : '#c93400', this.color[+dark]]);
     map.setPaintProperty('ww-outages', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-outages-label', 'text-color', dark ? '#1c1c1e' : '#ffffff');

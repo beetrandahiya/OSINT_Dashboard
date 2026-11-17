@@ -1,5 +1,6 @@
 // Military bases and nuclear sites from open data (Wikidata, OpenStreetMap, US DoD MIRTA, Global Energy Monitor).
 // Static places, refreshed weekly on the server (sites.py). Each card names its source and links to it.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc, spyPass} from './util.js';
 import {flagImg} from './flags.js';
 
@@ -28,7 +29,7 @@ function onSites(x) { d = {...d, ...x.payload}; info = x; if (theMap) nuclear.re
 
 export const bases = {
   id: 'bases', title: 'Military bases', color: ['#6e4f2d', '#c8a37a'], feeds: {sites: 21600}, defaultOff: true,
-  layers: ['ww-milarea', 'ww-bases', 'ww-bases-k', 'ww-bases-name'],
+  layers: ['ww-milarea', 'ww-bases', 'ww-bases-k', 'ww-bases-name', 'ww-bases-eye', 'ww-milarea-eye'],
   visible(on) { if (on) this.pull?.(); },
   about: () => 'Military bases, radar and listening stations, missile and launch sites, from Wikidata, OpenStreetMap and the US DoD.',
   addTo(map) {
@@ -64,6 +65,14 @@ export const bases = {
       paint: {'text-halo-width': 1.2}});
   },
   paint(map, dark) {
+    // God's eye: a symbol per kind of site (the icon set's Sites group); the names stay
+    if (!map.getLayer('ww-bases-eye')) {
+      addEye(map, 'ww-bases-eye', 'ww-bases', ['match', ['get', 'kind'], 'air', 'eye-airbase', 'naval', 'eye-navalbase', 'radar', 'eye-radar', 'sigint', 'eye-sigint_site',
+        'missile', 'eye-missile_site', 'space', 'eye-launchsite', 'ammo', 'eye-ammo', 'training', 'eye-range', 'eye-armybase'],
+        ['interpolate', ['linear'], ['zoom'], 2, 0.16, 6, 0.38, 10, 0.55]);
+      addEye(map, 'ww-milarea-eye', 'ww-milarea', 'eye-milarea', ['interpolate', ['linear'], ['zoom'], 7, 0.3, 12, 0.5], {minzoom: 7, opacity: 0.85});
+    }
+    eyeImages(map, dark); eyeSwap(map, ['ww-bases-eye', 'ww-milarea-eye'], ['ww-bases', 'ww-bases-k', 'ww-milarea']);
     map.setPaintProperty('ww-bases', 'circle-color', ['match', ['get', 'kind'], ['missile', 'sigint'], dark ? '#ff6961' : '#c4161c', 'radar', dark ? '#ffb340' : '#b25000', this.color[+dark]]);
     map.setPaintProperty('ww-bases', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-milarea', 'circle-color', this.color[+dark]);
@@ -111,7 +120,7 @@ export const bases = {
 
 export const nuclear = {
   id: 'nuclear', title: 'Nuclear sites', color: ['#b8860b', '#ffd60a'], feeds: {sites_nuclear: 21600},
-  layers: ['ww-nuc-test', 'ww-nuc-boom', 'ww-nuc', 'ww-nuc-k', 'ww-nuc-name'],
+  layers: ['ww-nuc-test', 'ww-nuc-boom', 'ww-nuc', 'ww-nuc-k', 'ww-nuc-name', 'ww-nuc-eye'],
   about: () => 'Nuclear power plants, research reactors, fuel-cycle and waste sites, and the nuclear test sites with their explosion points.',
   addTo(map) {
     map.addSource('ww-nuc', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -131,6 +140,12 @@ export const nuclear = {
   },
   paint(map, dark) {
     const c = this.color[+dark];
+    if (!map.getLayer('ww-nuc-eye')) addEye(map, 'ww-nuc-eye', 'ww-nuc', ['match', ['get', 'kind'],
+      'plant', ['match', ['get', 'status'], 'operating', 'eye-nuke', ['construction', 'pre-construction', 'announced'], 'eye-nuke_build', 'eye-nuke_off'],
+      'research', 'eye-reactor', 'fuel', 'eye-fuelcycle', 'mine', 'eye-uranium', 'waste', 'eye-waste', 'testsite', 'eye-testsite', 'eye-nuke'],
+      ['interpolate', ['linear'], ['zoom'], 2, ['match', ['get', 'kind'], 'testsite', 0.4, 'plant', 0.26, 0.2], 7, ['match', ['get', 'kind'], 'testsite', 0.7, 0.55]],
+      {filter: ['!=', ['get', 'kind'], 'explosion']});
+    eyeImages(map, dark); eyeSwap(map, ['ww-nuc-eye'], ['ww-nuc', 'ww-nuc-k', 'ww-nuc-test']);
     map.setPaintProperty('ww-nuc', 'circle-color', ['match', ['get', 'kind'], 'plant', c, dark ? '#ff9f0a' : '#c93400']);
     map.setPaintProperty('ww-nuc', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-nuc-test', 'circle-color', dark ? '#ff6961' : '#d70015');

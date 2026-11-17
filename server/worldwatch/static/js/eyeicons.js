@@ -63,3 +63,28 @@ export function eyeImages(map, dark) {
     }
   }
 }
+
+// A God's eye symbol layer beside a layer's own circles and letters, sharing their source. `image` and `size` are map
+// expressions; the layer stays invisible until eyeSwap shows it.
+export function addEye(map, id, source, image, size, {filter, minzoom, opacity = 1, sort} = {}) {
+  map.addLayer({id, type: 'symbol', source, ...(filter ? {filter} : {}), ...(minzoom ? {minzoom} : {}),
+    layout: {'icon-image': image, 'icon-size': size, 'icon-allow-overlap': true, 'icon-ignore-placement': true, ...(sort ? {'symbol-sort-key': sort} : {})},
+    paint: {'icon-opacity': 0}});
+  eyeOpacity.set(id, opacity);
+}
+const eyeOpacity = new Map(), original = new Map();
+// Show the God's eye symbols (theme on) or the layer's own drawing (theme off). own: the circle and text layers that
+// the symbols replace; their own opacities are read once and put back when the theme is switched off.
+export function eyeSwap(map, eyeIds, own) {
+  const e = eyeOn();
+  for (const id of eyeIds) if (map.getLayer(id)) map.setPaintProperty(id, 'icon-opacity', e ? eyeOpacity.get(id) ?? 1 : 0);
+  for (const id of own) {
+    const l = map.getLayer(id); if (!l) continue;
+    const props = l.type === 'circle' ? ['circle-opacity', 'circle-stroke-opacity'] : l.type === 'symbol' ? ['text-opacity', 'icon-opacity'] : [];
+    for (const p of props) {
+      const k = id + '|' + p;
+      if (!original.has(k)) original.set(k, map.getPaintProperty(id, p) ?? 1);
+      map.setPaintProperty(id, p, e ? 0 : original.get(k));
+    }
+  }
+}

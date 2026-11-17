@@ -1,5 +1,6 @@
 // Listening stations: public KiwiSDR shortwave receivers (0-30 MHz) that their owners list for anyone to tune.
 // The card opens the receiver's own web page in a new tab, optionally tuned to a well-known public broadcast.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc} from './util.js';
 
 let rx = [], byId = new Map(), info = null;
@@ -14,7 +15,7 @@ const TUNE = [
 const tuned = (u, f) => u.replace(/\/+$/, '') + '/?f=' + f;
 
 export default {
-  id: 'sdr', title: 'Listening stations', color: ['#008a7a', '#40d9c4'], feeds: {sdr: 3600}, layers: ['ww-sdr'], defaultOff: true,
+  id: 'sdr', title: 'Listening stations', color: ['#008a7a', '#40d9c4'], feeds: {sdr: 3600}, layers: ['ww-sdr', 'ww-sdr-eye'], defaultOff: true,
   about: () => 'Public shortwave radio receivers (KiwiSDR) that anyone can tune in their browser.',
   addTo(map) {
     map.addSource('ww-sdr', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -23,6 +24,8 @@ export default {
         'circle-opacity': ['case', ['==', ['get', 'full'], true], 0.35, 0.95]}});
   },
   paint(map, dark) {
+    if (!map.getLayer('ww-sdr-eye')) addEye(map, 'ww-sdr-eye', 'ww-sdr', 'eye-sdr', ['interpolate', ['linear'], ['zoom'], 2, 0.24, 8, 0.5], {opacity: ['case', ['==', ['get', 'full'], true], 0.4, 1]});
+    eyeImages(map, dark); eyeSwap(map, ['ww-sdr-eye'], ['ww-sdr']);
     map.setPaintProperty('ww-sdr', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-sdr', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
