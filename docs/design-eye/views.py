@@ -31,6 +31,8 @@ V['horizon_mono'] = dict(cams=V['horizon']['cams'], ground='mono')
 GT = [(24 + (i % 3)*632, 84 + (i//3)*452, 620, 440) for i in range(6)]
 GN = ['photo', 'mono', 'lights', 'outline', 'dots', 'relief']
 V['grounds'] = dict(cams=[(geo_cam(42, 25, 196, x + 310, y + 222), x, y, w, h) for x, y, w, h in GT], grounds=GN)
+V['theatre_light'] = dict(cams=V['theatre']['cams'], ground='light')
+V['whole_light'] = dict(cams=V['whole']['cams'], ground='light')
 if __name__ == '__main__':
     for name in sys.argv[1:]:
         v = V[name]; K = 1.5

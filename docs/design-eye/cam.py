@@ -96,6 +96,13 @@ def render(cam, x0, y0, w, h, K=1.5, night=None, dim=0.66, hires=True, ground='p
         if m.any(): img = np.where(m[..., None], sample(tex('bm_eu.jpg'), lon, lat, -15, 75, 20, 65), img)
         lum = (img @ np.array([0.3, 0.59, 0.11]))[..., None]
         img = (lum**1.15)*np.array([0.50, 0.62, 0.78])*0.42*shade + np.array([2, 5, 10.])
+    elif ground == 'light':
+        lum = (sample(tex('bm8.jpg'), lon, lat) @ np.array([0.3, 0.59, 0.11]))[..., None]
+        outline_tex(); land = sample(TEX['landmask'].astype(np.float32)[..., None], lon, lat) > 0.5
+        img = np.where(land, 246 - (255 - np.clip(lum*2.2, 0, 255))*0.16, np.array([214, 226, 234.]))*np.array([0.99, 1.0, 0.985])
+        img = img*(0.9 + 0.1*inc[..., None])
+        out = np.where(hit[..., None], img, np.array([246, 247, 249.]))
+        return np.clip(out, 0, 255).astype(np.uint8)
     elif ground == 'lights':
         li = sample(tex('lights.jpg'), lon, lat); lum = (sample(tex('bm8.jpg'), lon, lat) @ np.array([0.3, 0.59, 0.11]))[..., None]
         img = (li*np.array([0.82, 0.93, 1.0])*1.35 + lum*np.array([0.35, 0.5, 0.75])*0.10 + np.array([2, 4, 9.]))*(0.6 + 0.4*inc[..., None])

@@ -1616,3 +1616,32 @@ the Blue Marble photo) before drawing the other screens or building anything.
   horizon picture on the low-key map board; caught in my own check and swapped to the outline ground (same camera).
 - **His verdict (same day): "the normal icons are good, low key look weird"** (the frame / reticle / scope families
   are dropped; do not re-propose them). Next: go deeper into the normal set of 69; he invited questions first.
+
+### 2026-11-17, God's eye: icon set, deeper (mock-ups, waiting for his palette pick)
+
+- His answers before this round: develop **Solid and Line with glow**; families **by zoom**; go deeper with **more
+  precise shapes, more symbols, sizes and zoom steps, light-mode versions**; colours: **"show me options"**.
+- New canvas page "God's eye: icon set, deeper" (same link), 15 boards at 1920 x 1080, rendered and checked locally.
+  Library `docs/design-eye/icons2.py` (generator `gen_icons2.py`): **147 symbols**, every one tied to a code a feed
+  really carries, the general symbol where a feed says nothing:
+  - Aircraft (32): top-view silhouettes generated from parameters (fuselage, wing span/sweep/chord, engines, props,
+    radar dome, boom, V-tail), mapped from the broadcast ICAO type code (narrow / wide / four-engine / regional /
+    turboprop / bizjet / light / glider / four helicopter kinds / trainers / twin turboprop / tactical and strategic
+    airlifter / tanker / AEW / patrol / fighter / stealth / bomber / flying wing / HALE and MALE drones / VIP /
+    command post / balloon / airship / ground / unmapped military).
+  - Ships (14) by AIS ship type (cargo, container, tanker, passenger, fishing, tug, sailing, pleasure, high-speed,
+    pilot/SAR, warship) plus USNI carrier / amphib and sanctioned. No submarines (not on AIS).
+  - Space (14) by UCS purpose (imaging, radar, signals, early warning, weather, navigation, comms, science, tech),
+    spy flag, station, constellation, debris, launch.
+  - Conflict and news (26) by GDELT CAMEO code (190-196 clash kinds, 18x attack / bombing / abduction /
+    assassination, 20x mass violence, 140-145 protest / strike / obstruction / riot), DeepState, hotspot, news, leaders.
+  - Earth (16): quake sizes, quake near test site, explosion (USGS type), GDACS/EONET kinds. Networks and warnings
+    (24): outage causes from Cloudflare, routes, cables, six navy-warning kinds, airspace levels, TFRs, GPS. Sites
+    (21): base kinds, launch site, ammunition, range, nuclear plant states, reactor, fuel cycle, waste, uranium mine,
+    test site, cameras, receivers.
+- Boards: three palettes (A colour per domain, B fewer colours, C muted), each with a light twin; sizes 12/16/24/32
+  (at 16 px and below aircraft fall back to their simple class shape); zoom steps far / middle / near (near = new
+  render 640 km across over the military cluster in northern Germany, with callsign and type); light theme on the map
+  (line family drops its glow on light grounds); eleven sheets (solid and line on photo, mono, dark and light).
+- Map mock-ups: of the military aircraft in the capture, only those whose broadcast type is in the table get a
+  specific silhouette; others (e.g. "MF17", "SIRA") use the general military shape.
