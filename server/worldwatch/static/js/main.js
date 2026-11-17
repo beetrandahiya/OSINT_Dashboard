@@ -108,7 +108,15 @@ try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); 
 let ready = false, picked = null, status = null, lastAnswer = 0, got = new Set(LAYERS.filter(l => l.local).map(l => l.id));
 
 const LOW = ['ww-fires', 'ww-cables-hit', 'ww-gps'];
-onPhoto(v => { setPhoto(v); if (map.isStyleLoaded()) paintBase(map, dark.matches); });
+// The place names change colour over a photo. isStyleLoaded() is false while any tiles load (page start, 3D turning the
+// sharp photo on), so it is not the test: before, the recolour was skipped then and the names stayed dark over the photo
+// (setPaintProperty only needs the style itself; before that the load handler's repaint() paints with the new state)
+onPhoto(v => {
+  setPhoto(v);
+  const go = () => { try { paintBase(map, dark.matches); } catch (e) { /* style not there yet */ } };
+  go();
+  if (!map.isStyleLoaded()) map.once('idle', go);
+});
 
 function repaint() {
   paintBase(map, dark.matches);
@@ -610,8 +618,10 @@ function place(to) {
   $('#list').hidden = m; $('#munich').hidden = !m;
   munich.show(m);
   const ease = {duration: calm.matches ? 0 : 1200};
+  // the world view to come back to is the map as it was before a follow, not the chase camera's close, tilted view
+  const f = chase?.from, before = f && {center: [f.lon, f.lat], zoom: f.zoom, bearing: f.bearing, pitch: f.pitch};
   const fly = () => {
-    if (m) { worldView = {center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch()}; const h = munich.home(); map.easeTo({center: [h.lon, h.lat], zoom: 8.3, bearing: 0, pitch: 0, ...ease}); }
+    if (m) { worldView = before || {center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch()}; const h = munich.home(); map.easeTo({center: [h.lon, h.lat], zoom: 8.3, bearing: 0, pitch: 0, ...ease}); }
     else if (worldView) map.easeTo({...worldView, ...ease});
   };
   // a running chase camera moves the map every frame and would override the flight: stop it, fly once it has landed
