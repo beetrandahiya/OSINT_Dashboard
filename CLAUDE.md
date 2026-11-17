@@ -1562,3 +1562,27 @@ the Blue Marble photo) before drawing the other screens or building anything.
   "items on the map" group is a new idea (today's search finds only countries and people).
 - In the app, the tilted and whole-disc views are camera presets of the existing MapLibre globe; the two-sides and
   wall views need several map instances (cost on the GPU unmeasured). Nothing built.
+
+### 2026-11-17, God's eye: no orange, other grounds, four more views (mock-ups, waiting for his pick)
+
+- He asked for more views, "views other than the realistic earth view", and **"get rid of the orange color, it looks
+  weird"**. Orange (clash dots, occupied area, amber ships and accents) blended into the desert tones of the photo.
+- **God's eye colours from now** (hex in `docs/design-eye/gen_eye.py`): clashes and the occupied area rose red
+  `#ff3b5c`, protest a pale rose ring `#ffc2cd`, ships aqua `#5fe3ff`, launches violet `#b9a2ff`, aircraft and quakes
+  white, selection / accent ice blue `#8fdcff`, late feed yellow `#ffe066`, failing red `#ff6b6b`. No orange or
+  amber anywhere in this look. All earlier God's eye boards were recoloured.
+- New canvas page "God's eye: grounds and more views" (same link), eight boards at 1920 x 1080:
+  1. **Choose the ground**: the same view on six grounds: Photo, Mono (photo without colour), Night lights (NASA
+     Black Marble, tinted cool), Outline (Natural Earth), Points of light, Relief (GIBS
+     `ASTER_GDEM_Greyscale_Shaded_Relief`). The ground is meant as a setting, switchable per view.
+  2. **Night lights, ambient layout**: big number cards only, for a screen left running.
+  3. **Outline, theatre view**: one tall "In this view" panel instead of cards.
+  4. **Mono, horizon**: a strip of the last 24 hours (clashes at their newest report, quakes at their time).
+  5. **Over the pole**: one right panel with tabs (Signals / Layers / Coming up).
+  6. **Low orbit**: 420 km above the eastern Mediterranean, a lower-third bar.
+  7. **Chase**: behind GAF633 with its sheet and the follow controls; the aircraft is drawn at its height with a
+     drop line to the ground.
+  8. **Flat map**: the world unrolled (mono) with four region columns.
+- Rendered and overflow-checked locally like the previous seven. Limits: the relief ground came out flat (little
+  terrain visible); the chase and low-orbit grounds are soft at that zoom; the view switcher shows 7 views with a
+  "4 more" chip on the older boards and all 11 on the new camera boards.
