@@ -1403,3 +1403,81 @@ Now (`models3d.js` rewritten, `aircraft.js`, chase in `main.js`):
   (`fog-ground-blend` 1, `horizon-fog-blend` 0); only the sky above the horizon remains.
 - Tested headless on the globe (1440x900): plane held at the free-area centre (540,450 ±2 px), N / +45 / drag / Behind
   it / zoom while following / Stop back to the globe, no errors. Terrain (3D button) still not testable headless.
+
+### 2026-11-17, whole-app audit by sub-agents, fixes, performance pass, redesign proposal
+
+Owner: "the system is kind of shitty, it breaks at times"; asked for sub-agents to test every feature, fix breakages,
+make it smooth and light, and to suggest a redesign and a settings page. Done as: 6 auditors (shell, moving, space,
+intel, perf, lookup) + 1 design reviewer, then one fixer per report in its own git worktree, a merge verifier, a
+performance fixer and a final end-to-end check on the restarted server. About 100 findings; reports, fix notes and
+the verification are kept in `docs/audit-2026-11-17/` (paths inside them point at a scratch folder that is gone).
+**Read `final-check.md` and the `fixed-*.md` files there before touching the same code.**
+
+What changed, in short (details in those files):
+- **Security:** every `/api/lookup` route goes through one guard (`refuse()` / `guarded` in `lookup/api.py`): loopback or
+  allowed Host (`WW_HOST`, `WW_ALLOWED_HOSTS`; with `WW_LOOKUP_REMOTE=1` also IPs, one-word names, `*.ts.net`), Origin
+  absent or same host, `X-WW: 1` on POST/DELETE, JSON only. Before, any web page could drive the lookup tool. Page
+  reader and picture proxy resolve hosts and refuse loopback/private/link-local/CGNAT targets on every redirect hop.
+  Only http(s) links are made clickable from scraped data (`safeUrl`). `profile.js` links are NOT yet checked this way.
+- **Shell (`main.js`):** one timer per FEED; feeds are downloaded from the `/api/status` poll only when their version
+  changed and only for layers that are on (off layers at most every 15 min for chip counts; cameras, bases, listening
+  stations not until switched on); nothing polls in a hidden tab. An open card is patched, not rebuilt, and only when
+  its own layer answered. List capped at 150 rows + "Show all". Escape closes the top-most thing only. `pick()` ignores
+  unknown layer ids.
+- **Projection state:** `userGlobe` (the user's choice, saved) is separate from what is drawn; `project()` derives the
+  drawn projection (flat while the chase camera follows); satellites' "Look down" borrows the globe via `ww-shape` and a
+  `lent` flag. Do not set the projection anywhere else.
+- **Layer order:** `slot(map, name)` in `map.js` (anchors: daily photo, sharp, live, night, aurora, rain, lightning,
+  GPS, then the rest). Every overlay inserts under its anchor. Before, the photos hid night/aurora/rain/lightning/GPS,
+  always in 3D because 3D switches the sharp photo on.
+- **Aircraft:** playback runs on its own clock (`document.timeline` + an offset slewed at most 10 ms/s); `skew` in
+  `util.js` comes only from fast answers (median of five). The old clock stepped up to 2 s on slow answers: that was the
+  jagged motion. A stale live feed is shown: grey "(last known)" after 30 s, removed after 120 s. Models repaint only
+  while something moves; no per-frame allocations; three.js and the models load on the first zoom to 6 or closer.
+  VIP/doomsday models show under their own chip. AIS 102.3 kn = not available.
+- **Satellites:** camera solved from the engine's matrix (exact at any pitch/bearing); spy passes computed in slices;
+  manoeuvre limits scale with the gap between element sets (`satinfo.limits()`).
+- **Intel:** GDELT person names carry an offset (`name,123`): always read them through `news.person_mentions()`.
+  Wikidata: current holders = preferred-rank statements; labels via `geo.wd_label()` (en, then mul, then Latin-script).
+  ICC: saved copies are checked with `is_challenge` on load and save; the payload lists refused pages (`missing`).
+  Ids come from the item, never from a list index (military areas, hotspots, spikes, fires, front items).
+  Dead Cloudflare feed: hijacks older than 24 h dropped, wording says the feed stopped.
+- **Server performance:** `wire.py` keeps each feed's JSON and gzip (level 6) bytes per version (version = payload
+  hash, in `/api/status`, ETag, `?since=` gives `{unchanged: true}`); hotspots, spikes, patterns, sanctioned and
+  leaders-today are computed once per change of inputs; unchanged payloads are not rewritten to SQLite (news/unrest
+  saved at most every 15 min, so after a restart they can be that much older; ages stay true); index on the fetch log;
+  aircraft trails from the area feed capped (1 point / 30 s, 1 h, 120 points, 12,000 aircraft).
+- **Tunables:** `static/js/prefs.js` (`lowPower`, `animations`, `fps`, `maxModels`, `listRows`, `rate`; localStorage
+  `ww-prefs`, `setPrefs()`, `ww-prefs` event). No settings screen yet: waits for the owner's decision on the redesign.
+- README brought in line with `config.py` (six key/contact files, 44 feeds).
+
+Measured on the restarted server (sandbox): 41 of 45 feeds ok (USNI late; cf_radar, ships_world, windy not set up; ICC
+"waiting" ~35 min after a start); 40-chip sweep clean; playback 4,568 frames with 0 backward steps; disk writes ~0.5
+MB/min (was ~8); server CPU ~2.7 % of a core.
+
+**Open (not fixed):**
+- **Server memory still grows:** 320 MB at 2 min, 408 MB at 50 min (old code: 424 -> 609 MB in 88 min). About twice the
+  205 MB recorded earlier; cause not isolated (no profiler on the live process). Measure on the Mac over hours.
+- Country dossiers can list former heads when Wikidata answers 429 and the cached `leaders` list predates the
+  preferred-rank fix; heals at the next 12-hour refresh.
+- The ICC "refused n of 19" feed note is lost on a restart until the next daily fetch (the dossier still says it).
+- Following an aircraft the world snapshot lists as on the ground follows an empty point (seen once).
+- `/api/news/image` answers 502 when an outlet's picture fails (console noise). Lookup graphs are unreadable when
+  large (a list view is the real fix: owner's call).
+- Never tested, as before: Safari, a real GPU, 3D terrain with models, world AIS, Windy, Cloudflare, OpenSanctions.
+
+**Redesign proposal (waiting for the owner's answers):** https://claude.ai/artifact/KzAfr5RpjjGJ649TMkufDK , source
+`docs/redesign.mock.html`, reasoning `docs/audit-2026-11-17/design.md`. Direction A "Apple Maps, tidied": views
+(Overview, Conflict, Air, Sea, Space, Internet, Earth, Munich), 40 chips into 9 groups in a Layers panel that also
+carries legend and feed age, one card anatomy (key-fact tiles, one actions row, folded details, source line), "Now"
+list (Signals / Coming up / Latest), red only for "Now", airspace as outlines, a Settings sheet. Seven questions are on
+the page. Build nothing of it before he answers.
+
+**Lessons:**
+- I had tested only the flat map with one airliner. The owner uses Globe + 3D. Every change is now tested on flat AND
+  globe, pitch 0 AND tilted, light AND dark, small AND large window, layer on/off/on.
+- Parallel fixers work when each has its own worktree and file list, tests front-end changes through a small static
+  proxy against the one running server (no second collector: it would double the load on upstream services), and
+  shared files have one owner. Two merge slips still happened (a renamed cache key; two projection mechanisms): a
+  verifier on the merged branch is needed, and server-side fixes need one restart and a live check at the end.
+- Worktrees `/home/user/wt-*` and branches `fix/*`, `integ` are leftovers of this pass (local only).
