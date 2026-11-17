@@ -1,5 +1,6 @@
 // Military aircraft flying orbits (surveillance, airborne warning, drones, tankers on their tracks) and tankers in
 // the air. Worked out on our server from the positions it received (patterns.py); derived, and said so.
+import {every} from './prefs.js';
 import {ago, esc, spyPass} from './util.js';
 import {planeFlag, flagImg} from './flags.js';
 import {liveAt} from './aircraft.js';
@@ -18,7 +19,7 @@ let started = false;
 function start(layer, map) {
   maps.push([layer, map]);
   if (!started) {
-    started = true; load(); setInterval(load, 120000);
+    started = true; load(); every(120, load);
     // the tanker markers follow the aircraft as the aircraft feeds move it (the list itself is a 2-minute snapshot)
     setInterval(() => { for (const [l, m] of maps) if (l === tankers && data.tankers.length && !document.hidden && m.getLayoutProperty('ww-tanker', 'visibility') !== 'none') l.render(m); }, 2000);
   }

@@ -1,5 +1,6 @@
 // The markets strip: a few numbers, each with its own age. Yahoo's quotes are unofficial and delayed;
 // the change is simply the price against the previous close that Yahoo itself reports.
+import {every} from './prefs.js';
 import {$, ago, api, esc} from './util.js';
 
 const SHORT = {'^GSPC': 'S&P 500', '^GDAXI': 'DAX', '^N225': 'Nikkei', '^NSEI': 'Nifty 50', 'BZ=F': 'Brent', 'GC=F': 'Gold', 'EURUSD=X': 'EUR/USD'};
@@ -24,5 +25,5 @@ function render() {
 
 export function start() {
   const go = async () => { await Promise.all(['markets', 'crypto', 'fx'].map(load)); render(); };
-  go(); setInterval(go, 60000); setInterval(render, 20000);
+  go(); every(60, go); every(20, render, {scaled: false});
 }

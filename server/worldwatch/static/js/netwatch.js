@@ -3,6 +3,7 @@
 // the networks, drawn between country centres. See radar.py.
 import {ago, esc, local, countryBtn} from './util.js';
 import {flagImg} from './flags.js';
+import {moving, fpsCap} from './prefs.js';
 
 let d = {hijacks: [], leaks: []}, info = null, theMap = null, raf = 0, on = true, flows = [], stale = false;
 // A dead feed is shown as dead (hard rule): the layer is "the last 24 hours", so events older than that are dropped by
@@ -33,63 +34,112 @@ const isGlobe = () => theMap?.getProjection?.()?.type === 'globe';
 const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 const RAD = Math.PI / 180;
 const unit = ([lon, lat]) => [Math.cos(lat * RAD) * Math.cos(lon * RAD), Math.cos(lat * RAD) * Math.sin(lon * RAD), Math.sin(lat * RAD)];
-// the point a fraction f along a flow's arc, between its vertices
-function along(pts, f) {
-  const n = pts.length - 1, x = Math.max(0, Math.min(1, f)) * n, i = Math.min(n - 1, Math.floor(x)), u = x - i;
-  return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u];
-}
-const rgba = (rgb, a) => `rgba(${rgb},${a.toFixed(3)})`;
+// Per frame this was ~5,000 separate strokes, each with a freshly formatted colour string, plus ~2,800 map.project calls
+// and a radial gradient per head: about a fifth of the page's main thread with only this layer on. Now: at most
+// prefs.fps frames a second (30); each flow's arc vertices are projected once per view and reused until the map moves
+// (lazily, only the ~12 a tail covers); the tail pieces of every flow that share a colour and a fade step are drawn
+// as one path (3 colours x 22 steps x 2 passes = at most 132 strokes); colour strings are made once per theme; heads
+// are a pre-drawn glow sprite. Same look.
+const TAIL = 0.22, STEPS = 22;
+const easeIO = q => q < 0.5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2;
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
+const KINDS = ['strong', 'weak', 'leak'], WIDE = {strong: 2.6, weak: 1.6, leak: 1.4};
+const kindOf = fl => fl.kind === 'leak' ? 'leak' : fl.strong ? 'strong' : 'weak';
+let style = null;                 // per theme: colour strings for every fade step, glow sprites
+function styles(dk, dpr) {
+  const key = dk + '|' + dpr;
+  if (style?.key === key) return style;
+  const rgbOf = {strong: hexRgb(dk ? '#ff6961' : '#e0001a'), weak: hexRgb(dk ? '#ff9f0a' : '#c93400'), leak: hexRgb(dk ? '#64d2ff' : '#0071a4')};
+  const rgba = (rgb, a) => `rgba(${rgb},${a.toFixed(3)})`;
+  const st = {key, rgbOf, glow: {}, core: {}, sprite: {}, ring: {}};
+  for (const k of KINDS) {
+    st.glow[k] = []; st.core[k] = [];
+    for (let i = 0; i <= STEPS; i++) { const a = (i / STEPS) ** 1.6; st.glow[k][i] = rgba(rgbOf[k], 0.22 * a); st.core[k][i] = rgba(rgbOf[k], 0.95 * a); }
+    st.ring[k] = Array.from({length: 33}, (_, i) => rgba(rgbOf[k], 0.85 * (1 - i / 32) ** 1.5));
+    // the soft glowing head, drawn once at device resolution
+    const r = WIDE[k] * 3.4, n = Math.ceil(r * 2 * dpr) + 2, c = document.createElement('canvas'); c.width = c.height = n;
+    const g = c.getContext('2d'), m = n / 2, gr = g.createRadialGradient(m, m, 0, m, m, r * dpr);
+    gr.addColorStop(0, dk ? 'rgba(255,255,255,0.95)' : rgba(rgbOf[k], 1)); gr.addColorStop(0.35, rgba(rgbOf[k], 0.8)); gr.addColorStop(1, rgba(rgbOf[k], 0));
+    g.fillStyle = gr; g.beginPath(); g.arc(m, m, r * dpr, 0, 2 * Math.PI); g.fill();
+    st.sprite[k] = {c, size: n / dpr};
+  }
+  return (style = st);
+}
+let viewKey = '', viewVer = 0, lastDraw = -1e9, cu = [0, 0, 1], globeView = false;
+// a vertex of a flow on screen (null when behind the globe), worked out once per view
+function vtx(fl, i) {
+  if (fl.ver !== viewVer) { fl.ver = viewVer; fl.sc.fill(undefined); }
+  let s = fl.sc[i];
+  if (s === undefined) {
+    const pt = fl.pts[i];
+    let ok = true;
+    if (globeView) { const u = unit(pt); ok = u[0] * cu[0] + u[1] * cu[1] + u[2] * cu[2] > 0.08; }
+    s = fl.sc[i] = ok ? theMap.project(pt) : null;
+  }
+  return s;
+}
+// the screen point a fraction f along a flow's arc, written into out[j]; false when that piece is behind the globe
+function alongS(fl, f, out, j) {
+  const n = fl.pts.length - 1, x = Math.max(0, Math.min(1, f)) * n, i = Math.min(n - 1, Math.floor(x)), u = x - i;
+  const a = vtx(fl, i), b = vtx(fl, i + 1);
+  if (!a || !b) return false;
+  out[j] = a.x + (b.x - a.x) * u; out[j + 1] = a.y + (b.y - a.y) * u;
+  return true;
+}
 
 function animate(t) {
   raf = 0;
   if (!theMap || !cv) return;
+  const go = on && flows.length && moving();
+  if (go && t - lastDraw < 1000 / fpsCap() - 2) { raf = requestAnimationFrame(animate); return; }   // frame cap
+  lastDraw = t;
   const box = theMap.getContainer(), w = box.clientWidth, h = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
-  if (!on || !flows.length || reduce.matches) return;
-  const globe = isGlobe(), c = theMap.getCenter(), cu = unit([c.lng, c.lat]);
-  const seen = pt => !globe || (() => { const u = unit(pt); return u[0] * cu[0] + u[1] * cu[1] + u[2] * cu[2] > 0.08; })();
-  const dk = dark(), cols = {strong: hexRgb(dk ? '#ff6961' : '#e0001a'), weak: hexRgb(dk ? '#ff9f0a' : '#c93400'), leak: hexRgb(dk ? '#64d2ff' : '#0071a4')};
+  if (!go) return;                                    // off, nothing to show, Reduce Motion, animations off or low power
+  const c = theMap.getCenter(), key = [c.lng, c.lat, theMap.getZoom(), theMap.getBearing(), theMap.getPitch(), w, h, isGlobe()].join();
+  if (key !== viewKey) { viewKey = key; viewVer++; globeView = isGlobe(); cu = unit([c.lng, c.lat]); }
+  const dk = dark(), st = styles(dk, dpr);
   x.lineCap = 'round'; x.lineJoin = 'round';
   x.globalCompositeOperation = dk ? 'lighter' : 'source-over';
-  const TAIL = 0.22, STEPS = 22;
+  // where every flow is this frame: its tail points (or its arrival ring)
+  const by = {strong: [], weak: [], leak: []}, rings = [];
   for (const fl of flows) {
-    const p = ((t / fl.period) + fl.phase) % 1, rgb = cols[fl.kind === 'leak' ? 'leak' : fl.strong ? 'strong' : 'weak'];
-    const wide = fl.kind === 'leak' ? 1.4 : fl.strong ? 2.6 : 1.6, ease = q => q < 0.5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2;
+    const p = ((t / fl.period) + fl.phase) % 1, k = kindOf(fl);
     if (p < 0.82) {
-      const head = ease(p / 0.82), back = Math.max(0, head - TAIL);
-      let prev = null;
-      for (let k = 0; k <= STEPS; k++) {               // the tail: short pieces, fading in towards the head
-        const f = back + (head - back) * k / STEPS, pt = along(fl.pts, f);
-        if (!seen(pt)) { prev = null; continue; }
-        const s = theMap.project(pt);
-        if (prev) {
-          const a = (k / STEPS) ** 1.6;
-          x.strokeStyle = rgba(rgb, 0.22 * a); x.lineWidth = wide * 3.2; x.beginPath(); x.moveTo(prev.x, prev.y); x.lineTo(s.x, s.y); x.stroke();
-          x.strokeStyle = rgba(rgb, 0.95 * a); x.lineWidth = wide * (0.5 + 0.5 * a); x.beginPath(); x.moveTo(prev.x, prev.y); x.lineTo(s.x, s.y); x.stroke();
-        }
-        prev = s;
-      }
-      const hp = along(fl.pts, head);
-      if (seen(hp)) {                                   // a soft glowing head
-        const s = theMap.project(hp), r = wide * 3.4, g = x.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
-        g.addColorStop(0, dk ? 'rgba(255,255,255,0.95)' : rgba(rgb, 1)); g.addColorStop(0.35, rgba(rgb, 0.8)); g.addColorStop(1, rgba(rgb, 0));
-        x.fillStyle = g; x.beginPath(); x.arc(s.x, s.y, r, 0, 2 * Math.PI); x.fill();
-      }
-    } else {                                            // arrival: a ring spreading out and fading
-      const q = (p - 0.82) / 0.18, end = fl.pts[fl.pts.length - 1];
-      if (seen(end)) {
-        const s = theMap.project(end);
-        x.strokeStyle = rgba(rgb, 0.85 * (1 - q) ** 1.5); x.lineWidth = 1.6; x.beginPath(); x.arc(s.x, s.y, 3 + 16 * ease(q), 0, 2 * Math.PI); x.stroke();
-      }
+      const head = easeIO(p / 0.82), back = Math.max(0, head - TAIL);
+      for (let i = 0; i <= STEPS; i++) fl.ok[i] = alongS(fl, back + (head - back) * i / STEPS, fl.tail, 2 * i) ? 1 : 0;
+      fl.headOk = alongS(fl, head, fl.hd, 0);
+      by[k].push(fl);
+    } else {
+      const end = vtx(fl, fl.pts.length - 1);
+      if (end) rings.push([k, end, (p - 0.82) / 0.18]);
     }
+  }
+  for (const k of KINDS) {
+    const list = by[k], wide = WIDE[k];
+    if (!list.length) continue;
+    for (let i = 1; i <= STEPS; i++) {                 // the tail: short pieces, fading in towards the head
+      const a = (i / STEPS) ** 1.6;
+      x.beginPath();
+      for (const fl of list) if (fl.ok[i] && fl.ok[i - 1]) { x.moveTo(fl.tail[2 * i - 2], fl.tail[2 * i - 1]); x.lineTo(fl.tail[2 * i], fl.tail[2 * i + 1]); }
+      x.strokeStyle = st.glow[k][i]; x.lineWidth = wide * 3.2; x.stroke();
+      x.strokeStyle = st.core[k][i]; x.lineWidth = wide * (0.5 + 0.5 * a); x.stroke();
+    }
+    const sp = st.sprite[k];                            // a soft glowing head
+    for (const fl of list) if (fl.headOk) x.drawImage(sp.c, fl.hd[0] - sp.size / 2, fl.hd[1] - sp.size / 2, sp.size, sp.size);
+  }
+  x.lineWidth = 1.6;
+  for (const [k, s, q] of rings) {                      // arrival: a ring spreading out and fading
+    x.strokeStyle = st.ring[k][Math.min(32, Math.round(q * 32))]; x.beginPath(); x.arc(s.x, s.y, 3 + 16 * easeIO(q), 0, 2 * Math.PI); x.stroke();
   }
   x.globalCompositeOperation = 'source-over';
   raf = requestAnimationFrame(animate);
 }
-const reduce = matchMedia('(prefers-reduced-motion: reduce)');
 const LIST_MIN = 10;
+const flow = (pts, kind, strong, period, phase) => ({pts, kind, strong, period, phase, ver: -1, sc: new Array(pts.length), tail: new Float64Array(2 * (STEPS + 1)), ok: new Uint8Array(STEPS + 1), hd: new Float64Array(2), headOk: false});
+// animations switched back on (prefs, Reduce Motion): start the loop again
+document.addEventListener('ww-motion', () => { if (!raf && on && theMap) raf = requestAnimationFrame(animate); });
 const net = n => `${esc(n.org || 'unknown network')} <span class="soft">(AS${n.asn}${n.cc ? ', ' + esc(n.cc) : ''})</span>`;
 const strong = h => (h.score ?? 0) >= LIST_MIN;
 
@@ -142,11 +192,11 @@ export default {
     let k = 0;
     for (const h of [...d.hijacks].sort((a, b) => strong(b) - strong(a))) {
       for (const v of h.victim_countries) if (h.hijacker.at && v.at && v.cc !== h.hijacker.cc && flows.length < 120)
-        flows.push({pts: arc(h.hijacker.at, v.at), kind: 'hijack', strong: strong(h), period: 3200 + (k * 397) % 2200, phase: (k++ * 0.618) % 1});
+        flows.push(flow(arc(h.hijacker.at, v.at), 'hijack', strong(h), 3200 + (k * 397) % 2200, (k++ * 0.618) % 1));
     }
     for (const l of d.leaks) {
       const pts = l.countries.map(c => c.at).filter(Boolean);
-      for (let i = 0; i + 1 < pts.length && flows.length < 120; i++) flows.push({pts: arc(pts[i], pts[i + 1]), kind: 'leak', strong: false, period: 4200 + (k * 271) % 2000, phase: (k++ * 0.618) % 1});
+      for (let i = 0; i + 1 < pts.length && flows.length < 120; i++) flows.push(flow(arc(pts[i], pts[i + 1]), 'leak', false, 4200 + (k * 271) % 2000, (k++ * 0.618) % 1));
     }
     if (!raf && on) raf = requestAnimationFrame(animate);
   },

@@ -1,5 +1,6 @@
 // Hotspots: places where at least three different kinds of security signal coincide within a day (hotspots.py).
 // A pulsing ring on the map; the card lists every signal behind it, each with its source and a way to show it.
+import {every} from './prefs.js';
 import {ago, esc, local, countryBtn, spyPass} from './util.js';
 
 let d = {hotspots: [], families: {}}, theMap = null, on = true, at = 0, pulses = [];
@@ -41,7 +42,7 @@ const hotspots = {
     map.addLayer({id: 'ww-hot', type: 'circle', source: 'ww-hot', paint: {'circle-radius': 11, 'circle-stroke-width': 2}});
     map.addLayer({id: 'ww-hot-label', type: 'symbol', source: 'ww-hot',
       layout: {'text-field': ['to-string', ['get', 'kinds']], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
-    load(); setInterval(load, 5 * 60 * 1000);
+    load(); every(300, load);   // prefs.js: not while hidden, slower in low power
   },
   layers: ['ww-hot-area', 'ww-hot', 'ww-hot-label'],
   visible(v) { on = v; pulse(); },

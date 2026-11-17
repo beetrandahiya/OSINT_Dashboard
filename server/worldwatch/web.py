@@ -70,9 +70,25 @@ async def status(request):
     return JSONResponse(s, headers={"Cache-Control": "no-store"})
 
 
+# Parts of a feed that a layer needs without the rest: the nuclear layer (on by default) and the earthquake card's
+# "near a test site" need ~0.4 MB of the 1.6 MB sites payload; the military bases (off by default) are the rest.
+VIEWS = {"sites_nuclear": ("sites", lambda p: {k: v for k, v in p.items() if k != "military"})}
+_view_enc: dict[str, tuple] = {}
+
+
+async def _view(name, st):
+    hit = _view_enc.get(name)
+    if hit and hit[0] is st.payload:
+        return hit[1]
+    payload = st.payload
+    enc = await asyncio.to_thread(lambda: wire.encode_payload(VIEWS[name][1](payload)))
+    _view_enc[name] = (payload, enc)
+    return enc
+
+
 async def data(request):
     name = request.path_params["name"]
-    st = collector.states.get(name)
+    st = collector.states.get(VIEWS[name][0] if name in VIEWS else name)
     if not st:
         return JSONResponse({"error": "no such feed"}, status_code=404)
     now = time.time()
@@ -87,6 +103,10 @@ async def data(request):
             pass
     if name == "ships":
         enc = await _ships_merged(st)
+    elif name in VIEWS:
+        if st.payload is None:
+            return JSONResponse({**st.public(now), "now": now, "payload": None}, headers={"Cache-Control": "no-store"})
+        enc = await _view(name, st)
     else:
         enc = await collector.encode(st)
     if enc is None:          # nothing yet, or a payload that is not plain JSON: the ordinary way

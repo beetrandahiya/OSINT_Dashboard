@@ -1,4 +1,5 @@
 import {$, ago, api, esc, now} from './util.js';
+import {rate, statusEvery, listRows} from './prefs.js';
 import {loadFlags} from './flags.js';
 import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D} from './map.js';
 import news from './news.js';
@@ -122,29 +123,34 @@ function show(layer) {
   layer.visible?.(on[layer.id]);
 }
 
-// One timer and one request per feed, handed to every layer that uses it (ships and warships share "ships", VIP jets
-// and doomsday planes "vip_aircraft", ...). Nothing is asked while the tab is hidden; feeds that came due meanwhile
-// are asked once when it shows again. Chips, list and card are redrawn at most once per frame, however many answer.
+// One request per feed, handed to every layer that uses it (ships and warships share "ships", VIP jets and doomsday
+// planes "vip_aircraft", ...). What to ask is decided from /api/status, which the page polls anyway: it carries each
+// feed's fetch time and the version of its payload (a hash of its bytes; the same data fetched again keeps it). A feed is
+// downloaded only when its version moved, and only for layers that are switched on; a refetch that brought back the same
+// data only moves the feed's age (its state fields are copied into the answer the layers hold, so every "x min ago"
+// stays true without a download). Never more often than the layer asks for (its `feeds` seconds x prefs rate), never
+// while the tab is hidden. A layer that is off keeps its chip count from a slow refresh (every 15 min at most);
+// layers off by default (cameras, bases, listening stations...) are not downloaded at all until switched on.
+// Chips, list and card are redrawn at most once per frame, however many feeds answer.
 const users = {};                 // feed -> {layers, secs}
 for (const l of LAYERS) for (const [feed, secs] of Object.entries(l.feeds)) {
   const u = users[feed] ||= {layers: [], secs};
   u.layers.push(l); u.secs = Math.min(u.secs, secs);
 }
-const busy = new Set(), retry = {}, due = new Set(), changed = new Set(), fetchedAt = {};
+const LIVE = new Set(['ships']);
+const VIEW_OF = {sites_nuclear: 'sites'};   // a part of another feed (web.py VIEWS): its status is that feed's  // merged with the live AIS stream on every request: asked on a timer, not by version
+const OFF_SECS = 900;
+const busy = new Set(), changed = new Set(), fetchedAt = {}, versionAt = {}, loadedAt = {}, held = {};
 async function load(feed) {
-  if (document.hidden) { due.add(feed); return; }
   if (busy.has(feed)) return;
-  busy.add(feed);
+  busy.add(feed); loadedAt[feed] = performance.now();
   try {
-    // `since`: a server that has not fetched the feed again answers {unchanged: true} without the payload (older
-    // servers ignore it and send everything, which works too)
+    // `since`: a server that has not fetched the feed again answers {unchanged: true} without the payload
     const d = await api('/api/data/' + feed + (fetchedAt[feed] ? '?since=' + fetchedAt[feed] : ''));
     if (d.unchanged) return;
-    if (!d.payload) {   // the server has not fetched this feed yet: ask again shortly (one pending retry per feed, never a pile)
-      retry[feed] ||= setTimeout(() => { retry[feed] = 0; load(feed); }, 5000);
-      return;
-    }
+    if (!d.payload) return;   // the server has not fetched this feed yet: the status poll asks again once it has
     if (d.fetched) fetchedAt[feed] = d.fetched;
+    versionAt[feed] = d.version; held[feed] = d;
     for (const l of users[feed].layers) {
       try { l.onData(feed, d); got.add(l.id); l.render(map); changed.add(l.id); }
       catch (e) { console.error(`layer ${l.id} could not take feed ${feed}:`, e); }   // one layer's fault must not stop the others
@@ -153,11 +159,30 @@ async function load(feed) {
   } catch (e) { /* the banner reports a server that stopped answering; one bad answer must not stop the rest */ }
   finally { busy.delete(feed); }
 }
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden || !ready) return;
-  const list = [...due]; due.clear();
-  for (const feed of list) load(feed);
-});
+// which feeds to ask now, from the status answer (and when a chip is switched on)
+const STATE = ['state', 'fetched', 'from_disk', 'data_time', 'data_label', 'items', 'note', 'tried', 'error', 'ok_count', 'fail_count', 'next_at'];
+function schedule() {
+  if (!ready || document.hidden) return;
+  const feeds = Object.fromEntries((status?.feeds || []).map(f => [f.name, f])), t = performance.now();
+  for (const [feed, u] of Object.entries(users)) {
+    const shown = u.layers.some(l => on[l.id]), wanted = shown || u.layers.some(l => !l.defaultOff);
+    if (!wanted) continue;
+    const gap = (shown ? u.secs : Math.max(OFF_SECS, u.secs)) * 1000 * rate(), since = t - (loadedAt[feed] ?? -Infinity);
+    const s = feeds[VIEW_OF[feed] || feed];
+    if (!held[feed]) { if (since > 5000 && (!status || s?.fetched)) load(feed); continue; }   // first load (or the server has it now)
+    if (LIVE.has(feed)) { if (shown && since >= gap) load(feed); continue; }
+    if (!s || !s.fetched || s.fetched === fetchedAt[feed]) continue;
+    if (s.version && s.version === versionAt[feed]) {        // fetched again, same data: only the age moves
+      Object.assign(held[feed], Object.fromEntries(STATE.filter(k => k in s).map(k => [k, s[k]])));
+      fetchedAt[feed] = s.fetched;
+      for (const l of u.layers) changed.add(l.id);
+      redraw();
+      continue;
+    }
+    if (since >= gap) load(feed);
+  }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ready) loadStatus(); });
 let frame = 0;
 function redraw() {
   if (frame) return;
@@ -178,7 +203,7 @@ map.on('load', () => {
   repaint();
   loadFlags();
   for (const l of LAYERS) show(l);
-  for (const [feed, u] of Object.entries(users)) { load(feed); setInterval(() => load(feed), u.secs * 1000); }
+  schedule();
   const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
@@ -210,6 +235,8 @@ $('#chips').addEventListener('click', e => {
   try { localStorage.setItem('ww-layers', JSON.stringify(on)); } catch (err) { /* private window */ }
   show(l);
   if (on[l.id] && got.has(l.id)) try { l.render(map); } catch (err) { console.error(err); }
+  if (on[l.id]) for (const feed of Object.keys(l.feeds)) if (!held[feed] || (status && status.feeds.find(f => f.name === (VIEW_OF[feed] || feed))?.version !== versionAt[feed])) { loadedAt[feed] = -Infinity; }
+  if (on[l.id]) schedule();
   renderChips(); renderList(); legend();
   if (picked?.layer === l.id && !on[l.id]) pick(null);
 });
@@ -229,13 +256,18 @@ function renderList() {
   const li = r => `<li role="option" tabindex="0" data-layer="${r.layer.id}" data-id="${esc(r.id)}" aria-selected="${picked?.layer === r.layer.id && picked.id === r.id}" style="--c:${r.layer.color[+dark.matches]}">
       <span class="badge${r.strong ? ' strong' : ''}">${esc(r.badge)}</span>
       <span class="row-text"><span class="row-title">${esc(r.title)}</span><span class="row-meta">${esc(r.meta)}</span></span>${r.thumb ? `<img class="row-thumb" src="${esc(r.thumb)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</li>`;
-  const html = (coming.length ? `<li class="group">Coming up</li>${coming.map(li).join('')}<li class="group">Latest</li>` : '') + past.map(li).join('');
+  // only the first rows are drawn (prefs.js listRows, 150): all ~1,400 made ~9,000 page elements, rebuilt at every
+  // update, and nobody reads row 1,400. "Show all" draws the rest until the page is reloaded.
+  const cap = listAll ? Infinity : listRows(), total = coming.length + past.length;
+  const c1 = coming.slice(0, cap), p1 = past.slice(0, Math.max(0, cap - c1.length)), more = total - c1.length - p1.length;
+  const html = (c1.length ? `<li class="group">Coming up</li>${c1.map(li).join('')}<li class="group">Latest</li>` : '') + p1.map(li).join('')
+    + (more ? `<li class="more"><button class="btn" data-more>Show all ${total.toLocaleString('en-GB')} (${more.toLocaleString('en-GB')} more)</button></li>` : '');
   const list = $('#list');
   if (html === listHtml) return;
   if (list.contains(document.activeElement) && listHtml != null) return;   // don't pull the list from under the keyboard
   list.innerHTML = html || '<li class="empty">Nothing to list for the layers that are switched on.</li>'; listHtml = html;
 }
-let listHtml = null;
+let listHtml = null, listAll = false;
 
 function ring() {
   const l = picked && byId[picked.layer], at = l?.locate(picked.id);
@@ -322,7 +354,10 @@ function refreshPick() { if (picked) { renderDetail(); ring(); } }
 $('#detail').addEventListener('pointerdown', () => { pressing = true; });
 for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { if (!pressing) return; pressing = false; if (detailWait) { detailWait = false; setTimeout(() => renderDetail(), 0); } });
 
-$('#list').addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) pick({layer: li.dataset.layer, id: li.dataset.id}, true); });
+$('#list').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')) { listAll = true; listHtml = null; renderList(); return; }
+  const li = e.target.closest('li[data-id]'); if (li) pick({layer: li.dataset.layer, id: li.dataset.id}, true);
+});
 $('#list').addEventListener('keydown', e => {
   const li = e.target.closest('li[data-id]'); if (!li) return;
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick({layer: li.dataset.layer, id: li.dataset.id}, true); }
@@ -530,8 +565,10 @@ document.addEventListener('click', e => { if (chase && e.target.closest('.maplib
 
 // ---- the feeds card: one honest line when closed, every feed when open ----
 async function loadStatus() {
+  if (document.hidden) return;   // nothing is asked while the tab is hidden; it asks at once when it shows again
   try { status = await api('/api/status'); lastAnswer = Date.now(); } catch (e) { /* shown by the banner */ }
   renderFeeds();
+  schedule();
 }
 function renderFeeds() {
   const down = Date.now() - lastAnswer > 12000;
@@ -585,7 +622,7 @@ $('#home').onclick = () => place('munich');
 renderChips();
 loadStatus();
 markets.start();
-setInterval(loadStatus, 5000);
+(function statusLoop() { setTimeout(() => { loadStatus().finally(statusLoop); }, statusEvery()); })();   // 5 s, 30 s in low power (prefs.js)
 setInterval(() => { if (document.hidden) return; renderFeeds(); renderList(); refreshPick(); }, 20000);   // keep the "x min ago" texts moving (the card is patched, not redrawn)
 
 // ---- find a person (header search) ----

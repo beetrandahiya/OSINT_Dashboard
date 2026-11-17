@@ -9,9 +9,12 @@
 //
 // Drawing: one InstancedMesh per model part, so a thousand aircraft cost a handful of draw calls. Every matrix is
 // worked out relative to the view centre in double precision, so nothing shakes when zoomed far in.
-import * as THREE from '../vendor/three/three.module.js';
-import {GLTFLoader} from '../vendor/three/GLTFLoader.js';
-import {MeshoptDecoder} from '../vendor/three/meshopt_decoder.module.js';
+//
+// three.js (~1.5 MB of script) and the models (~0.5 MB) are fetched only when first needed: the first time the map is
+// zoomed in to MODEL_ZOOM - 1. Until they are ready every aircraft stays a flat icon (isOn() is false and the icon
+// layers keep their full zoom range; aircraft.js narrows them in onReady). Loading them at start delayed the map.
+import {maxModels} from './prefs.js';
+let THREE = null, loader = null, booting = null, glOf = null;
 
 export const MODEL_ZOOM = 7;
 const MIN_PX = 24, SEL_PX = 46, CAP = 3000;
@@ -28,8 +31,6 @@ export const onReady = fn => ready ? fn() : readyFns.push(fn);
 export const addModelProvider = fn => providers.push(fn);
 export const addPathProvider = fn => pathProviders.push(fn);
 
-const loader = new GLTFLoader();
-loader.setMeshoptDecoder(MeshoptDecoder);
 
 // which model draws an aircraft, and its real length: the ICAO type code it reports, else its ADS-B emitter category,
 // else the generic aircraft (God's Eye View's types.json)
@@ -59,14 +60,23 @@ function load(name, file) {
     theMap?.triggerRepaint();
   }, undefined, () => templates.set(name, 'failed'));
 }
-// all aircraft and helicopter models (about 0.9 MB) are fetched once at start, the generic one first, so a model is
-// there the moment an aircraft needs it
-(async () => {
-  [types, catalog] = await Promise.all([fetch(new URL('types.json', base)).then(r => r.json()), fetch(new URL('catalog.json', base)).then(r => r.json())]);
-  const g = types.default_aircraft[0];
-  load(g, catalog[g].file);
-  for (const [name, c] of Object.entries(catalog)) if (c.category === 'aircraft' || c.category === 'helicopters') load(name, c.file);
-})().catch(() => {});
+// three.js first, then all aircraft and helicopter models (about 0.9 MB), the generic one first, so a model is there
+// the moment an aircraft needs it
+function boot() {
+  return booting ||= (async () => {
+    const [three, {GLTFLoader}, {MeshoptDecoder}] = await Promise.all([import('../vendor/three/three.module.js'), import('../vendor/three/GLTFLoader.js'), import('../vendor/three/meshopt_decoder.module.js')]);
+    THREE = three;
+    Mm = new THREE.Matrix4(); C = new THREE.Matrix4(); Ci = new THREE.Matrix4(); Mi = new THREE.Matrix4(); Rel = new THREE.Matrix4();
+    R = new THREE.Matrix4(); S = new THREE.Matrix4(); T = new THREE.Matrix4(); SelRel = new THREE.Matrix4(); v4 = new THREE.Vector4();
+    loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    theMap?.triggerRepaint();            // the renderer is made in the next frame (render), inside the map's own drawing
+    [types, catalog] = await Promise.all([fetch(new URL('types.json', base)).then(r => r.json()), fetch(new URL('catalog.json', base)).then(r => r.json())]);
+    const g = types.default_aircraft[0];
+    load(g, catalog[g].file);
+    for (const [name, c] of Object.entries(catalog)) if (c.category === 'aircraft' || c.category === 'helicopters') load(name, c.file);
+  })().catch(e => { booting = null; console.error('3D models could not be loaded', e); });
+}
 function template(spec) {
   const t = templates.get(spec.name);
   if (t && typeof t === 'object') return t;
@@ -136,8 +146,7 @@ let trail, route;
 // screen records are reused, colours are parsed once per tint, label widths measured once per text. A frame is asked
 // for again only while something on screen is moving (or an aircraft waiting at its first report is about to start);
 // providers call triggerRepaint when new reports arrive, the map repaints on its own when the camera moves.
-const Mm = new THREE.Matrix4(), C = new THREE.Matrix4(), Ci = new THREE.Matrix4(), Mi = new THREE.Matrix4(), Rel = new THREE.Matrix4(),
-  R = new THREE.Matrix4(), S = new THREE.Matrix4(), T = new THREE.Matrix4(), SelRel = new THREE.Matrix4(), v4 = new THREE.Vector4();
+let Mm, C, Ci, Mi, Rel, R, S, T, SelRel, v4;        // made in boot(), once three.js is here
 const mpp = (lat, z) => 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** z);
 // a longitude moved by whole turns to the side of the view centre: the custom layer has no world copies, so a model
 // just across the date line from the centre would otherwise be placed a whole world away (and not drawn)
@@ -161,6 +170,7 @@ const still = (a, b, eps) => a !== a ? b !== b : Math.abs(a - b) <= eps;   // Na
 
 function render(gl, args) {
   const map = theMap, M = args.defaultProjectionData?.mainMatrix;
+  if (!renderer && THREE && glOf) initGL(...glOf);   // made here, where the map expects its GL state to be changed
   if (!M || !renderer) return;
   const t0 = performance.now();
   lastM = M;
@@ -184,7 +194,8 @@ function render(gl, args) {
   const inView = (lon, lat) => lat >= Sx && lat <= N && (E - W >= 360 || ((lon - W) % 360 + 360) % 360 <= E - W);
   items.length = 0;
   for (const p of providers) p(inView, items);
-  if (items.length > CAP) { const d = it => Math.hypot(near(it.lon) - ctr.lng, it.lat - ctr.lat); items.sort((a, c) => d(a) - d(c)); items.length = CAP; }
+  const cap = Math.min(CAP, maxModels());   // prefs.js (default: no lower limit than CAP)
+  if (items.length > cap) { const d = it => Math.hypot(near(it.lon) - ctr.lng, it.lat - ctr.lat); items.sort((a, c) => d(a) - d(c)); items.length = cap; }
 
   // group by model, fill the instance buffers
   for (const g of groups.values()) g.n = 0;
@@ -340,8 +351,14 @@ export function attachModels(map) {
   overlay.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
   map.getCanvasContainer().appendChild(overlay);
   octx = overlay.getContext('2d');
+  const need = () => { if (map.getZoom() >= MODEL_ZOOM - 1) { boot(); map.off('zoom', need); } };
+  map.on('zoom', need); need();
   map.addLayer({id: 'ww-models', type: 'custom', renderingMode: '3d',
-    onAdd(m, gl) {
+    onAdd(m, gl) { glOf = [m, gl]; },
+    render});
+}
+function initGL(m, gl) {
+      if (renderer) return;
       renderer = new THREE.WebGLRenderer({canvas: m.getCanvas(), context: gl, antialias: true});
       renderer.autoClear = false;
       scene = new THREE.Scene();
@@ -352,8 +369,6 @@ export function attachModels(map) {
         new THREE.LineBasicMaterial({color: 0x4b5563, transparent: true, opacity: 0.6}));
       dropLine.frustumCulled = false; dropLine.matrixAutoUpdate = false; scene.add(dropLine);
       trail = ribbon(false); route = ribbon(true); scene.add(trail); scene.add(route);
-    },
-    render});
 }
 // a click on a model: the nearest drawn model within its own size
 export function hitModel(point) {
