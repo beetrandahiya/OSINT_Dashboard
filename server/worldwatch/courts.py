@@ -63,16 +63,23 @@ def is_challenge(page: str) -> bool:
 SAVED = config.DATA / "icc-situations.json"
 
 
+def good_copy(s: dict | None) -> bool:
+    """A kept situation page that is the court's content, not the bot shield's cookie page (copies saved by earlier
+    versions held the shield's page under the situation's name, which made every warrant read as "not named")."""
+    return bool(s and s.get("text")) and not is_challenge(s["text"]) and (s.get("title") or "").strip() != "Gcore"
+
+
 def load_situations() -> dict:
     try:
-        return json.loads(SAVED.read_text())
+        d = json.loads(SAVED.read_text())
     except (OSError, ValueError):
         return {}
+    return {k: v for k, v in d.items() if good_copy(v)}
 
 
 def save_situations(d: dict) -> None:
     SAVED.parent.mkdir(parents=True, exist_ok=True)
-    SAVED.write_text(json.dumps(d))
+    SAVED.write_text(json.dumps({k: v for k, v in d.items() if good_copy(v)}))
 
 
 def parse_situation(page: str) -> dict:
@@ -107,8 +114,13 @@ def sentences(text: str, pats: list[re.Pattern], limit=4) -> list[str]:
 
 def icc_matches(payload: dict, names: list[str]) -> dict:
     pats = name_patterns(names)
+    # situation pages the court's site refused and we hold no good copy of: a warrant there cannot be ruled out
+    missing = payload.get("missing") if payload else None
+    if missing is None and payload:          # payloads from before "missing" was carried: count what they hold
+        missing = [x for x in SITUATIONS if x not in {s.get("slug") for s in payload.get("situations", []) if good_copy(s)}]
+    base = {"cases": [], "situations": [], "missing": missing or [], "pages": len(SITUATIONS)}
     if not pats or not payload:
-        return {"cases": [], "situations": []}
+        return base
     cases = []
     for c in payload.get("cases", []):
         said = sentences(c["text"], pats, 3)
@@ -116,10 +128,12 @@ def icc_matches(payload: dict, names: list[str]) -> dict:
             cases.append({**{k: c[k] for k in ("name", "url", "status", "image")}, "said": said})
     sits = []
     for s in payload.get("situations", []):
+        if not good_copy(s):
+            continue
         said = sentences(s["text"], pats, 4)
         if said:
             sits.append({"title": s["title"], "url": s["url"], "said": said})
-    return {"cases": cases, "situations": sits}
+    return {**base, "cases": cases, "situations": sits}
 
 
 # ---------------------------------------------------------------- England and Wales

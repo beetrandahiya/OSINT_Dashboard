@@ -209,11 +209,15 @@ async function courtRecords(d, t) {
   const quote = s => `<blockquote class="dos-quote">${esc(s)}</blockquote>`;
   const icc = c.icc, uk = c.uk, wd = c.wikidata || {};
   const parts = [];
+  // situation pages (where warrants are named) the court's bot shield refused, with no earlier good copy: say so
+  // rather than "not named"; the case list is a separate read and stays reliable
+  const miss = icc?.missing || [];
+  const iccGap = miss.length ? `<p class="source prof-problems">The court's site refused ${miss.length} of its ${icc.pages || 19} situation pages (bot protection), so a warrant named there may be missing here.</p>` : '';
   if (icc && (icc.cases.length || icc.situations.length)) {
     parts.push(`<div class="dos-sub-block"><h4>International Criminal Court</h4>
       ${icc.cases.map(k => `<p><b><a class="link" href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.name)}</a></b>${k.status ? ` <span class="pill hot">${esc(k.status)}</span>` : ''}</p>${k.said.map(quote).join('')}`).join('')}
       ${icc.situations.map(s => `<p><b><a class="link" href="${esc(s.url)}" target="_blank" rel="noopener">Situation: ${esc((s.title || '').trim())}</a></b></p>${s.said.map(quote).join('')}`).join('')}
-      <p class="source">The court's own words from icc-cpi.int, read ${ago(c.icc_feed?.fetched)}. Matched by name (first and last name within three words), so check the text is about this person. A warrant is not a conviction.</p></div>`);
+      <p class="source">The court's own words from icc-cpi.int, read ${ago(c.icc_feed?.fetched)}. Matched by name (first and last name within three words), so check the text is about this person. A warrant is not a conviction.</p>${iccGap}</div>`);
   }
   if (uk && (uk.party.length || uk.surname_total || uk.mention_total)) {
     const row = j => `<li><a class="link" href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a><br><span class="soft">${esc(j.court)} · ${esc(j.date)}${j.citation ? ' · ' + esc(j.citation) : ''}</span></li>`;
@@ -224,7 +228,9 @@ async function courtRecords(d, t) {
       <p class="source">The National Archives, Find Case Law (Open Justice Licence), asked ${ago(uk.fetched)}. Published judgments only, mostly since 2001; no filings, no ongoing cases before judgment. Searched by the exact name "${esc(c.name)}": someone else with the same name can appear.</p></div>`);
   }
   else if (uk) parts.push('<p class="soft">England and Wales: no published judgment names them.</p>');
-  if (icc && !icc.cases.length && !icc.situations.length) parts.push('<p class="soft">International Criminal Court: not named in its case list or situation pages.</p>');
+  if (icc && !icc.cases.length && !icc.situations.length) parts.push(miss.length
+    ? `<p class="soft">International Criminal Court: not named in its case list. Its situation pages, where warrants are named, could be read only in part: ${miss.length} of ${icc.pages || 19} were refused by the court's bot protection, so a warrant cannot be ruled out.</p>`
+    : '<p class="soft">International Criminal Court: not named in its case list or situation pages.</p>');
   if (wd.convicted?.length || wd.charged?.length) {
     parts.push(`<div class="dos-sub-block"><h4>Recorded in Wikidata</h4><dl class="dos-facts">
       ${wd.convicted?.length ? `<dt>Convicted of</dt><dd>${wd.convicted.map(esc).join(', ')}</dd>` : ''}

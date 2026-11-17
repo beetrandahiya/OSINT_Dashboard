@@ -934,23 +934,27 @@ async def front_ukraine(feed: Feed, f: Fetcher) -> Result:
 
 async def courts_icc(feed: Feed, f: Fetcher) -> Result:
     """The International Criminal Court's case list and situation pages, for person dossiers (see courts.py).
-    Case list pages 1.5 s apart, then situation pages 20 s apart (the site's bot shield refuses bursts), once a day."""
-    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"}
+    Case list pages 1.5 s apart, then situation pages 20 s apart (the site's bot shield refuses bursts), once a day.
+    We identify ourselves with our normal User-Agent and never try to get past the shield: a refused page is named
+    in the note and in the payload's `missing`, so dossiers say a warrant there cannot be ruled out."""
     cases, sits, failed = [], [], []
     for page in range(8):
-        got = courts.parse_cases((await f.get(courts.ICC + "/cases", params={"page": page}, headers=ua, follow_redirects=True)).text)
+        got = courts.parse_cases((await f.get(courts.ICC + "/cases", params={"page": page}, follow_redirects=True)).text)
         if not got:
             break
         cases += got
         await asyncio.sleep(1.5)
-    kept = courts.load_situations()                # last good copy of each page, used when the site refuses one today
+    kept = courts.load_situations()                # last good copy of each page (shield pages dropped on load)
     for slug in courts.SITUATIONS:
         for attempt in (0, 1):                 # the site's bot shield blocks bursts for a while: one retry after a pause
             try:
-                r = await f.get(f"{courts.ICC}/{slug}", headers=ua, follow_redirects=True)
+                r = await f.get(f"{courts.ICC}/{slug}", follow_redirects=True)
                 if courts.is_challenge(r.text):
                     raise RuntimeError("bot-protection page")
-                sits.append({**courts.parse_situation(r.text), "url": str(r.url), "read": time.time(), "slug": slug})
+                page = {**courts.parse_situation(r.text), "url": str(r.url), "read": time.time(), "slug": slug}
+                if not courts.good_copy(page):
+                    raise RuntimeError("bot-protection page")
+                sits.append(page)
                 break
             except Exception as e:
                 if attempt:
@@ -965,8 +969,11 @@ async def courts_icc(feed: Feed, f: Fetcher) -> Result:
     courts.save_situations({s["slug"]: s for s in sits if s.get("slug")} | {k: v for k, v in kept.items() if k not in {s.get("slug") for s in sits}})
     if not cases:
         raise RuntimeError("the ICC case list came back empty (page layout changed?)")
-    return Result(len(cases), {"cases": cases, "situations": sits}, data_time=time.time(), data_label="read",
-                  note=f"{len(cases)} defendants, {len(sits)} situation pages" + (f"; failed: {', '.join(failed)}" if failed else ""))
+    missing = [x for x in courts.SITUATIONS if x not in {s.get("slug") for s in sits}]
+    return Result(len(cases), {"cases": cases, "situations": sits, "missing": missing}, data_time=time.time(), data_label="read",
+                  note=(f"the court's site refused {len(missing)} of {len(courts.SITUATIONS)} situation pages and no earlier copy is held, "
+                        "so warrants named there may be missing; " if missing else "")
+                       + f"{len(cases)} defendants in the case list, {len(sits)} situation pages" + (f"; failed: {', '.join(failed)}" if failed else ""))
 
 
 async def travel_advice(feed: Feed, f: Fetcher) -> Result:
