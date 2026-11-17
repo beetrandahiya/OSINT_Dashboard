@@ -13,9 +13,9 @@ export function attachImaged(map) {
     if (map.getSource(SRC)) return;
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-imaged-fill', type: 'fill', source: SRC, paint: {'fill-color': ['case', ['==', ['get', 'kind'], 'radar'], '#bf5af2', '#0a84ff'],
-      'fill-opacity': ['case', ['get', 'hot'], 0.22, 0]}});
+      'fill-opacity': ['case', ['==', ['get', 'hot'], true], 0.22, 0]}});
     map.addLayer({id: 'ww-imaged-line', type: 'line', source: SRC, paint: {'line-color': ['case', ['==', ['get', 'kind'], 'radar'], '#bf5af2', '#0a84ff'],
-      'line-width': ['case', ['get', 'hot'], 2.2, 0.8], 'line-opacity': ['case', ['get', 'hot'], 1, 0.35]}});
+      'line-width': ['case', ['==', ['get', 'hot'], true], 2.2, 0.8], 'line-opacity': ['case', ['==', ['get', 'hot'], true], 1, 0.35]}});
   };
   if (map.isStyleLoaded()) add(); else map.once('load', add);
 }

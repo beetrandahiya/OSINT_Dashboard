@@ -20,7 +20,7 @@ export default {
     map.addSource('ww-sdr', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-sdr', type: 'circle', source: 'ww-sdr',
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 2.5, 6, 5, 10, 7], 'circle-stroke-width': 1,
-        'circle-opacity': ['case', ['get', 'full'], 0.35, 0.95]}});
+        'circle-opacity': ['case', ['==', ['get', 'full'], true], 0.35, 0.95]}});
   },
   paint(map, dark) {
     map.setPaintProperty('ww-sdr', 'circle-color', this.color[+dark]);

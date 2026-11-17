@@ -249,8 +249,8 @@ export const satellites = {
   addTo(map) {
     theMap = map;
     map.addSource('ww-sats', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-sats', type: 'circle', source: 'ww-sats', layout: {'circle-sort-key': ['case', ['get', 'iss'], 1, 0]},
-      paint: {'circle-radius': ['case', ['get', 'iss'], 4.5, ['get', 'spy'], 2.4, 1.5], 'circle-stroke-width': ['case', ['get', 'iss'], 1.2, 0.4], 'circle-opacity': ['case', ['get', 'iss'], 1, 0.85]}});
+    map.addLayer({id: 'ww-sats', type: 'circle', source: 'ww-sats', layout: {'circle-sort-key': ['case', ['==', ['get', 'iss'], true], 1, 0]},
+      paint: {'circle-radius': ['case', ['==', ['get', 'iss'], true], 4.5, ['==', ['get', 'spy'], true], 2.4, 1.5], 'circle-stroke-width': ['case', ['==', ['get', 'iss'], true], 1.2, 0.4], 'circle-opacity': ['case', ['==', ['get', 'iss'], true], 1, 0.85]}});
     map.addLayer({id: 'ww-sats-label', type: 'symbol', source: 'ww-sats', filter: ['get', 'iss'],
       layout: {'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1], 'text-anchor': 'top', 'text-allow-overlap': true}});
     cv = document.createElement('canvas');
@@ -266,7 +266,7 @@ export const satellites = {
   },
   paint(map, dark) {
     const edge = dark ? '#1c1c1e' : '#ffffff';
-    map.setPaintProperty('ww-sats', 'circle-color', ['case', ['get', 'spy'], dark ? '#ff453a' : '#ff3b30', ['match', ['get', 'cls'], 'MEO', CLASS.MEO[1 + dark], 'GEO', CLASS.GEO[1 + dark], 'HEO', CLASS.HEO[1 + dark], CLASS.LEO[1 + dark]]]);
+    map.setPaintProperty('ww-sats', 'circle-color', ['case', ['==', ['get', 'spy'], true], dark ? '#ff453a' : '#ff3b30', ['match', ['get', 'cls'], 'MEO', CLASS.MEO[1 + dark], 'GEO', CLASS.GEO[1 + dark], 'HEO', CLASS.HEO[1 + dark], CLASS.LEO[1 + dark]]]);
     map.setPaintProperty('ww-sats', 'circle-stroke-color', edge);
     map.setPaintProperty('ww-sats-label', 'text-color', dark ? '#e5e5ea' : '#1c3d24');
     map.setPaintProperty('ww-sats-label', 'text-halo-color', edge); map.setPaintProperty('ww-sats-label', 'text-halo-width', 1.2);

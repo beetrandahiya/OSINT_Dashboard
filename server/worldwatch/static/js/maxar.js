@@ -91,7 +91,7 @@ export default {
   addTo(map) {
     theMap = map;
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-maxar-fill', type: 'fill', source: SRC, filter: ['==', ['get', 'kind'], 'event'], paint: {'fill-opacity': ['case', ['get', 'current'], 0.12, 0.04]}});
+    map.addLayer({id: 'ww-maxar-fill', type: 'fill', source: SRC, filter: ['==', ['get', 'kind'], 'event'], paint: {'fill-opacity': ['case', ['==', ['get', 'current'], true], 0.12, 0.04]}});
     map.addLayer({id: 'ww-maxar-pin', type: 'circle', source: SRC, filter: ['==', ['get', 'kind'], 'pin'], paint: {'circle-radius': 6, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff'}});
     map.addLayer({id: 'ww-maxar-line', type: 'line', source: SRC, paint: {'line-width': ['case', ['==', ['get', 'kind'], 'item'], 0.8, 1.6], 'line-opacity': 0.8}});
     map.addLayer({id: 'ww-maxar-label', type: 'symbol', source: SRC, filter: ['==', ['get', 'kind'], 'event'],

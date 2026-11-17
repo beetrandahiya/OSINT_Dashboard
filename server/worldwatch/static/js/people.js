@@ -73,15 +73,18 @@ export const leadersToday = {
       h.beginPath(); h.arc(size / 2, size / 2, size / 2 - 1.5 * R, 0, Math.PI * 2); h.lineWidth = 2.5 * R; h.strokeStyle = dark ? '#ffffff' : '#000000'; h.stroke();
       map.addImage('ww-leader-ring-' + (dark ? 'd' : 'l'), h.getImageData(0, 0, size, size), {pixelRatio: R});
     }
+    // [x, y] offsets from a number: feature properties that are arrays come back as JSON strings when the map tests
+    // clicks and placement (MapLibre's tile encoding), which warned "expected array<number, 2>, found string"
+    const xOff = (prop, y) => ['interpolate', ['linear'], ['coalesce', ['get', prop], 0], -1e4, ['literal', [-1e4, y]], 1e4, ['literal', [1e4, y]]];
     map.addSource('ww-leaders', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-leaders-line', type: 'line', source: 'ww-leaders', filter: ['==', ['geometry-type'], 'LineString'],
       paint: {'line-width': 1.2, 'line-dasharray': [2, 2], 'line-opacity': 0.7}});
     map.addLayer({id: 'ww-leaders', type: 'symbol', source: 'ww-leaders', filter: ['==', ['geometry-type'], 'Point'],
-      layout: {'icon-image': 'ww-leader-l', 'icon-size': ['get', 's'], 'icon-offset': ['array', 'number', 2, ['get', 'io']], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-        'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': ['array', 'number', 2, ['get', 'to']], 'text-anchor': 'top', 'text-optional': true,
+      layout: {'icon-image': 'ww-leader-l', 'icon-size': ['get', 's'], 'icon-offset': xOff('iox', 0), 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': xOff('tox', 1.1), 'text-anchor': 'top', 'text-optional': true,
         'symbol-sort-key': ['-', 0, ['get', 'n']]}, paint: {'text-halo-width': 1.3}});
     map.addLayer({id: 'ww-leaders-sel', type: 'symbol', source: 'ww-leaders', filter: ['==', ['get', 'sel'], true],
-      layout: {'icon-image': 'ww-leader-ring-l', 'icon-size': ['get', 'rs'], 'icon-offset': ['array', 'number', 2, ['get', 'ro']], 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
+      layout: {'icon-image': 'ww-leader-ring-l', 'icon-size': ['get', 'rs'], 'icon-offset': xOff('rox', 0), 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
     this.map = map; this.load();
     every(600, () => this.load());
   },
@@ -96,8 +99,8 @@ export const leadersToday = {
         const at = [t.place.lon, t.place.lat], dx = (i - (ts.length - 1) / 2) * 24;
         const s = Math.min(1, 0.45 + Math.sqrt(t.outlets) * 0.08);          // dot size by outlets naming them
         const id = 'today:' + t.qid, sel = id === this.sel;
-        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id, name: t.name, n: t.outlets, s, io: [dx / s, 0],
-          to: [dx / 11, 1.1], sel, rs: s + 0.25, ro: [dx / (s + 0.25), 0]}});
+        feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {id, name: t.name, n: t.outlets, s, iox: dx / s,
+          tox: dx / 11, sel, rs: s + 0.25, rox: dx / (s + 0.25)}});
         if (t.abroad) feats.push({type: 'Feature', geometry: {type: 'LineString', coordinates: [t.home, at]}, properties: {id}});
       });
     }

@@ -147,7 +147,7 @@ export const warships = {
     map.addSource('ww-warships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addSource('ww-usni', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-usni-ring', type: 'circle', source: 'ww-usni', paint: {'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['get', 'r0'], 20, ['*', ['get', 'r0'], 1048576]], 'circle-opacity': 0.06, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.6}});
-    map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': 'ww-warship', 'icon-size': ['case', ['get', 'carrier'], 0.75, 0.6], 'icon-allow-overlap': true,
+    map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': 'ww-warship', 'icon-size': ['case', ['==', ['get', 'carrier'], true], 0.75, 0.6], 'icon-allow-overlap': true,
       'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.8], 'text-anchor': 'top', 'text-optional': true}});
     map.addLayer({id: 'ww-warships', type: 'symbol', source: 'ww-warships', layout: {'icon-image': 'ww-warship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.3, 5, 0.45, 9, 0.7], 'icon-allow-overlap': true, 'icon-ignore-placement': true,

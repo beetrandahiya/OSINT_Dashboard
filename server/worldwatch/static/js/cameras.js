@@ -28,8 +28,8 @@ export default {
     // Windy's public webcams worldwide (free key): asked for the box on screen from zoom 5, up to 50 at a time
     map.addSource('ww-cams-windy', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-cams-windy', type: 'circle', source: 'ww-cams-windy', minzoom: 3,
-      layout: {'circle-sort-key': ['case', ['get', 'live'], 1, 0]},
-      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, ['case', ['get', 'live'], 5, 3.5], 10, ['case', ['get', 'live'], 8, 6], 14, 9], 'circle-stroke-width': ['case', ['get', 'live'], 2, 1.2]}});
+      layout: {'circle-sort-key': ['case', ['==', ['get', 'live'], true], 1, 0]},
+      paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, ['case', ['==', ['get', 'live'], true], 5, 3.5], 10, ['case', ['==', ['get', 'live'], true], 8, 6], 14, 9], 'circle-stroke-width': ['case', ['==', ['get', 'live'], true], 2, 1.2]}});
     let busy = false, again = false;
     const pull = async () => {
       if (map.getZoom() < 3 || map.getLayoutProperty('ww-cams', 'visibility') === 'none') return;
@@ -55,7 +55,7 @@ export default {
   paint(map, dark) {
     map.setPaintProperty('ww-cams', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-cams', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
-    map.setPaintProperty('ww-cams-windy', 'circle-color', ['case', ['get', 'live'], dark ? '#30d158' : '#248a3d', dark ? '#5ac8fa' : '#0a84ff']);
+    map.setPaintProperty('ww-cams-windy', 'circle-color', ['case', ['==', ['get', 'live'], true], dark ? '#30d158' : '#248a3d', dark ? '#5ac8fa' : '#0a84ff']);
     map.setPaintProperty('ww-cams-windy', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData(feed, d) { info = d; cams = d.payload.cameras || []; byId = new Map([...cams, ...windy].map(c => [c.id, c])); },

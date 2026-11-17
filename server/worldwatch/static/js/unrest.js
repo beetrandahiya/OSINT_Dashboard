@@ -22,15 +22,15 @@ function make(single) {
       map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
       const size = ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 7, 3, 9, 6, 13, 12, 20];
       map.addLayer({id: SRC + '-dot', type: 'circle', source: SRC, layout: {'circle-sort-key': ['get', 'n']},
-        paint: {'circle-radius': size, 'circle-stroke-width': ['case', ['get', 'ring'], 2.5, 1.2], 'circle-opacity': single ? 0.55 : 0.92, 'circle-stroke-opacity': single ? 0.7 : 1}});
+        paint: {'circle-radius': size, 'circle-stroke-width': ['case', ['==', ['get', 'ring'], true], 2.5, 1.2], 'circle-opacity': single ? 0.55 : 0.92, 'circle-stroke-opacity': single ? 0.7 : 1}});
       map.addLayer({id: SRC + '-label', type: 'symbol', source: SRC,
         layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}});
     },
     paint(map, dark) {
       const c = this.color[+dark], bg = dark ? '#1c1c1e' : '#ffffff';
-      map.setPaintProperty(SRC + '-dot', 'circle-color', ['case', ['get', 'ring'], bg, c]);
-      map.setPaintProperty(SRC + '-dot', 'circle-stroke-color', ['case', ['get', 'ring'], c, bg]);
-      map.setPaintProperty(SRC + '-label', 'text-color', ['case', ['get', 'ring'], c, '#ffffff']);
+      map.setPaintProperty(SRC + '-dot', 'circle-color', ['case', ['==', ['get', 'ring'], true], bg, c]);
+      map.setPaintProperty(SRC + '-dot', 'circle-stroke-color', ['case', ['==', ['get', 'ring'], true], c, bg]);
+      map.setPaintProperty(SRC + '-label', 'text-color', ['case', ['==', ['get', 'ring'], true], c, '#ffffff']);
     },
     onData(feed, d) { groups = d.payload.groups || []; info = d; },
     render(map) {

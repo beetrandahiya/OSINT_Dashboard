@@ -151,9 +151,9 @@ export default {
     map.addLayer({id: 'ww-bgp-leak', type: 'line', source: 'ww-bgp', filter: ['==', ['get', 'kind'], 'leak'],
       paint: {'line-width': 0.8, 'line-opacity': 0.2, 'line-dasharray': [2, 3]}});
     map.addLayer({id: 'ww-bgp-line', type: 'line', source: 'ww-bgp', filter: ['==', ['get', 'kind'], 'hijack'],
-      paint: {'line-width': ['case', ['get', 'strong'], 1.2, 0.8], 'line-opacity': ['case', ['get', 'strong'], 0.35, 0.15]}});
+      paint: {'line-width': ['case', ['==', ['get', 'strong'], true], 1.2, 0.8], 'line-opacity': ['case', ['==', ['get', 'strong'], true], 0.35, 0.15]}});
     map.addLayer({id: 'ww-bgp-dot', type: 'circle', source: 'ww-bgp', filter: ['==', ['geometry-type'], 'Point'],
-      paint: {'circle-radius': ['case', ['get', 'strong'], 6, 3.5], 'circle-stroke-width': 1.2, 'circle-opacity': ['case', ['get', 'strong'], 1, 0.6]}});
+      paint: {'circle-radius': ['case', ['==', ['get', 'strong'], true], 6, 3.5], 'circle-stroke-width': 1.2, 'circle-opacity': ['case', ['==', ['get', 'strong'], true], 1, 0.6]}});
     cv = document.createElement('canvas');
     cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1';
     map.getContainer().appendChild(cv);
@@ -162,9 +162,9 @@ export default {
   visible(v) { on = v; if (!raf) raf = requestAnimationFrame(animate); },
   paint(map, dark) {
     const c = this.color[+dark], soft = dark ? '#aeaeb2' : '#8e8e93';
-    map.setPaintProperty('ww-bgp-line', 'line-color', ['case', ['get', 'strong'], c, soft]);
+    map.setPaintProperty('ww-bgp-line', 'line-color', ['case', ['==', ['get', 'strong'], true], c, soft]);
     map.setPaintProperty('ww-bgp-leak', 'line-color', dark ? '#64d2ff' : '#0071a4');
-    map.setPaintProperty('ww-bgp-dot', 'circle-color', ['case', ['get', 'strong'], c, soft]);
+    map.setPaintProperty('ww-bgp-dot', 'circle-color', ['case', ['==', ['get', 'strong'], true], c, soft]);
     map.setPaintProperty('ww-bgp-dot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData(feed, x) {

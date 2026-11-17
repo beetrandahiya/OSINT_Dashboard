@@ -23,7 +23,7 @@ export default {
     // size follows IODA's own score (log scale), faded once the outage has ended; Cloudflare notes are small with a cause letter
     map.addLayer({id: 'ww-outages', type: 'circle', source: SRC, layout: {'circle-sort-key': ['coalesce', ['get', 'mag'], 0]},
       paint: {'circle-radius': ['case', ['has', 'k'], 9, ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 9, 3, 11, 6, 15, 9, 20]],
-        'circle-opacity': ['case', ['get', 'over'], 0.45, 0.95], 'circle-stroke-width': ['case', ['get', 'over'], 0.8, 1.6]}});
+        'circle-opacity': ['case', ['==', ['get', 'over'], true], 0.45, 0.95], 'circle-stroke-width': ['case', ['==', ['get', 'over'], true], 0.8, 1.6]}});
     map.addLayer({id: 'ww-outages-label', type: 'symbol', source: SRC,
       layout: {'text-field': ['coalesce', ['get', 'k'], ['get', 'cc'], '!'], 'text-font': ['Noto Sans Bold'], 'text-size': ['case', ['has', 'k'], 12, 10.5], 'text-allow-overlap': true, 'text-ignore-placement': true}});
   },
