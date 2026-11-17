@@ -93,8 +93,8 @@ class Collector:
         self._tasks.append(asyncio.create_task(self._encode_saved()))
 
     async def _encode_saved(self):
-        for st in list(self.states.values()):     # the payloads restored from disk, one after the other in a thread
-            await self.encode(st)
+        for st in list(self.states.values()):     # versions of the payloads restored from disk, one after the other in a thread
+            await self._encode(st)
 
     async def stop(self):
         for t in self._tasks:
@@ -141,28 +141,39 @@ class Collector:
         st.last_ms, st.last_bytes = ms, f.wire_bytes
         st.total_bytes += f.wire_bytes
         await asyncio.to_thread(db.log_fetch, feed.name, started, ms, True, f.wire_bytes, res.items, res.data_time, None)
-        enc = await self.encode(st)
+        enc, raw = await self._encode(st)
         # the news windows and unrest are rebuilt from data/gdelt at start, so their multi-MB payloads (new at every
         # fetch) are written at most every 15 minutes; everything else when its bytes changed (db.save_latest)
-        if enc is not None and (feed.name not in self.SAVE_EVERY or time.time() - st.saved_at > self.SAVE_EVERY[feed.name]):
+        if raw is not None and (feed.name not in self.SAVE_EVERY or time.time() - st.saved_at > self.SAVE_EVERY[feed.name]):
             st.saved_at = time.time()
-            await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, enc.inner[len(b'"payload":'):], enc.version)
+            await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, raw, enc.version)
         return feed.interval * random.uniform(0.97, 1.03)
 
-    SAVE_EVERY = {"news": 900, "news_translated": 900, "unrest": 900}
+    # measured over 15 min: news/unrest change at every fetch and are rebuilt from data/gdelt anyway; ships and the
+    # aircraft feeds change at every fetch and are stale within minutes. A restored payload keeps its own fetch time,
+    # so a payload saved a while before a restart is shown with its true age.
+    SAVE_EVERY = {"news": 900, "news_translated": 900, "unrest": 900, "ships": 600, "aircraft_military": 600, "aircraft_near": 600, "quakes": 300}
 
-    async def encode(self, st: FeedState) -> "wire.Encoded | None":
-        """Serialise and gzip the feed's current payload once, in a worker thread (a 2.5 MB payload takes ~80 ms)."""
+    async def _encode(self, st: FeedState):
+        """The feed's current payload serialised once, in a worker thread (a 2.5 MB payload takes ~20 ms): its version,
+        and its bytes for the database when they were made now."""
         enc = st.encoded()
         if enc is not None or st.payload is None:
-            return enc
+            return enc, None
         payload = st.payload
         try:
-            enc = await asyncio.to_thread(wire.encode_payload, payload)
+            enc, raw = await asyncio.to_thread(wire.encode_payload, payload)
         except (TypeError, ValueError):
-            return None              # not plain JSON (NaN, ...): the data route answers the slow way
+            return None, None        # not plain JSON (NaN, ...): the data route answers the slow way
         if st.payload is payload:
             st.enc, st.enc_of = enc, payload
+        return enc, raw
+
+    async def encode(self, st: FeedState) -> "wire.Encoded | None":
+        """The kept answer of a feed, gzipped (in a thread) the first time someone asks for it."""
+        enc = (await self._encode(st))[0]
+        if enc is not None and not enc.ready():
+            await asyncio.to_thread(enc.prepare)
         return enc
 
     # Trails are for two things: the selected aircraft's path when OpenSky has none (`/api/track`), and orbit / tanker

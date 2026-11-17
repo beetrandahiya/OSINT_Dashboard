@@ -81,7 +81,7 @@ async def _view(name, st):
     if hit and hit[0] is st.payload:
         return hit[1]
     payload = st.payload
-    enc = await asyncio.to_thread(lambda: wire.encode_payload(VIEWS[name][1](payload)))
+    enc = await asyncio.to_thread(lambda: wire.encode_payload(VIEWS[name][1](payload))[0].prepare())
     _view_enc[name] = (payload, enc)
     return enc
 
@@ -132,7 +132,7 @@ async def _ships_merged(st):
         for s in world:
             if s["mmsi"] not in merged or s["time"] > merged[s["mmsi"]]["time"]:
                 merged[s["mmsi"]] = s
-        return wire.encode_payload({"ships": list(merged.values()), "world": world_state})
+        return wire.encode_payload({"ships": list(merged.values()), "world": world_state})[0].prepare()
     payload = st.payload
     # the stream's dict is read here, in the event loop that writes it, not in the thread
     enc = await asyncio.to_thread(build, payload, ais_stream.ships(), ais_stream.status())

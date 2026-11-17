@@ -27,26 +27,41 @@ def dumps(obj) -> bytes:
 
 
 class Encoded:
-    """A JSON object's members, serialised and gzipped once; `respond` adds per-request members at the end."""
-    __slots__ = ("version", "inner", "head", "co", "size")
+    """A JSON object's members, serialised and gzipped once; `body` adds per-request members at the end.
 
-    def __init__(self, inner: bytes, version: str):
-        self.inner, self.version = inner, version    # the members without the braces
-        self.size = len(inner) + 2
-        if self.size >= MIN_GZIP:
-            self.co = zlib.compressobj(LEVEL, zlib.DEFLATED, 16 + zlib.MAX_WBITS)
-            self.head = self.co.compress(b"{" + self.inner)
+    Built lazily (`prepare`, in a thread): many feeds are only ever read by the server itself, and a kept gzip stream
+    costs its compressor's state (~256 KB) plus the compressed bytes. Once the gzip part exists the plain bytes are
+    dropped; the rare client that does not take gzip gets them made again from `make`."""
+    __slots__ = ("version", "make", "inner", "head", "co", "empty")
+
+    def __init__(self, version: str, make, inner: bytes | None = None):
+        self.version, self.make, self.inner = version, make, inner      # inner: the members without the braces
+        self.head, self.co, self.empty = b"", None, None
+
+    def ready(self) -> bool:
+        return self.empty is not None
+
+    def prepare(self) -> "Encoded":
+        if self.empty is not None:
+            return self
+        inner = self.inner if self.inner is not None else self.make()
+        if len(inner) + 2 >= MIN_GZIP:
+            co = zlib.compressobj(LEVEL, zlib.DEFLATED, 16 + zlib.MAX_WBITS)
+            self.head, self.co, self.inner = co.compress(b"{" + inner), co, None
         else:
-            self.co, self.head = None, b""
+            self.inner = inner
+        self.empty = not inner
+        return self
 
     def body(self, extra: dict | None, gzip: bool) -> bytes:
+        self.prepare()
         tail = dumps(extra)[1:] if extra else b"}"
-        if extra and self.inner:
+        if extra and not self.empty:
             tail = b"," + tail
         if gzip and self.co is not None:
             c = self.co.copy()                       # the kept stream continued; the copy leaves the original untouched
             return self.head + c.compress(tail) + c.flush()
-        return b"{" + self.inner + tail
+        return b"{" + (self.inner if self.inner is not None else self.make()) + tail
 
 
 def version_of(raw: bytes) -> str:
@@ -55,13 +70,14 @@ def version_of(raw: bytes) -> str:
 
 def encode(obj: dict) -> Encoded:
     raw = dumps(obj)
-    return Encoded(raw[1:-1], version_of(raw))
+    return Encoded(version_of(raw), lambda: dumps(obj)[1:-1], raw[1:-1]).prepare()
 
 
-def encode_payload(payload, raw: bytes | None = None) -> Encoded:
-    """A feed answer's kept part, {"payload": ...}; its version is that of the payload's bytes (what the database keeps)."""
+def encode_payload(payload, raw: bytes | None = None) -> tuple[Encoded, bytes]:
+    """A feed answer's kept part, {"payload": ...}, not yet compressed, and the payload's bytes (what the database
+    keeps). The version is that of the payload's bytes, so the same data fetched again keeps its version."""
     raw = dumps(payload) if raw is None else raw
-    return Encoded(b'"payload":' + raw, version_of(raw))
+    return Encoded(version_of(raw), lambda: b'"payload":' + dumps(payload)), raw
 
 
 def respond(request, enc: Encoded, extra: dict | None = None, etag: str | None = None, headers: dict | None = None) -> Response:
@@ -71,6 +87,7 @@ def respond(request, enc: Encoded, extra: dict | None = None, etag: str | None =
         inm = request.headers.get("if-none-match", "")
         if etag in [x.strip() for x in inm.split(",")]:
             return Response(status_code=304, headers=h)
+    enc.prepare()
     gz = enc.co is not None and "gzip" in request.headers.get("accept-encoding", "")
     if gz:
         h["Content-Encoding"] = "gzip"
