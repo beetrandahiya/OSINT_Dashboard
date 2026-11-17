@@ -240,9 +240,11 @@ let listHtml = null;
 function ring() {
   const l = picked && byId[picked.layer], at = l?.locate(picked.id);
   const r = at ? l.ring(picked.id) : 0;   // a layer that draws its own selection returns 0 (it can still be flown to)
-  map.getSource('ww-pick')?.setData({type: 'FeatureCollection', features: at && r ? [{type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {r}}] : []});
+  const key = at && r ? at[0] + ',' + at[1] + ',' + r : '';
+  if (key !== ringKey) { ringKey = key; map.getSource('ww-pick')?.setData({type: 'FeatureCollection', features: key ? [{type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {r}}] : []}); }   // asked every 200 ms for moving items: sent only when it moved
   return at;
 }
+let ringKey = null;
 
 function pick(p, fly = false) {
   if (p && !byId[p.layer]) return;   // a link to a layer that is not loaded (e.g. the disaster imagery, switched off)
@@ -252,7 +254,7 @@ function pick(p, fly = false) {
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
   const at = ring();
-  if (at && fly) map.easeTo({center: at, zoom: Math.max(map.getZoom(), 3.2), duration: calm.matches ? 0 : 900});
+  if (at && fly) map.easeTo({center: at, zoom: Math.max(map.getZoom(), 3.2), offset: chase ? [0, 0] : freeOffset(), duration: calm.matches ? 0 : 900});   // into the part no panel covers
   if (p && !fly) document.querySelector(`#list li[data-layer="${p.layer}"][data-id="${CSS.escape(String(p.id))}"]`)?.scrollIntoView({block: 'nearest', behavior: calm.matches ? 'auto' : 'smooth'});
 }
 
@@ -354,16 +356,27 @@ addEventListener('keydown', e => {
   document.activeElement?.blur?.(); pick(null);
 });
 
-function shape(globe, save = true) {
-  setGlobe(map, globe);
+// The projection the user chose (Globe / Map buttons, remembered) and the one drawn are kept apart: while the chase
+// camera follows something the map is drawn flat (see there). What is drawn is always worked out from the two in
+// project(), so no sequence of follows, stops and button presses can lose the choice. The buttons show the choice.
+let userGlobe = false;
+function project() {
+  const want = userGlobe && !chase;
+  $('#flat').setAttribute('aria-pressed', !userGlobe);
+  $('#globe').setAttribute('aria-pressed', userGlobe);
+  $('#globe').title = chase && userGlobe ? 'The globe comes back when you stop following' : '';
+  if (want === (map.getProjection?.()?.type === 'globe')) return;
+  setGlobe(map, want);
   setTimeout(() => { for (const l of LAYERS) l.shape?.(map); ring(); }, 60);
-  $('#flat').setAttribute('aria-pressed', !globe);
-  $('#globe').setAttribute('aria-pressed', globe);
-  if (save) try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
 }
+function shape(globe, save = true) {
+  userGlobe = globe;
+  if (save) try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
+  project();
+}
+$('#flat').onclick = () => shape(false);
+$('#globe').onclick = () => shape(true);
 document.addEventListener('ww-shape', e => shape(!!e.detail?.globe, false));   // a layer switching for a moment (satellites' "Look down"), not saved
-$('#flat').onclick = () => { if (chase) chase.wasGlobe = false; shape(false); };
-$('#globe').onclick = () => { if (chase) chase.wasGlobe = true; else shape(true); };
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });
 // ---- 3D: terrain and buildings, tilt and turn ----
 const on3 = l => !!on[l.id];
@@ -384,38 +397,61 @@ map.on('load', () => { try { if (localStorage.getItem('ww-3d')) three(true); } c
 // target, then the camera centre is the target itself, in the air for an aircraft (the map's centre point is lifted
 // to its altitude). The target's own position is already smooth (aircraft.js display()), so the camera never jerks.
 // The globe projection ignores a lifted centre below zoom ~12 (measured: a point 10 km up stayed 290 px above the
-// centre), so while following on the globe the map uses the flat projection, and goes back to the globe on Stop.
+// centre), so while following the map is drawn flat, and goes back to the globe on Stop if that is the user's choice
+// (project() above).
 // Looking around: drag to orbit and tilt, the bar's buttons turn 45°, point north, or go back behind it; wheel zooms.
 let chase = null;
 const ease = u => u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
 const shortest = (a, b) => ((b - a + 540) % 360) - 180;
-const globeOn = () => $('#globe').getAttribute('aria-pressed') === 'true';
-// the part of the map not covered by the panel on the left and the card on the right: the target is kept in its middle
+// the part of the map no panel covers: the target is kept in its middle. The panel on the left and the card on the
+// right take their side; every other panel over the map (legend, markets strip, the follow bar, zoom and compass) that
+// reaches into what is left is cut off from whichever edge leaves the most room. On a short window the legend sat in
+// the middle of the map, over the followed aircraft, and took its mouse wheel.
+const visibleEl = el => el && !el.hidden && el.getClientRects().length > 0;
 function freeArea() {
   const cv = map.getCanvas().getBoundingClientRect(), pad = {top: 0, bottom: 0, left: 0, right: 0};
   const side = $('#sidebar'), card = $('#detail');
-  if (side && !side.hidden) { const r = side.getBoundingClientRect(); if (r.height > 120) pad.left = Math.max(0, r.right - cv.left); }
-  if (card && !card.hidden) { const r = card.getBoundingClientRect(); if (r.height > 120) pad.right = Math.max(0, cv.right - r.left); }
+  if (visibleEl(side)) { const r = side.getBoundingClientRect(); if (r.height > 120) pad.left = Math.max(0, r.right - cv.left); }
+  if (visibleEl(card)) { const r = card.getBoundingClientRect(); if (r.height > 120) pad.right = Math.max(0, cv.right - r.left); }
   if (pad.left + pad.right > cv.width - 160) { pad.left = 0; pad.right = 0; }   // too little room: use the whole map
+  for (const el of document.querySelectorAll('#legend, #marketsbar, #chasebar, .maplibregl-ctrl-group')) {
+    if (!visibleEl(el) || el === side || el === card) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height || r.right <= cv.left + pad.left || r.left >= cv.right - pad.right || r.bottom <= cv.top + pad.top || r.top >= cv.bottom - pad.bottom) continue;
+    const cut = {left: r.right - cv.left, right: cv.right - r.left, top: r.bottom - cv.top, bottom: cv.bottom - r.top};
+    let best = null, area = -1;
+    for (const k of ['left', 'right', 'top', 'bottom']) {
+      const p = {...pad, [k]: Math.max(pad[k], cut[k])}, a = Math.max(0, cv.width - p.left - p.right) * Math.max(0, cv.height - p.top - p.bottom);
+      if (a > area) { area = a; best = p; }
+    }
+    if (best.left + best.right <= cv.width - 160 && best.top + best.bottom <= cv.height - 120) Object.assign(pad, best);
+  }
   return pad;
+}
+// how far a target must sit from the middle of the map's padded area to be in the middle of the free area (easeTo offset)
+function freeOffset() {
+  const f = freeArea(), p = map.getPadding();
+  return [((f.left - f.right) - (p.left - p.right)) / 2, ((f.top - f.bottom) - (p.top - p.bottom)) / 2];
 }
 function groundAgain(level, padding, then) {
   const go = () => {
     if (chase) return;
     const g = (is3D() && map.queryTerrainElevation?.(map.getCenter())) || 0;
-    map.easeTo({elevation: g, padding, ...(level ? {pitch: 0, bearing: 0} : {}), duration: calm.matches ? 0 : 700});
+    // listening first: with Reduce Motion the move is instant and its moveend fires inside easeTo
     map.once('moveend', () => { if (chase) return; map.setCenterClampedToGround(true); then?.(); });
+    map.easeTo({elevation: g, padding, ...(level ? {pitch: 0, bearing: 0} : {}), duration: calm.matches ? 0 : 700});
   };
   if (map.isMoving()) map.once('moveend', go); else go();
 }
 function chaseStop(level = true, after = null) {   // after: called once the camera is back on the ground
   if (!chase) return;
   cancelAnimationFrame(chase.raf);
-  const {padWas, wasGlobe} = chase; chase = null;
+  const {padWas} = chase; chase = null;
   $('#chasebar')?.remove();
   map.scrollZoom.enable();
   map.dragPan.enable();
-  groundAgain(level && !is3D(), padWas, () => { if (wasGlobe) shape(true, false); after?.(); });
+  project();   // the buttons' title; the globe itself comes back once the camera is on the ground again
+  groundAgain(level && !is3D(), padWas, () => { project(); after?.(); });
   renderDetail(true);
 }
 function chaseStart() {
@@ -424,15 +460,14 @@ function chaseStart() {
   const where = () => layer.locate3d?.(id) || (layer.locate(id) && [...layer.locate(id), 0]);
   if (!where()) return;
   chaseStop(false);
-  const wasGlobe = globeOn();
-  if (wasGlobe) shape(false, false);
   const padWas = map.getPadding();
   const ship = picked.layer === 'ships' || picked.layer === 'warships' || picked.layer === 'sanctioned';
   const c0 = map.getCenter();
-  chase = {layer, id, raf: 0, t0: performance.now(), last: performance.now(), wasGlobe,
+  chase = {layer, id, raf: 0, t0: performance.now(), last: performance.now(),
     from: {lon: c0.lng, lat: c0.lat, alt: map.getCenterElevation() || 0, zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()},
     zoom: Math.max(map.getZoom(), ship ? 12 : 10.5), pitch: 62, pitchWant: 62, bearing: layer.heading?.(id) ?? map.getBearing(),
-    mode: 'behind', free: 0, intro: calm.matches ? 0 : 1600, padWas, pad: {...padWas}, padAt: 0};
+    mode: 'behind', free: 0, intro: calm.matches ? 0 : 1600, padWas, pad: {...padWas}, padAt: 0, landed: false};
+  project();   // drawn flat while following
   map.setCenterClampedToGround(false);
   map.scrollZoom.enable({around: 'center'});
   map.dragPan.disable();   // a drag orbits around the target instead (below)
@@ -459,9 +494,12 @@ function chaseStart() {
     if (t - chase.padAt > 400) { chase.padAt = t; chase.padWant = freeArea(); }
     for (const k of ['left', 'right', 'top', 'bottom']) chase.pad[k] += (chase.padWant[k] - chase.pad[k]) * (1 - Math.exp(-dt / 0.3));
     let dl = p[0] - f.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
-    map.jumpTo(u < 1 ? {center: [f.lon + dl * e, f.lat + (p[1] - f.lat) * e], elevation: f.alt + (p[2] - f.alt) * e, zoom: f.zoom + (chase.zoom - f.zoom) * e,
+    const to = u < 1 ? {center: [f.lon + dl * e, f.lat + (p[1] - f.lat) * e], elevation: f.alt + (p[2] - f.alt) * e, zoom: f.zoom + (chase.zoom - f.zoom) * e,
         pitch: f.pitch + (chase.pitch - f.pitch) * e, bearing: f.bearing + shortest(f.bearing, chase.bearing) * e, padding: {...chase.pad}}
-      : {center: [p[0], p[1]], elevation: p[2], bearing: chase.bearing, pitch: chase.pitch, padding: {...chase.pad}});
+      : {center: [p[0], p[1]], elevation: p[2], bearing: chase.bearing, pitch: chase.pitch, padding: {...chase.pad}};
+    // the glide in ends exactly at its zoom even when the last frames of it were dropped (afterwards the wheel owns the zoom)
+    if (u >= 1 && !chase.landed) { chase.landed = true; if (chase.intro) to.zoom = chase.zoom; }
+    map.jumpTo(to);
     chase.raf = requestAnimationFrame(step);
   };
   chase.raf = requestAnimationFrame(step);

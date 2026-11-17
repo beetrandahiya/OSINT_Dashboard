@@ -1254,6 +1254,11 @@ def _ship_type(code) -> str | None:
     return {4: "High-speed craft", 6: "Passenger ship", 7: "Cargo ship", 8: "Tanker"}.get(code // 10)
 
 
+def _ais_speed(v):
+    """AIS speed over ground in knots; 102.3 is the standard's "not available" (102.2 means 102.2 kn or more)."""
+    return v if v is not None and v < 102.25 else None
+
+
 async def ships(feed: Feed, f: Fetcher) -> Result:
     """Ships in and around Finnish waters and the northern Baltic, from Finland's open maritime data service
     (Digitraffic). It is the one free ship feed that needs no key; world coverage needs an aisstream.io key."""
@@ -1270,8 +1275,8 @@ async def ships(feed: Feed, f: Fetcher) -> Result:
             continue
         n = names.get(p["mmsi"], {})
         out.append({"mmsi": p["mmsi"], "lon": x["geometry"]["coordinates"][0], "lat": x["geometry"]["coordinates"][1],
-                    "speed_kn": p.get("sog"), "course": p.get("cog") if (p.get("cog") or 0) < 360 else None,
-                    "heading": p.get("heading") if (p.get("heading") or 511) < 360 else None, "status": p.get("navStat"), "time": at,
+                    "speed_kn": _ais_speed(p.get("sog")), "course": p.get("cog") if p.get("cog") is not None and p["cog"] < 360 else None,
+                    "heading": p.get("heading") if p.get("heading") is not None and p["heading"] < 360 else None, "status": p.get("navStat"), "time": at,
                     "name": (n.get("name") or "").strip() or None, "kind": _ship_type(n.get("shipType")), "callsign": n.get("callSign"),
                     "destination": (n.get("destination") or "").strip() or None, "imo": n.get("imo") or None, "draught_m": (n.get("draught") or 0) / 10 or None})
     newest = max((s["time"] for s in out), default=None)

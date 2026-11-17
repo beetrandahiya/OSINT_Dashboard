@@ -122,7 +122,8 @@ class Stream:
                 return                            # 91/181 mean "not available" in AIS
             heading = body.get("TrueHeading")
             course = body.get("Cog")
-            self.pos[mmsi] = [round(lon, 5), round(lat, 5), body.get("Sog"), course if course is not None and course < 360 else None,
+            sog = body.get("Sog")                 # 102.3 kn means "not available" in AIS
+            self.pos[mmsi] = [round(lon, 5), round(lat, 5), sog if sog is not None and sog < 102.25 else None, course if course is not None and course < 360 else None,
                               heading if heading is not None and heading < 360 else None, body.get("NavigationalStatus"), time.time()]
             self._trail(mmsi, lon, lat)
             if mmsi not in self.static and meta.get("ShipName"):

@@ -7,6 +7,9 @@ const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 1
 const RING_KM = {region: 400, port: 10};   // how far "in the Arabian Sea" or "in port at Sasebo" can mean, drawn to scale
 const STATUS = {0: 'Under way', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted in manoeuvring', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Fishing', 8: 'Under sail'};
 let list = [], info = null;
+// a ship at anchor, moored, aground, or making under half a knot: the card offers no chase camera for it
+export const still = s => s.status === 1 || s.status === 5 || s.status === 6 || (knots(s.speed_kn) != null && s.speed_kn < 0.5);
+const knots = v => v == null || v >= 102.25 ? null : v;   // AIS 102.3 = "not available" (payloads stored before the server filtered it)
 
 function icon(fill, edge) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -87,7 +90,7 @@ const shipsLayer = {
   count: () => list.length,
   rows: () => [],
   locate(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat]; },
-  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s ? (s.heading ?? s.course ?? null) : undefined; },
+  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && !still(s) ? (s.heading ?? s.course ?? null) : undefined; },   // nothing to follow on a ship at rest
   ring: () => 13,
   owns: id => String(id).startsWith('ship:') && !list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,
@@ -100,7 +103,7 @@ const shipsLayer = {
       <p class="eyebrow">${esc(s.kind || 'Ship')}</p><h2>${esc(s.name || 'MMSI ' + s.mmsi)}${shipFlag(s.mmsi)?.cc ? ' ' + flagImg(shipFlag(s.mmsi).cc, shipFlag(s.mmsi).name) : ''}</h2>
       <p class="where">${s.destination ? 'Destination as entered by the crew: ' + esc(s.destination) : 'No destination entered'}</p>
       <dl>${(() => { const fl = shipFlag(s.mmsi); return fl ? `<dt>Flag</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its MMSI)</span></dd>` : ''; })()}<dt>Status</dt><dd>${esc(STATUS[s.status] || 'Not stated')}</dd>
-      <dt>Speed</dt><dd>${s.speed_kn == null ? 'not reported' : s.speed_kn.toFixed(1) + ' kn <span class="soft">(' + Math.round(s.speed_kn * 1.852) + ' km/h)</span>'}</dd>
+      <dt>Speed</dt><dd>${knots(s.speed_kn) == null ? 'not reported' : s.speed_kn.toFixed(1) + ' kn <span class="soft">(' + Math.round(s.speed_kn * 1.852) + ' km/h)</span>'}</dd>
       <dt>Course</dt><dd>${s.course == null ? 'not reported' : Math.round(s.course) + '°'}</dd>
       ${s.length_m ? `<dt>Length</dt><dd>${s.length_m} m</dd>` : ''}
       ${s.draught_m ? `<dt>Draught</dt><dd>${(+s.draught_m).toFixed(1)} m</dd>` : ''}
@@ -169,7 +172,7 @@ export const warships = {
     if (String(id).startsWith('usni:')) { const f = fleetFeatures().find(x => x.properties.id === id); return f?.geometry.coordinates; }
     const s = list.find(x => 'ship:' + x.mmsi === id); return s && [s.lon, s.lat];
   },
-  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s ? (s.heading ?? s.course ?? null) : undefined; },
+  heading(id) { const s = list.find(x => 'ship:' + x.mmsi === id); return s && !still(s) ? (s.heading ?? s.course ?? null) : undefined; },   // nothing to follow on a ship at rest
   ring: () => 15,
   owns: id => String(id).startsWith('usni:') || !!list.find(x => 'ship:' + x.mmsi === id && x.kind === 'Military vessel'),
   fill: fillShip,

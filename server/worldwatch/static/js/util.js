@@ -1,13 +1,27 @@
 // Small helpers: fetching from our own server, and telling time honestly.
 
 let skew = 0;   // server clock minus this browser's clock, so ages are right even if this device's clock is off
+// The server stamps `now` just before it answers; taking the middle of the round trip as that moment is only right for
+// quick answers. A slow one (the live aircraft route waits for adsb.fi) put the estimate off by seconds and made every
+// moving aircraft lurch, sometimes backwards. So only answers quicker than the best so far count (the best ages by
+// 1 ms a second, so the estimate can follow a clock that is adjusted), and the median of the last five such is used.
+let bestRtt = Infinity, bestAt = 0;
+const good = [];
+function clockSample(t0, t1, server) {
+  const rtt = t1 - t0, sinceBest = (t1 - bestAt) / 1000;
+  if (rtt > 1000 || rtt > bestRtt + sinceBest + 15) return;
+  if (rtt <= bestRtt + sinceBest) { bestRtt = rtt; bestAt = t1; }
+  good.push(server - (t0 + t1) / 2000); if (good.length > 5) good.shift();
+  skew = [...good].sort((a, b) => a - b)[good.length >> 1];
+}
 
 export async function api(path) {
   const t0 = Date.now();
   const r = await fetch(path, {cache: 'no-store'});
+  const t1 = Date.now();      // headers in: the server's `now` was stamped before this (reading the body can take long)
   if (!r.ok) throw new Error(path + ' answered ' + r.status);
   const d = await r.json();
-  if (typeof d.now === 'number') skew = d.now - (t0 + Date.now()) / 2000;
+  if (typeof d.now === 'number') clockSample(t0, t1, d.now);
   return d;
 }
 
