@@ -75,10 +75,11 @@ function render() {
   $('#clock').textContent = day(n) + ' ' + clock(n) + ' UTC';
   $('#down').style.display = Date.now() - lastOk > 8000 ? 'block' : 'none';
   const f = S.feeds, count = k => f.filter(x => x.state === k).length, up = n - S.started;
-  const bytes = f.reduce((a, x) => a + x.total_bytes, 0);
+  const unset = f.filter(x => x.state === 'waiting' && /^not set up/.test(x.note || '')).length;   // optional keys: never "starting"
+  const bytes = f.reduce((a, x) => a + (x.total_bytes || 0), 0);
   $('#sum').innerHTML = [
     [count('ok') + ' of ' + f.length, 'feeds ok'],
-    [count('late') + ' late, ' + count('failing') + ' failing', count('waiting') ? count('waiting') + ' still waiting' : 'right now'],
+    [count('late') + ' late, ' + count('failing') + ' failing', [unset ? unset + ' not set up (optional key)' : '', count('waiting') - unset ? count('waiting') - unset + ' still waiting' : ''].filter(Boolean).join(', ') || 'right now'],
     [up < 5400 ? Math.round(up / 60) + ' min' : (up / 3600).toFixed(1) + ' h', 'running since ' + clock(S.started)],
     [size(bytes), 'downloaded this run' + (up > 900 ? ', about ' + size(bytes / up * 86400) + ' per day at this rate' : '')],
     [S.process.peak_memory_mb + ' MB', 'peak memory of the server'],
@@ -88,10 +89,10 @@ function render() {
   $('#rows').innerHTML = f.map(x => {
     const fetched = x.fetched ? `${stamp(x.fetched, n)}<small>${ago(x.fetched, n)}${x.from_disk ? ', saved by an earlier run' : ''}</small>` : '<small>not yet</small>';
     const dt = x.data_label ? `<small>${esc(x.data_label)}</small>` : x.data_time ? `${stamp(x.data_time, n)}<small>${ago(x.data_time, n)}</small>` : (x.fetched ? '<small>source gives none</small>' : '');
-    return `<tr><td><span class="name">${esc(x.layer)}</span><span class="sub"><a href="${esc(x.home)}" target="_blank" rel="noopener">${esc(x.source)}</a> · ${esc(x.limit_note)}</span>${x.error ? `<span class="err">${esc(x.error)} (tried ${clock(x.tried)})</span>` : x.note ? `<span class="sub">${esc(x.note)}</span>` : ''}</td>
+    return `<tr><td><span class="name">${esc(x.layer)}</span><span class="sub"><a href="${esc(x.home)}" target="_blank" rel="noopener">${esc(x.source)}</a> · ${esc(x.limit_note)}</span>${x.error ? `<span class="err">${esc(x.error)}${x.tried ? ` (tried ${clock(x.tried)})` : ''}</span>` : x.note ? `<span class="sub">${esc(x.note)}</span>` : ''}</td>
       <td><span class="pill ${x.state}">${x.state}</span></td><td>${fetched}</td><td>${dt}</td>
       <td class="r">${x.items ?? ''}</td><td class="r">${size(x.last_bytes)}</td><td class="r">${x.last_ms == null ? '' : x.last_ms + ' ms'}</td>
-      <td class="r">${every(x.interval)}</td><td class="r">${x.next_at ? ago(x.next_at, n).replace(' ago', ' overdue') : ''}</td><td class="r">${x.ok_count} / ${x.fail_count}</td></tr>`; }).join('');
+      <td class="r">${x.interval ? every(x.interval) : 'on demand'}</td><td class="r">${x.next_at ? ago(x.next_at, n).replace(' ago', ' overdue') : ''}</td><td class="r">${x.ok_count == null ? '' : `${x.ok_count} / ${x.fail_count}`}</td></tr>`; }).join('');
 }
 async function poll() {
   try { const t0 = Date.now(), r = await fetch('/api/status', {cache: 'no-store'}); S = await r.json();

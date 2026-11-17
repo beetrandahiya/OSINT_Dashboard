@@ -310,14 +310,14 @@ function groundAgain(level, padding, then) {
   };
   if (map.isMoving()) map.once('moveend', go); else go();
 }
-function chaseStop(level = true) {
+function chaseStop(level = true, after = null) {   // after: called once the camera is back on the ground
   if (!chase) return;
   cancelAnimationFrame(chase.raf);
   const {padWas, wasGlobe} = chase; chase = null;
   $('#chasebar')?.remove();
   map.scrollZoom.enable();
   map.dragPan.enable();
-  groundAgain(level && !is3D(), padWas, wasGlobe ? () => shape(true, false) : null);
+  groundAgain(level && !is3D(), padWas, () => { if (wasGlobe) shape(true, false); after?.(); });
   detailKey = ''; renderDetail();
 }
 function chaseStart() {
@@ -403,12 +403,14 @@ function renderFeeds() {
   if (down) $('#banner').textContent = lastAnswer ? `The World Watch server stopped answering ${ago(lastAnswer / 1000, Date.now() / 1000)}. Everything on screen is from before that.` : 'The World Watch server is not answering.';
   if (!status) return;
   const f = status.feeds, bad = f.filter(x => x.state === 'failing'), late = f.filter(x => x.state === 'late'), wait = f.filter(x => x.state === 'waiting');
+  const unset = wait.filter(x => /^not set up/.test(x.note || '')).length;   // optional keys the owner has not added: they will never "start"
   const ok = f.length - bad.length - late.length - wait.length;
-  $('#feeds-dot').className = 'dot ' + (down || bad.length ? 'bad' : late.length ? 'warn' : wait.length ? 'idle' : 'good');
+  $('#feeds-dot').className = 'dot ' + (down || bad.length ? 'bad' : late.length ? 'warn' : wait.length > unset ? 'idle' : 'good');
   $('#feeds-sum').textContent = down ? 'Server not answering'
     : bad.length ? `${bad.length} of ${f.length} feeds failing` + (late.length ? `, ${late.length} late` : '')
     : late.length ? `${late.length} of ${f.length} feeds late`
-    : wait.length ? `${ok} of ${f.length} feeds in, ${wait.length} starting` : `All ${f.length} feeds current`;
+    : wait.length > unset ? `${ok} of ${f.length} feeds in, ${wait.length - unset} starting` + (unset ? `, ${unset} not set up` : '')
+    : unset ? `${ok} of ${f.length} feeds current, ${unset} not set up` : `All ${f.length} feeds current`;
   if ($('#feeds-body').hidden) return;
   const n = now();
   $('#feeds-body').innerHTML = '<ul>' + f.map(x => {
@@ -425,15 +427,21 @@ $('#feeds-toggle').onclick = () => {
 window.ww = {map, pick, layers: byId};   // handy in the browser console when something looks wrong
 // ---- World / Munich ----
 const munich = munichView.start(hex => pick({layer: military.owns(hex) ? 'military' : 'aircraft', id: hex}));
-let worldView = null;
-function place(where) {
-  const m = where === 'munich';
+let worldView = null, where = 'world';
+function place(to) {
+  if (to === where) return;          // pressing Munich again must not overwrite the saved world view with Munich
+  where = to;
+  const m = to === 'munich';
   $('#world').setAttribute('aria-pressed', !m); $('#home').setAttribute('aria-pressed', m);
   $('#list').hidden = m; $('#munich').hidden = !m;
   munich.show(m);
   const ease = {duration: calm.matches ? 0 : 1200};
-  if (m) { worldView = {center: map.getCenter(), zoom: map.getZoom()}; const h = munich.home(); map.easeTo({center: [h.lon, h.lat], zoom: 8.3, ...ease}); }
-  else if (worldView) map.easeTo({...worldView, ...ease});
+  const fly = () => {
+    if (m) { worldView = {center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch()}; const h = munich.home(); map.easeTo({center: [h.lon, h.lat], zoom: 8.3, bearing: 0, pitch: 0, ...ease}); }
+    else if (worldView) map.easeTo({...worldView, ...ease});
+  };
+  // a running chase camera moves the map every frame and would override the flight: stop it, fly once it has landed
+  if (chase) chaseStop(false, fly); else fly();
 }
 $('#world').onclick = () => place('world');
 $('#home').onclick = () => place('munich');
