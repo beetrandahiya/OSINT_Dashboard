@@ -262,7 +262,7 @@ export const satellites = {
     // the engine fires rotatestart / pitchstart for our own easeTo too, so only events from the mouse or touch count
     const takeOver = e => { if (following && e.originalEvent) { following = false; ride = null; refresh?.(); } };
     for (const ev of ['dragstart', 'rotatestart', 'pitchstart']) map.on(ev, takeOver);
-    setInterval(() => tick(map), 2000);
+    setInterval(() => { if (!document.hidden) tick(map); }, 2000);   // not in a hidden tab
   },
   paint(map, dark) {
     const edge = dark ? '#1c1c1e' : '#ffffff';

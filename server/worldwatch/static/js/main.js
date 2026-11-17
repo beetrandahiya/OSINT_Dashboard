@@ -203,7 +203,6 @@ map.on('load', () => {
   repaint();
   loadFlags();
   for (const l of LAYERS) show(l);
-  schedule();
   const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
@@ -218,6 +217,7 @@ map.on('load', () => {
   map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null || x.properties.cluster) ? 'pointer' : ''; });
   setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
+  schedule();   // first downloads (status may not have answered yet: then every feed a switched-on layer uses)
 });
 dark.addEventListener('change', () => ready && repaint());
 
@@ -571,7 +571,7 @@ async function loadStatus() {
   schedule();
 }
 function renderFeeds() {
-  const down = Date.now() - lastAnswer > 12000;
+  const down = Date.now() - lastAnswer > 7000 + statusEvery() * 1.5;   // a missed poll or two is not "down"
   $('#banner').hidden = !down;
   if (down) $('#banner').textContent = lastAnswer ? `The World Watch server stopped answering ${ago(lastAnswer / 1000, Date.now() / 1000)}. Everything on screen is from before that.` : 'The World Watch server is not answering.';
   if (!status) return;

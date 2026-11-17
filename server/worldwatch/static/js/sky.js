@@ -1,4 +1,5 @@
 // Three layers that colour the map rather than add markers: rain radar, night, and the aurora zone.
+import {every} from './prefs.js';
 import {$, ago, esc, local, now, utc} from './util.js';
 import {slot} from './map.js';
 
@@ -84,7 +85,7 @@ export const night = {
   addTo(map) {
     nightMap = map;
     overlay(map, 'ww-night', BLANK, slot(map, 'night'));
-    setInterval(() => { if (nightOn) nightNow(); }, 60000);
+    every(60, () => { if (nightOn) nightNow(); }, {scaled: false});
   },
   visible(on) { nightOn = on; if (on && now() - nightAt > 50) nightNow(); },
   paint(map, dark) { map.setPaintProperty('ww-night', 'raster-opacity', dark ? 0.5 : 0.3); },
@@ -192,7 +193,7 @@ export const lightning = {
         {paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, slot(map, 'lightning'));
       document.dispatchEvent(new Event('ww-chips'));
     };
-    add(); setInterval(add, 60000);           // EUMETSAT adds a new picture every five minutes
+    add(); every(60, add, {scaled: false});   // EUMETSAT adds a new picture every five minutes (prefs.js: not while hidden)
   },
   paint() {}, onData() {}, render() {},
   visible(on) { lightOn = on; },
@@ -226,7 +227,7 @@ async function liveAdd(map) {
 }
 export const livephoto = {
   id: 'livephoto', title: 'Live photo', color: ['#3a6b4a', '#6fae84'], feeds: {}, layers: LIVE.map(l => l[0]), local: true, defaultOff: true,
-  addTo(map) { liveMap = map; liveAdd(map); setInterval(() => liveOn && liveAdd(map), 120000); },
+  addTo(map) { liveMap = map; liveAdd(map); every(120, () => liveOn && liveAdd(map), {scaled: false}); },
   paint() {}, onData() {}, render() {},
   visible(on) { liveOn = on; photoState(); if (on && liveMap) liveAdd(liveMap); },
   count: () => 0, note: () => liveAt ? local(Date.parse(liveAt) / 1000) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
