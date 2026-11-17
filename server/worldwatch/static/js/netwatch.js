@@ -4,7 +4,12 @@
 import {ago, esc, local, countryBtn} from './util.js';
 import {flagImg} from './flags.js';
 
-let d = {hijacks: [], leaks: []}, info = null, theMap = null, raf = 0, on = true, flows = [];
+let d = {hijacks: [], leaks: []}, info = null, theMap = null, raf = 0, on = true, flows = [], stale = false;
+// A dead feed is shown as dead (hard rule): the layer is "the last 24 hours", so events older than that are dropped by
+// our own clock, not the snapshot's; and while the feed is failing or unread for two intervals nothing is called
+// "still announced". Without a token Cloudflare's last snapshot would otherwise be drawn as current for ever.
+const STALE_S = 2 * 900;
+export const radarStale = x => !!x && (x.state === 'failing' || x.state === 'waiting' || !x.fetched || Date.now() / 1000 - x.fetched > STALE_S);
 
 // Points along the great circle between two [lon, lat] points, longitudes kept continuous across the antimeridian
 function arc(a, b, n = 48) {
@@ -91,7 +96,6 @@ const strong = h => (h.score ?? 0) >= LIST_MIN;
 export default {
   id: 'hijacks', title: 'Internet hijacks', color: ['#d70015', '#ff6961'], feeds: {cf_radar: 600},
   layers: ['ww-bgp-leak', 'ww-bgp-line', 'ww-bgp-dot'],
-  about: () => 'BGP hijacks and route leaks of the last 24 hours, from Cloudflare Radar.',
   addTo(map) {
     map.addSource('ww-bgp', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-bgp-leak', type: 'line', source: 'ww-bgp', filter: ['==', ['get', 'kind'], 'leak'],
@@ -113,7 +117,12 @@ export default {
     map.setPaintProperty('ww-bgp-dot', 'circle-color', ['case', ['get', 'strong'], c, soft]);
     map.setPaintProperty('ww-bgp-dot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
-  onData(feed, x) { d = x.payload; info = x; },
+  onData(feed, x) {
+    const p = x.payload || {}, cut = Date.now() / 1000 - 86400;
+    info = x; stale = radarStale(x);
+    d = {hijacks: (p.hijacks || []).filter(h => (h.start || 0) + (h.duration_s || 0) > cut), leaks: (p.leaks || []).filter(l => (l.last || l.start || 0) > cut)};
+  },
+  about: () => stale ? `Cloudflare Radar feed stopped: last read ${info?.fetched ? ago(info.fetched) : 'never'}${info?.error ? ' (' + info.error + ')' : ''}. Only events of the last 24 hours are drawn.` : 'BGP hijacks and route leaks of the last 24 hours, from Cloudflare Radar.',
   render(map = theMap) {
     if (!map) return;
     const f = [];
@@ -152,11 +161,11 @@ export default {
   },
   ring: () => 12,
   detail(id) {
-    const src = `<p class="source">Source: Cloudflare Radar (CC BY-NC 4.0), read ${ago(info?.fetched)}. Detected from routing announcements Cloudflare's collectors saw; a "hijack" here means the announcement looks wrong, which also happens by mistake or when a customer's provider announces for it. Lines join the countries Cloudflare lists for the networks, drawn between country centres; networks have no single place. The moving streaks only show the direction of each event (from the announcing network's country to the victim's); they are not live traffic.</p>`;
+    const src = `${stale ? `<p class="source prof-problems">The Cloudflare Radar feed has stopped (last read ${ago(info?.fetched)}): this event may have changed since.</p>` : ''}<p class="source">Source: Cloudflare Radar (CC BY-NC 4.0), read ${ago(info?.fetched)}. Detected from routing announcements Cloudflare's collectors saw; a "hijack" here means the announcement looks wrong, which also happens by mistake or when a customer's provider announces for it. Lines join the countries Cloudflare lists for the networks, drawn between country centres; networks have no single place. The moving streaks only show the direction of each event (from the announcing network's country to the victim's); they are not live traffic.</p>`;
     if (String(id).startsWith('leak:')) {
       const l = d.leaks.find(x => 'leak:' + x.id === id); if (!l) return null;
       return `<p class="eyebrow">Route leak</p><h2>${esc(l.leaker.org || 'AS' + l.leaker.asn)}</h2>
-        <p class="where">passed on routes it should not have, ${l.finished ? 'finished' : 'still going'}</p>
+        <p class="where">passed on routes it should not have, ${l.finished ? 'finished' : stale ? 'not finished when last read' : 'still going'}</p>
         <dl><dt>Path</dt><dd>${l.path.map(net).join(' → ')}</dd><dt>Countries</dt><dd>${l.countries.map(c => flagImg(c.cc) + ' ' + esc(c.cc)).join(' · ')}</dd>
           <dt>Address blocks</dt><dd>${l.prefixes}</dd><dt>Seen</dt><dd>${local(l.start)}${l.last && l.last !== l.start ? ' to ' + local(l.last) : ''}</dd></dl>
         <p class="soft">A leak sends other networks' traffic the wrong way, usually by mistake. Over 400 happen on a normal day; only the 40 involving the most address blocks across a border are drawn.</p>${src}`;
@@ -169,7 +178,7 @@ export default {
         <dt>Announced by</dt><dd>${net(h.hijacker)}</dd>
         <dt>Belongs to</dt><dd>${h.victims.map(net).join('<br>')}</dd>
         <dt>Address blocks</dt><dd>${h.prefixes.map(esc).join(', ')}${h.prefix_count > h.prefixes.length ? ` and ${h.prefix_count - h.prefixes.length} more` : ''}</dd>
-        <dt>When</dt><dd>${local(h.start)}${h.duration_s ? `, lasted ${Math.round(h.duration_s / 60)} min` : ', a single announcement'}${h.ongoing ? ' <span class="soft">(still announced)</span>' : ''}</dd>
+        <dt>When</dt><dd>${local(h.start)}${h.duration_s ? `, lasted ${Math.round(h.duration_s / 60)} min` : ', a single announcement'}${h.ongoing && !stale ? ' <span class="soft">(still announced)</span>' : ''}</dd>
         <dt>Seen by</dt><dd>${h.seen_by_peers ?? '?'} of Cloudflare's peers</dd>
       </dl>
       <section class="pz"><h3>Why Cloudflare flags it (score ${h.score})</h3>${h.evidence.length ? `<ul class="dos-list">${h.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="soft">No evidence tags.</p>'}
