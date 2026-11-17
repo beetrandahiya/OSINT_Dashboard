@@ -1526,3 +1526,10 @@ the Blue Marble photo) before drawing the other screens or building anything.
 - Caveats told to him: boards are static and were not opened in a browser; in the Deck layers board counts marked *
   were read from the server 45 min after the capture; the Bush carrier has no sentence of its own in USNI's tracker;
   the wording of the settings descriptions is design wording, not existing behaviour.
+- **Later the same day:** he likes the general vibe of 2 (God's eye) but "3 has more information" and asked for 2 to be
+  "a lil bit more like 3". Read 3 as look 3, Glass cockpit (said so to him; the Live signal briefing was the other
+  reading). Added board `EyeDense.dc.html` to the right of the God's eye row: same Earth photo and glass, plus a
+  right panel of 14 layer tiles (count, source, age, feed state dot), launches and quakes, a signals table (place,
+  coded as, outlets, age) with front / carriers / navy warning / outages rows, and a pill bar of views. Panels stay
+  right of x=672 so the markers over Europe and Ukraine stay visible. Not opened in a browser. Direction for the
+  God's eye look from now: keep the vibe, carry more information.
