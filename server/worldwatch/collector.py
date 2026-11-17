@@ -12,7 +12,7 @@ import time
 
 import httpx
 
-from . import config, db
+from . import config, db, wire
 from .feeds import FEEDS, Feed, Fetcher
 
 
@@ -35,6 +35,10 @@ class FeedState:
         self.last_bytes: int | None = None
         self.total_bytes = 0
         self.next_at: float | None = None
+        self.enc: wire.Encoded | None = None   # the payload serialised and gzipped once (wire.py); None until built
+        self.enc_of = None                     # the payload object `enc` was built from
+        self.saved_at = 0.0                    # when the payload was last written to the database
+        self.saved_version: str | None = None  # and the version written
 
     def state(self, now: float) -> str:
         if self.feed.fetch is None and self.error is None:
@@ -56,7 +60,14 @@ class FeedState:
             "data_time": self.data_time, "data_label": self.data_label, "items": self.items, "note": self.note,
             "tried": self.tried, "error": self.error, "ok_count": self.ok_count, "fail_count": self.fail_count,
             "last_ms": self.last_ms, "last_bytes": self.last_bytes, "total_bytes": self.total_bytes, "next_at": self.next_at,
+            # changes only when the payload's bytes change (a refetch that brings back the same data keeps it): the page
+            # downloads a feed again only when this moved
+            "version": self.enc.version if self.enc is not None and self.enc_of is self.payload else None,
         }
+
+    def encoded(self) -> "wire.Encoded | None":
+        """The kept encoding of the current payload, or None when it must be built first (see Collector.encode)."""
+        return self.enc if self.enc is not None and self.enc_of is self.payload else None
 
 
 class Collector:
@@ -75,10 +86,16 @@ class Collector:
             saved = db.load_latest(st.feed.name) if st.feed.fetch else None
             if saved:
                 st.payload, st.fetched, st.data_time, st.items, st.from_disk = saved["payload"], saved["fetched"], saved["data_time"], saved["items"], True
+                st.saved_at, st.saved_version = time.time(), saved["version"]
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10), follow_redirects=True,
                                          headers={"User-Agent": config.USER_AGENT, "Accept-Encoding": "gzip"})
         for i, st in enumerate(s for s in self.states.values() if s.feed.fetch):
             self._tasks.append(asyncio.create_task(self._run(st, first_delay=i * 0.6)))
+        self._tasks.append(asyncio.create_task(self._encode_saved()))
+
+    async def _encode_saved(self):
+        for st in list(self.states.values()):     # versions of the payloads restored from disk, one after the other in a thread
+            await self._encode(st)
 
     async def stop(self):
         for t in self._tasks:
@@ -125,8 +142,43 @@ class Collector:
         st.last_ms, st.last_bytes = ms, f.wire_bytes
         st.total_bytes += f.wire_bytes
         await asyncio.to_thread(db.log_fetch, feed.name, started, ms, True, f.wire_bytes, res.items, res.data_time, None)
-        await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, res.payload)
+        enc, raw = await self._encode(st)
+        # the news windows and unrest are rebuilt from data/gdelt at start, so their multi-MB payloads (new at every
+        # fetch) are written at most every 15 minutes; everything else when its bytes changed (db.save_latest)
+        # (the same bytes again only move the small latest_seen row, so a restart shows the true age)
+        same = enc is not None and enc.version == st.saved_version
+        if raw is not None and (same or feed.name not in self.SAVE_EVERY or time.time() - st.saved_at > self.SAVE_EVERY[feed.name]):
+            if not same:
+                st.saved_at, st.saved_version = time.time(), enc.version
+            await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, raw, enc.version)
         return feed.interval * random.uniform(0.97, 1.03)
+
+    # measured over 15 min: news/unrest change at every fetch and are rebuilt from data/gdelt anyway; ships and the
+    # aircraft feeds change at every fetch and are stale within minutes. A restored payload keeps its own fetch time,
+    # so a payload saved a while before a restart is shown with its true age.
+    SAVE_EVERY = {"news": 900, "news_translated": 900, "unrest": 900, "ships": 600, "aircraft_military": 600, "aircraft_near": 600, "quakes": 300}
+
+    async def _encode(self, st: FeedState):
+        """The feed's current payload serialised once, in a worker thread (a 2.5 MB payload takes ~20 ms): its version,
+        and its bytes for the database when they were made now."""
+        enc = st.encoded()
+        if enc is not None or st.payload is None:
+            return enc, None
+        payload = st.payload
+        try:
+            enc, raw = await asyncio.to_thread(wire.encode_payload, payload)
+        except (TypeError, ValueError):
+            return None, None        # not plain JSON (NaN, ...): the data route answers the slow way
+        if st.payload is payload:
+            st.enc, st.enc_of = enc, payload
+        return enc, raw
+
+    async def encode(self, st: FeedState) -> "wire.Encoded | None":
+        """The kept answer of a feed, gzipped (in a thread) the first time someone asks for it."""
+        enc = (await self._encode(st))[0]
+        if enc is not None and not enc.ready():
+            await asyncio.to_thread(enc.prepare)
+        return enc
 
     # Trails are for two things: the selected aircraft's path when OpenSky has none (`/api/track`), and orbit / tanker
     # detection (patterns.py), which reads the military and Munich feeds. Those two feeds keep every position (4 s

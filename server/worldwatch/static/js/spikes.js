@@ -1,5 +1,6 @@
 // Breaking-news spikes: places where many outlets suddenly reported in the newest hour, compared with the same place's
 // own rate in the hours before. Worked out on our server from the GDELT news windows (news.spikes); said so.
+import {every} from './prefs.js';
 import {ago, esc, skyShot, spyPass, countryBtn} from './util.js';
 import {img} from './news.js';
 
@@ -20,7 +21,7 @@ export default {
     map.addLayer({id: 'ww-spike-halo', type: 'circle', source: 'ww-spikes', paint: {'circle-radius': ['interpolate', ['linear'], ['get', 'n'], 4, 16, 20, 30], 'circle-opacity': 0.18}});
     map.addLayer({id: 'ww-spike', type: 'circle', source: 'ww-spikes', paint: {'circle-radius': 7, 'circle-stroke-width': 2}});
     maps.push([this, map]);
-    if (maps.length === 1) { load(); setInterval(load, 120000); }
+    if (maps.length === 1) { load(); every(120, load); }
   },
   paint(map, dark) {
     const c = this.color[+dark];

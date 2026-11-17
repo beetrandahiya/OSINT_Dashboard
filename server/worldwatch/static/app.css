@@ -128,6 +128,8 @@ h1 { font: 700 22px/26px var(--font); margin: 0; }
 .list li.group { padding: 12px 10px 4px; color: var(--text-2); font-size: 13px; font-weight: 600; }
 .list li.group:hover, .list li.empty:hover { background: none; }
 .list li.group::before, .list li.group + li::before { display: none; }
+.list li.more { justify-content: center; padding: 12px 10px; }
+.list li.more:hover { background: none; }
 .row-title.wrap { white-space: normal; }
 .row-thumb { flex: none; width: 52px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--fill); }
 .news-hero { display: block; width: 100%; margin: 4px 0 12px; aspect-ratio: 16 / 9; object-fit: cover; background: var(--fill); border-radius: 12px; }
@@ -425,3 +427,4 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
   animation: hotpulse 2.4s linear infinite; will-change: transform, opacity; }
 @keyframes hotpulse { from { transform: scale(1); opacity: .9; } to { transform: scale(2.86); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .hot-pulse { display: none; } }
+.ww-still .hot-pulse { display: none; }   /* prefs.js: animations off or low power */

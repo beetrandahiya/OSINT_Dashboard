@@ -1,4 +1,5 @@
 // The Munich view: what is overhead, the weather, official warnings, and public transport disruptions.
+import {every} from './prefs.js';
 import {$, ago, api, esc, local} from './util.js';
 
 let got = {}, home = {lat: 48.137, lon: 11.575}, onPick = () => {}, active = false;
@@ -75,7 +76,7 @@ export function start(pick) {
   onPick = pick;
   api('/api/status').then(s => { if (s.home) home = s.home; }).catch(() => {});
   const go = async () => { if (!active) return; await Promise.all(['munich_weather', 'mvg', 'aircraft_near'].map(load)); render(); };
-  setInterval(go, 20000);
+  every(20, go);
   $('#munich').addEventListener('click', e => { const li = e.target.closest('li[data-hex]'); if (li) onPick(li.dataset.hex); });
   $('#munich').addEventListener('keydown', e => { const li = e.target.closest('li[data-hex]'); if (li && e.key === 'Enter') onPick(li.dataset.hex); });
   return {

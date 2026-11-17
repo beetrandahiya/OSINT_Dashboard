@@ -21,7 +21,10 @@ const look = (lon, lat) => `<button class="btn" data-sharpat="${lon},${lat}">Loo
 const footer = () => `<p class="source">Military sites: Wikidata (CC0), OpenStreetMap (© OpenStreetMap contributors, ODbL; via QLever, about two months behind) and the US Department of Defense's MIRTA list (US and Guam only). Nuclear: Global Energy Monitor's Global Nuclear Power Tracker (CC BY 4.0) and Wikidata. Read ${ago(info?.fetched)}, refreshed weekly. A point can be the town a base is named after rather than its runway. There is no open list of nuclear-weapons storage or production sites, so only those Wikidata or OpenStreetMap name are here.</p>`;
 
 let theMap = null;
-function onSites(x) { d = x.payload; info = x; if (theMap) nuclear.render(theMap); }   // one download feeds both layers
+// bases read the whole sites feed; nuclear sites (and the earthquakes' "near a test site") only its nuclear part
+// (`sites_nuclear`, without the 12,000 military sites), so the 1.6 MB download waits until Military bases is switched on.
+// Both answers are merged here: whichever came last, the other's part stays.
+function onSites(x) { d = {...d, ...x.payload}; info = x; if (theMap) nuclear.render(theMap); }
 
 export const bases = {
   id: 'bases', title: 'Military bases', color: ['#6e4f2d', '#c8a37a'], feeds: {sites: 21600}, defaultOff: true,
@@ -107,7 +110,7 @@ export const bases = {
 };
 
 export const nuclear = {
-  id: 'nuclear', title: 'Nuclear sites', color: ['#b8860b', '#ffd60a'], feeds: {}, local: true,
+  id: 'nuclear', title: 'Nuclear sites', color: ['#b8860b', '#ffd60a'], feeds: {sites_nuclear: 21600},
   layers: ['ww-nuc-test', 'ww-nuc-boom', 'ww-nuc', 'ww-nuc-k', 'ww-nuc-name'],
   about: () => 'Nuclear power plants, research reactors, fuel-cycle and waste sites, and the nuclear test sites with their explosion points.',
   addTo(map) {

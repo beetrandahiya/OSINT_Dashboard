@@ -364,22 +364,35 @@ def save_areas(areas: list) -> None:
         p.write_text(json.dumps(areas, separators=(",", ":")))
 
 
-_AREAS: list | None = None
+_AREAS = None   # (lons, lats, texts, starts): 96,000 areas as columns; as Python lists [lon, lat, name, id] they held 23 MB
+
+
+def _compact(rows: list):
+    from array import array
+    lons, lats, starts, parts, at = array("d"), array("d"), array("I"), [], 0
+    for lon, lat, name, id_ in rows:
+        lons.append(lon); lats.append(lat); starts.append(at)
+        t = ("\x00" if name is None else name) + "\x1f" + id_ + "\x1e"    # \x00 = no name
+        parts.append(t); at += len(t)
+    return lons, lats, "".join(parts), starts
 
 
 def areas_in(w: float, s: float, e: float, n: float, limit=4000) -> list:
     global _AREAS
     if _AREAS is None:
         try:
-            _AREAS = json.loads(_areas_path().read_text())
+            _AREAS = _compact(json.loads(_areas_path().read_text()))
         except (OSError, ValueError):
             return []
+    lons, lats, text, starts = _AREAS
     out = []
-    for a in _AREAS:
-        if s <= a[1] <= n and ((w <= a[0] <= e) if w <= e else (a[0] >= w or a[0] <= e)):
-            out.append(a)
-            if len(out) >= limit:
-                break
+    for i, (lon, lat) in enumerate(zip(lons, lats)):
+        if s <= lat <= n:
+            if (w <= lon <= e) if w <= e else (lon >= w or lon <= e):
+                name, id_ = text[starts[i]:text.index("\x1e", starts[i])].split("\x1f")
+                out.append([lon, lat, None if name == "\x00" else name, id_])
+                if len(out) >= limit:
+                    break
     return out
 
 

@@ -1,5 +1,6 @@
 // People layer: current heads of state and government at their countries. Click one for a full profile.
 // Profiles come from public records (Wikidata, Wikipedia, GDELT, optional OpenSanctions) via our server.
+import {every} from './prefs.js';
 import {ago, esc, countryBtn} from './util.js';
 import {openProfile} from './profile.js';
 
@@ -82,7 +83,7 @@ export const leadersToday = {
     map.addLayer({id: 'ww-leaders-sel', type: 'symbol', source: 'ww-leaders', filter: ['==', ['get', 'sel'], true],
       layout: {'icon-image': 'ww-leader-ring-l', 'icon-size': ['get', 'rs'], 'icon-offset': ['array', 'number', 2, ['get', 'ro']], 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
     this.map = map; this.load();
-    setInterval(() => this.load(), 600000);
+    every(600, () => this.load());
   },
   select(id) { this.sel = id && String(id).startsWith('today:') ? id : null; if (this.map) this.draw(); },
   // One dot per leader. Leaders reported at the same city stand side by side, centred on it, 24 px apart on screen.

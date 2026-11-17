@@ -35,12 +35,22 @@ export function ago(t, n = now()) {
 }
 
 const pad = n => String(n).padStart(2, '0');
-// Local time of whoever is looking, with the date only when it is not today.
+// Local time of whoever is looking, with the date only when it is not today. Called for every list row on every
+// redraw: toLocaleDateString built a new date formatter per call (it was the top script function), so the formatters
+// are made once and each minute's text is remembered (cleared when the day changes).
+const DAY = new Intl.DateTimeFormat('en-GB', {day: 'numeric', month: 'short'}), DAYY = new Intl.DateTimeFormat('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+const localMemo = new Map();
+let memoDay = '';
 export function local(t) {
-  const d = new Date(t * 1000), today = new Date(now() * 1000);
+  const today = new Date(now() * 1000), key = today.toDateString();
+  if (key !== memoDay || localMemo.size > 20000) { localMemo.clear(); memoDay = key; }
+  const m = Math.floor(t / 60), hit = localMemo.get(m);
+  if (hit !== undefined) return hit;
+  const d = new Date(t * 1000);
   const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-  return d.toDateString() === today.toDateString() ? hm
-    : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? {year: 'numeric'} : {})}) + ', ' + hm;
+  const out = d.toDateString() === key ? hm : (d.getFullYear() !== today.getFullYear() ? DAYY : DAY).format(d) + ', ' + hm;
+  localMemo.set(m, out);
+  return out;
 }
 export const utc = t => new Date(t * 1000).toISOString().slice(11, 16) + ' UTC';
 

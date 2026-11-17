@@ -1,5 +1,6 @@
 // Sanctioned and shadow-fleet ships, and sanctioned aircraft, that our feeds see right now: OpenSanctions' lists
 // matched by IMO number / MMSI (ships) and registration / transponder address (aircraft). See sanctions.py.
+import {every} from './prefs.js';
 import {ago, esc, spyPass} from './util.js';
 import {flagImg, shipFlag, planeFlag} from './flags.js';
 import {fillShip, still} from './ships.js';
@@ -24,7 +25,7 @@ export default {
       layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
     maps.push([this, map]);
     if (maps.length === 1) {
-      load(); setInterval(load, 60000);
+      load(); every(60, load);
       setInterval(() => { if (d.aircraft.length && !document.hidden && map.getLayoutProperty('ww-sanc-ring', 'visibility') !== 'none') this.render(map); }, 2000);
     }
   },

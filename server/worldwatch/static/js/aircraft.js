@@ -5,6 +5,7 @@
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
 import {$, ago, api, esc, local, now} from './util.js';
+import {prefs} from './prefs.js';
 import {addModelProvider, addPathProvider, hitModel, isOn, onReady, MODEL_ZOOM} from './models3d.js';
 import {planeFlag, flagImg} from './flags.js';
 
@@ -502,7 +503,8 @@ export const civil = {
     map.addLayer(symbol('ww-air-live', 'ww-air-live'));
     // zoomed in, the 3D models take over: flat icons, ground ring and ground lines stop at MODEL_ZOOM (once the models are loaded)
     onReady(() => setTimeout(() => { for (const l of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-route', 'ww-air-trail', 'ww-vip-halo', 'ww-vip-label', 'ww-doom-halo', 'ww-doom-label']) if (map.getLayer(l)) map.setLayerZoomRange(l, 0, MODEL_ZOOM); }, 0));   // after the military and VIP layers exist
-    setInterval(() => { if (!document.hidden && (shown.aircraft || shown.military) && (view.length || mil.length)) glide(); }, 200);
+    let glidAt = 0;   // low power (prefs.js): the flat icons step once a second instead of five times
+    setInterval(() => { if (!document.hidden && (shown.aircraft || shown.military) && (view.length || mil.length) && (!prefs.lowPower || performance.now() - glidAt > 950)) { glidAt = performance.now(); glide(); } }, 200);
     setInterval(loadView, VIEW_POLL);
     let t = null;
     map.on('moveend', () => { clearTimeout(t); t = setTimeout(loadView, 600); });   // a moment after the map stops moving
