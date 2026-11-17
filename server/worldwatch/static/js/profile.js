@@ -23,7 +23,13 @@ export function shell(label) {
     host.addEventListener('click', e => {
       if (e.target.closest('.dos-close')) return closeShell();
       const p = e.target.closest('[data-pick-layer]');          // "show on the map": close and select it there
-      if (p) { e.preventDefault(); closeShell(); dispatchEvent(new CustomEvent('ww-pick', {detail: {layer: p.dataset.pickLayer, id: p.dataset.pickId}})); return; }
+      if (p) {
+        e.preventDefault(); closeShell();
+        // switch the item's layer on first (the same chip click as by hand), or it is selected on a hidden layer
+        const chip = document.querySelector(`#chips .chip[data-id="${CSS.escape(p.dataset.pickLayer)}"]`);
+        if (chip?.getAttribute('aria-pressed') === 'false') chip.click();
+        dispatchEvent(new CustomEvent('ww-pick', {detail: {layer: p.dataset.pickLayer, id: p.dataset.pickId}})); return;
+      }
       const q = e.target.closest('[data-person]');
       if (q) { e.preventDefault(); openProfile(q.dataset.person); return; }
       const more = e.target.closest('[data-more]');

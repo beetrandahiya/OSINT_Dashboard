@@ -31,7 +31,7 @@ def tfl(d: list) -> list:
         if p.get("available") == "false" or not p.get("imageUrl"):
             continue
         out.append({"id": "tfl:" + x["id"], "src": "tfl", "name": x.get("commonName"), "lat": x["lat"], "lon": x["lon"],
-                    "img": [p["imageUrl"]], "video": p.get("videoUrl"), "view": p.get("view")})
+                    "img": [p["imageUrl"]], "video": p.get("videoUrl"), "view": (p.get("view") or "").replace("\\/", "/") or None})
     return out
 
 

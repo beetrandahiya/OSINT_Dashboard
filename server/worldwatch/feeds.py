@@ -1081,7 +1081,7 @@ async def gdacs(feed: Feed, f: Fetcher) -> Result:
             seen.add(key)
             sev = p.get("severitydata") or {}
             out.append({"id": f"gdacs-{p['eventtype']}-{p['eventid']}", "kind": GDACS_TYPES[p["eventtype"]], "code": p["eventtype"],
-                        "level": p["alertlevel"], "name": p.get("eventname") or p["name"], "title": p["name"], "countries": p.get("country"),
+                        "level": p["alertlevel"], "name": p.get("eventname") or p["name"], "title": p["name"], "countries": ", ".join(c.strip() for c in (p.get("country") or "").split(",") if c.strip()) or None,
                         "from": _iso(p["fromdate"]), "to": end, "modified": _iso(p["datemodified"]), "severity": sev.get("severitytext"),
                         "url": (p.get("url") or {}).get("report"), "lon": g["coordinates"][0], "lat": g["coordinates"][1], "source": "GDACS"})
         await asyncio.sleep(0.5)

@@ -246,6 +246,8 @@ async def people_profile(request):
     if not hit:
         try:
             body = await _people.profile(qid)
+        except _people.ProfileError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
         except Exception as e:
             return JSONResponse({"error": f"Could not build the profile ({type(e).__name__}: {str(e)[:120]})"}, status_code=502)
         store.cache_put("profile4:" + qid, body)

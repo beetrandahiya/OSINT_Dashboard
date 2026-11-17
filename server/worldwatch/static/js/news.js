@@ -33,6 +33,9 @@ function stories(arts) {
   for (const a of arts) { const k = a.title.trim().toLowerCase(); groups.set(k, [...(groups.get(k) || []), a]); }
   return [...groups.values()].sort((x, y) => y.length - x.length || y[0].time - x[0].time);
 }
+// the card's big picture belongs to the first story listed, not to whichever article happened to carry one
+const heroOf = arts => stories(arts)[0]?.find(a => a.image)?.image;
+const heroHtml = pic => pic ? `<img class="news-hero" src="${esc(img(pic))}" alt="" onerror="this.remove()">` : '';
 function storyList(arts) {
   return `<ol class="stories">${stories(arts).map(g => {
     const a = g[0], pic = g.find(x => x.image)?.image;
@@ -96,12 +99,12 @@ export default {
   detail(id) {
     const p = places.find(x => x.place === id);
     if (!p) return null;
-    const arts = full.get(id) || p.articles, hero = arts.find(a => a.image);
+    const arts = full.get(id) || p.articles;
     const e = sets.news, t = sets.news_translated;
     return `<p class="eyebrow">News place · last ${e?.window_h || 6} hours</p>
       <h2>${esc(short(p))}</h2>
       <p class="where">${esc(rest(p))}${rest(p) ? ' · ' : ''}${p.outlets} ${p.outlets === 1 ? 'outlet' : 'outlets'} · newest ${ago(p.last)}</p>
-      ${hero ? `<img class="news-hero" src="${esc(img(hero.image))}" alt="" onerror="this.remove()">` : ''}
+      <div id="newshero">${heroHtml(heroOf(arts))}</div>
       <div id="more">${storyList(arts)}${full.has(id) ? '' : (p.outlets > p.articles.length ? `<p class="source">Loading all ${p.outlets} outlets…</p>` : '')}</div>
       ${countryBtn({lat: p.lat, lon: p.lon})}
       ${skyShot(p.lat, p.lon)}
@@ -118,6 +121,8 @@ export default {
       full.set(id, r.articles);
       if (full.size > 40) full.delete(full.keys().next().value);
       const now = document.getElementById('more');
+      const hero = document.getElementById('newshero');
+      if (hero && now) hero.innerHTML = heroHtml(heroOf(r.articles));
       if (now) now.innerHTML = storyList(r.articles) + (r.untranslated ? `<p class="source">${r.untranslated} headlines could not be translated and stay in their language.</p>` : '');
     } catch (e) { box.dataset.done = ''; }
   },

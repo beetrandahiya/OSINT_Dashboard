@@ -64,11 +64,20 @@ async def search(query: str) -> list[dict]:
     return [{"qid": h["id"], "name": h["label"], "description": h.get("description", "")} for h in hits if h["id"] in humans]
 
 
+class ProfileError(Exception):
+    """A question with a plain answer for the page ("no such item", "not a person"), not a failure."""
+
+
 async def _basics(client, qid):
     r = await client.get(f"https://www.wikidata.org/wiki/Special:EntityData/{qid}.json", headers={"User-Agent": config.USER_AGENT}, timeout=30)
+    if r.status_code in (400, 404):
+        raise ProfileError("No such Wikidata item")
     r.raise_for_status()
-    e = r.json()["entities"][qid]
+    ents = r.json()["entities"]
+    e = ents.get(qid) or next(iter(ents.values()))        # a merged item answers under the id it was merged into
     claims, out = e.get("claims", {}), {}
+    if not any(((st.get("mainsnak") or {}).get("datavalue") or {}).get("value", {}).get("id") == "Q5" for st in claims.get("P31", [])):
+        raise ProfileError(f"{geo.wd_label(e.get('labels')) or qid} is not a person on Wikidata, so it has no person dossier")
 
     def first(pid):
         for st in claims.get(pid, []):
