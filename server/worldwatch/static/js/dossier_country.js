@@ -52,7 +52,8 @@ function render(card, d) {
   const pop = F?.population ? `${big(+F.population.value)}${F.population.date ? ` <span class="soft">(${day(F.population.date)})</span>` : ''}`
     : g.pop ? `${big(g.pop)} <span class="soft">(Natural Earth estimate, ${g.pop_year})</span>` : '';
   const gov = F?.government?.map(x => esc(x.label)).join(', ');
-  const heads = F ? [...(F.head_of_state || []).map(h => ({...h, role: 'Head of state'})), ...(F.head_of_government || []).map(h => ({...h, role: 'Head of government'}))] : (d.heads || []);
+  const fh = F ? [...(F.head_of_state || []).map(h => ({...h, role: 'Head of state'})), ...(F.head_of_government || []).map(h => ({...h, role: 'Head of government'}))] : [];
+  const heads = fh.length ? fh : (d.heads || []);     // the leaders list when Wikidata's facts came back without heads
   const headsHtml = heads.length ? `<ul class="dos-heads">${heads.map(h => `<li><a href="#" data-person="${esc(h.qid)}"><b>${esc(h.label)}</b></a><span class="soft">${h.role}${h.since ? ' · since ' + day(h.since) : ''}</span></li>`).join('')}</ul>` : '';
 
   // travel advice, each office in its own words

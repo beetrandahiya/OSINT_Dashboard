@@ -28,6 +28,11 @@ VERSION = 1
 
 # FIPS 10-4 codes Natural Earth leaves blank (-99). GDELT codes Gaza and the West Bank as GZ / WE.
 FIPS_FIX = {"IL": ["IS"], "NO": ["NO"], "PS": ["GZ", "WE"], "SS": ["OD"], "AX": []}
+# Wikidata items Natural Earth points at the wrong kind of thing: Q23792 is the geographic region of Palestine, which has
+# no head of state, capital or population; the state is Q219060. (Checked 2026-11-17: Taiwan Q865, Kosovo Q1246 and
+# Somaliland Q34754 are the polities; Western Sahara Q6250 and Northern Cyprus Q23681 are left as they are: the disputed
+# territory has no government of its own on Wikidata, and Northern Cyprus' item holds its leaders.)
+QID_FIX = {"PS": "Q219060"}
 # Names in other sources that Natural Earth spells differently.
 ALIAS = {"korea, north": "KP", "north korea": "KP", "korea, south": "KR", "south korea": "KR", "russian federation": "RU",
          "burma": "MM", "czech republic": "CZ", "ivory coast": "CI", "cote d'ivoire": "CI", "congo, democratic republic of the": "CD",
@@ -142,6 +147,9 @@ async def _build(c) -> dict | None:
 
 def _load(raw: dict) -> None:
     for c in raw["countries"]:
+        if c.get("iso") in QID_FIX:                             # applied on load, so a table built earlier gets it too
+            _by_qid[c["qid"]] = c["iso"]
+            c["qid"] = QID_FIX[c["iso"]]
         rings, xs, ys = c.pop("rings"), [], []
         verts, rows = [], {}
         for ring in rings:
@@ -314,3 +322,34 @@ def listing() -> list[dict]:
     return sorted(({"iso": c["iso"], "name": c["name"], "names": sorted(set(c["names"]) | set(ALIASES.get(c["iso"], []))),
                     "codes": [x for x in (c["iso"], c.get("iso3")) if x]}
                    for c in C.values() if not c["iso"].startswith("X-")), key=lambda c: c["name"])
+
+
+# ---------------------------------------------------------------- Wikidata labels
+# Wikidata moved many names to the language-neutral "mul" label (Douglas Adams has no "en" label any more), so a reader
+# that asks only for "en" turns names into Q-ids or drops them. Every label reader asks for these and takes the first
+# in Latin script.
+LABEL_LANGS = ("en", "mul", "en-gb", "fr", "de", "es", "it", "pt", "nl", "sv", "da", "nb", "fi", "pl", "cs", "ro", "hu", "tr", "id", "vi")
+LABEL_LANGS_API = "|".join(LABEL_LANGS)          # for wbgetentities `languages`
+LABEL_LANGS_SPARQL = ",".join(LABEL_LANGS)       # for the label service's fallback list
+
+
+def _latin(s: str) -> bool:
+    import unicodedata
+    return all(ord(ch) < 0x250 or not ch.isalpha() or "LATIN" in unicodedata.name(ch, "") for ch in s)
+
+
+def wd_label(labels: dict | None) -> str | None:
+    """The best name from a Wikidata `labels` object ({lang: {"value": ...}}): English, then "mul", then any Latin-script
+    language; None when there is none (callers say so rather than show a Q-id)."""
+    labels = labels or {}
+    val = lambda l: (labels.get(l) or {}).get("value") if isinstance(labels.get(l), dict) else labels.get(l)
+    for l in LABEL_LANGS:
+        v = val(l)
+        if v and (l in ("en", "mul") or _latin(v)):
+            return v
+    for l in labels:
+        v = val(l)
+        if v and _latin(v):
+            return v
+    return None
+

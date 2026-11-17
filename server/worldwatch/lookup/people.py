@@ -83,7 +83,7 @@ async def _basics(client, qid):
     out["born"] = born["time"].lstrip("+")[:10] if isinstance(born, dict) and born.get("time") else None
     died = first("P570")
     out["died"] = died["time"].lstrip("+")[:10] if isinstance(died, dict) and died.get("time") else None
-    out["labels"] = {"en": (e.get("labels", {}).get("en", {}) or {}).get("value")}
+    out["labels"] = {"en": geo.wd_label(e.get("labels"))}     # English, else "mul" or another Latin-script name
     out["sitelinks"] = {k: v["title"] for k, v in e.get("sitelinks", {}).items() if k in ("enwiki",)}
     out["official_website"] = first("P856")
     socials = {}
@@ -118,10 +118,10 @@ async def _label_map(client, qids):
     try:
         for i in range(0, len(qids), 50):
             r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(qids[i:i + 50]),
-                                 "props": "labels", "languages": "en", "format": "json"}, headers={"User-Agent": config.USER_AGENT}, timeout=30)
+                                 "props": "labels", "languages": geo.LABEL_LANGS_API, "format": "json"}, headers={"User-Agent": config.USER_AGENT}, timeout=30)
             r.raise_for_status()
             for q, e in r.json().get("entities", {}).items():
-                lab = (e.get("labels") or {}).get("en", {}).get("value")
+                lab = geo.wd_label(e.get("labels"))
                 if lab:
                     out[q] = lab
         return out
@@ -129,7 +129,7 @@ async def _label_map(client, qids):
         out = {}
     for i in range(0, len(qids), 180):
         batch = qids[i:i + 180]
-        rows = await _sparql(client, "SELECT ?i ?iLabel WHERE { VALUES ?i {" + " ".join("wd:" + q for q in batch) + "} SERVICE wikibase:label { bd:serviceParam wikibase:language 'en'. } }")
+        rows = await _sparql(client, "SELECT ?i ?iLabel WHERE { VALUES ?i {" + " ".join("wd:" + q for q in batch) + "} SERVICE wikibase:label { bd:serviceParam wikibase:language '" + geo.LABEL_LANGS_SPARQL + "'. } }")
         for x in rows:
             out[_qid(x["i"]["value"])] = x["iLabel"]["value"]
     return out
@@ -361,9 +361,9 @@ async def leaders() -> list[dict]:
     async with httpx.AsyncClient() as client:
         for pid, role in (("P35", "Head of state"), ("P6", "Head of government")):
             q = f"""SELECT ?person ?personLabel ?country ?countryLabel ?coord WHERE {{
-              ?country wdt:P31 wd:Q3624078; p:{pid} ?st; wdt:P625 ?coord. ?st ps:{pid} ?person.
+              ?country wdt:P31 wd:Q3624078; p:{pid} ?st; wdt:P625 ?coord. ?st ps:{pid} ?person; a wikibase:BestRank.
               FILTER NOT EXISTS {{ ?st pq:P582 ?e }}. ?person wdt:P31 wd:Q5.
-              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }}"""
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{geo.LABEL_LANGS_SPARQL}". }} }}"""
             for x in await _sparql(client, q):
                 try:
                     lon, lat = map(float, x["coord"]["value"].removeprefix("Point(").removesuffix(")").split())

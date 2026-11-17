@@ -48,7 +48,7 @@ def _feed(collector, name: str):
 
 # ---------------------------------------------------------------- Wikidata facts about a country (cached 30 days)
 async def _facts(qid: str) -> tuple[dict | None, str | None, float | None]:
-    key = "country-facts:" + qid
+    key = "country-facts2:" + qid          # 2: best-rank statements only and mul labels (v1 listed former leaders)
     hit = await asyncio.to_thread(db.lookup_get, key, 30 * 86400)
     if hit:
         return hit["body"], None, hit["fetched"]
@@ -56,11 +56,11 @@ async def _facts(qid: str) -> tuple[dict | None, str | None, float | None]:
     q = f"""SELECT ?prop ?v ?vLabel ?t ?start ?end ?coord ?unitLabel WHERE {{
       VALUES ?prop {{ {values} }}
       wd:{qid} ?prop ?st. ?st ?ps ?v. FILTER(STRSTARTS(STR(?ps),"http://www.wikidata.org/prop/statement/P"))
-      ?st wikibase:rank ?rank. FILTER(?rank != wikibase:DeprecatedRank)
+      ?st a wikibase:BestRank.
       OPTIONAL {{ ?st pq:P585 ?t }} OPTIONAL {{ ?st pq:P580 ?start }} OPTIONAL {{ ?st pq:P582 ?end }}
       OPTIONAL {{ ?v wdt:P625 ?coord. FILTER(?prop = p:P36) }}
       OPTIONAL {{ ?st ?psv ?vn. FILTER(STRSTARTS(STR(?psv),"http://www.wikidata.org/prop/statement/value/P")) ?vn wikibase:quantityUnit ?unit }}
-      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }} }}"""
+      SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{geo.LABEL_LANGS_SPARQL}". }} }}"""
     try:
         async with httpx.AsyncClient(timeout=30, headers=_wm_headers()) as c:
             for attempt in range(2):
@@ -78,7 +78,8 @@ async def _facts(qid: str) -> tuple[dict | None, str | None, float | None]:
             out = await _facts_entity(qid)
         except (httpx.HTTPError, ValueError, KeyError) as e2:
             return None, f"Wikidata could not be asked ({e}; then {type(e2).__name__})", None
-        await asyncio.to_thread(db.lookup_put, key, time.time(), out)
+        if _has_facts(out):
+            await asyncio.to_thread(db.lookup_put, key, time.time(), out)
         return out, None, time.time()
     v = lambda x, k: x.get(k, {}).get("value")
     qid_of = lambda u: u.rsplit("/", 1)[-1] if u and u.startswith("http://www.wikidata.org/entity/") else None
@@ -107,8 +108,20 @@ async def _facts(qid: str) -> tuple[dict | None, str | None, float | None]:
                 seen.add(r["value"])
                 keep.append(r)
         out[kind] = keep
-    await asyncio.to_thread(db.lookup_put, key, time.time(), out)
+    if _has_facts(out):          # an empty answer (wrong item, outage) must not stay cached for 30 days
+        await asyncio.to_thread(db.lookup_put, key, time.time(), out)
     return out, None, time.time()
+
+
+def _has_facts(out: dict) -> bool:
+    return any(out.get(k) for k in ("capital", "head_of_state", "head_of_government", "population"))
+
+
+def _best_rank(statements: list) -> list:
+    """Wikidata's "best rank": the preferred statements when there are any, else the normal ones. Countries often keep
+    old heads of government as normal-rank statements without an end date and mark the current one preferred."""
+    pref = [st for st in statements if st.get("rank") == "preferred"]
+    return pref or [st for st in statements if st.get("rank") != "deprecated"]
 
 
 async def _facts_entity(qid: str) -> dict:
@@ -121,8 +134,8 @@ async def _facts_entity(qid: str) -> dict:
         qual = lambda st, p: (((st.get("qualifiers") or {}).get(p) or [{}])[0].get("datavalue") or {}).get("value")
         for pid, kind in _FACT_PROPS.items():
             recs = []
-            for st in claims.get(pid, []):
-                if st.get("rank") == "deprecated" or qual(st, "P582"):
+            for st in _best_rank(claims.get(pid, [])):
+                if qual(st, "P582"):
                     continue
                 v = (st.get("mainsnak", {}).get("datavalue") or {}).get("value")
                 t = ((qual(st, "P585") or {}).get("time") or "").lstrip("+")[:10] or None
@@ -140,10 +153,10 @@ async def _facts_entity(qid: str) -> dict:
         ids = sorted(need)
         for i in range(0, len(ids), 50):
             r = await c.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(ids[i:i + 50]),
-                                                                       "props": "labels|claims", "languages": "en", "format": "json"})
+                                                                       "props": "labels|claims", "languages": geo.LABEL_LANGS_API, "format": "json"})
             r.raise_for_status()
             for q, e in r.json().get("entities", {}).items():
-                labels[q] = ((e.get("labels") or {}).get("en") or {}).get("value")
+                labels[q] = geo.wd_label(e.get("labels"))
                 pt = ((((e.get("claims") or {}).get("P625") or [{}])[0].get("mainsnak") or {}).get("datavalue") or {}).get("value")
                 if isinstance(pt, dict) and "latitude" in pt:
                     coords[q] = (pt["longitude"], pt["latitude"])
@@ -397,7 +410,8 @@ def make_routes(collector):
         c = geo.C[iso]
         facts, problem, fetched = (await _facts(c["qid"])) if c.get("qid") else (None, "no Wikidata id for this country", None)
         body.update(iso=iso, name=c["name"], qid=c.get("qid"), facts=facts, facts_problem=problem, facts_fetched=fetched)
-        if not facts:          # heads of state and government from the cached leaders list, which is also Wikidata's
+        if not facts or not (facts.get("head_of_state") or facts.get("head_of_government")):
+            # heads of state and government from the cached leaders list, which is also Wikidata's
             lh = store.cache_get("leaders", 30 * 86400)
             body["heads"] = [{"qid": l["qid"], "label": l["name"], "role": l["role"]} for l in (lh or {}).get("body", []) if geo.by_name(l["country"]) == iso]
         return JSONResponse(body, headers={"Cache-Control": "no-store"})
@@ -431,7 +445,7 @@ def _once(arts: list[dict]) -> list[dict]:
 
 
 def person(collector, qid: str, name_hint: str | None) -> dict:
-    prof = (store.cache_get("profile3:" + qid, 7 * 86400) or {}).get("body") or {}
+    prof = (store.cache_get("profile4:" + qid, 7 * 86400) or {}).get("body") or {}
     name = prof.get("name") or name_hint or ""
     key = news_window._norm(name)
     surname = key.split()[-1] if key else ""
@@ -523,23 +537,23 @@ def person(collector, qid: str, name_hint: str | None) -> dict:
 
 # ---------------------------------------------------------------- court records for a person
 async def _wd_entity(client, qid: str) -> dict:
-    hit = store.cache_get("wdent:" + qid, 30 * 86400)
+    hit = store.cache_get("wdent2:" + qid, 30 * 86400)
     if hit:
         return hit["body"]
     r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": qid, "props": "labels|aliases|claims",
-                                                                        "languages": "en", "format": "json"}, headers=_wm_headers())
+                                                                        "languages": geo.LABEL_LANGS_API, "format": "json"}, headers=_wm_headers())
     r.raise_for_status()
     e = r.json()["entities"][qid]
-    body = {"label": e.get("labels", {}).get("en", {}).get("value"), "aliases": [a["value"] for a in e.get("aliases", {}).get("en", [])],
+    body = {"label": geo.wd_label(e.get("labels")), "aliases": [a["value"] for a in [*e.get("aliases", {}).get("en", []), *e.get("aliases", {}).get("mul", [])]],
             "convicted": courts.wd_claims(e, "P1399"), "charged": courts.wd_claims(e, "P1595")}
     ids = body["convicted"] + body["charged"]
     if ids:
         r = await client.get("https://www.wikidata.org/w/api.php", params={"action": "wbgetentities", "ids": "|".join(ids[:50]), "props": "labels",
-                                                                            "languages": "en", "format": "json"}, headers=_wm_headers())
-        lab = {k: v.get("labels", {}).get("en", {}).get("value") for k, v in r.json().get("entities", {}).items()}
+                                                                            "languages": geo.LABEL_LANGS_API, "format": "json"}, headers=_wm_headers())
+        lab = {k: geo.wd_label(v.get("labels")) for k, v in r.json().get("entities", {}).items()}
         body["convicted"] = [lab.get(i) for i in body["convicted"] if lab.get(i)]
         body["charged"] = [lab.get(i) for i in body["charged"] if lab.get(i)]
-    store.cache_put("wdent:" + qid, body)
+    store.cache_put("wdent2:" + qid, body)
     return body
 
 
