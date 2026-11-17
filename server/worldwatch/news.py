@@ -118,7 +118,7 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
         # V2EnhancedPersons ("name,offset;"): who is named and where in the text, so a person can be matched to the
         # city mentioned nearest to them rather than to the article's first city
         persons = r[12][:600] if len(r) > 12 else ""
-        if WATCH and persons and not any(_norm(p.rpartition(",")[0] or p) in WATCH for p in persons.split(";") if p):
+        if WATCH and persons and not any(n in WATCH for n, _ in person_mentions(persons)):
             persons = ""                    # nobody we follow is named: drop the names, which would cost ~40 MB over 6 hours
         near = tuple((c[0], c[1], c[2], c[3]) for c in sorted(set(cities))[:8]) if persons else ()
         rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons, near, theme_flags(r[7])))
@@ -188,7 +188,7 @@ class Window:
 
 english = Window("gkg", ".gkg.csv.zip", "https://data.gdeltproject.org/gdeltv2/lastupdate.txt", False, per_run=6)
 translated = Window("gkgtr", ".translation.gkg.csv.zip", "https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt", True, per_run=3)
-PER_PLACE = 8          # articles per place sent with the map data; a card asks for the rest
+PER_PLACE = 3          # articles per place sent with the map data (list row and first look); a card asks for the rest
 
 
 def places(win: Window) -> list[dict]:
@@ -245,6 +245,21 @@ def _norm(name: str) -> str:
     import unicodedata
     n = unicodedata.normalize("NFKD", name.lower())
     return " ".join("".join(c for c in n if not unicodedata.combining(c)).replace("-", " ").split())
+
+
+def person_mentions(persons: str) -> list[tuple[str, int]]:
+    """A row's person field as (normalised name, character offset or -1). It holds V2EnhancedPersons ("name,offset;");
+    old cache files hold V1Persons (names without offsets). Every reader must strip the offset: comparing the raw entry
+    ("donald trump,1234") with a name never matches."""
+    out = []
+    for p in persons.split(";"):
+        if not p:
+            continue
+        name, _, off = p.rpartition(",")
+        if not name or not off.isdigit():
+            name, off = p, ""
+        out.append((_norm(name), int(off) if off else -1))
+    return out
 
 
 _ALIAS = {"people's republic of china": "china", "united states of america": "united states", "russian federation": "russia",
@@ -304,13 +319,8 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
             if len(row) < 9 or not row[8]:
                 continue
             mentions: dict[str, list[int]] = {}
-            for p in row[8].split(";"):
-                if not p:
-                    continue
-                name, _, off = p.rpartition(",")
-                if not name:                         # old cache files hold V1Persons: names without offsets
-                    name, off = p, ""
-                mentions.setdefault(_norm(name), []).append(int(off) if off.isdigit() else -1)
+            for name, off in person_mentions(row[8]):
+                mentions.setdefault(name, []).append(off)
             if len(mentions) > 12:                  # "today in history" and round-ups name dozens of people: no place to learn
                 continue
             cities = row[9] if len(row) > 9 else []
@@ -450,7 +460,8 @@ def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
             same, words, n_out = story
             ids = {id(a) for a in same}
             arts = sorted(c["now"].values(), key=lambda a: (id(a) not in ids, a["lang"] != "eng", -(a["image"] is not None), -a["time"]))
-            out.append({"place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
+            # id from the series and place, not the list index: an open card must not become another place on reload
+            out.append({"id": f"spike:{name}:{c['place']}", "place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
                         "story_words": words, "story_headlines": len(same), "story_outlets": n_out,
                         "rate_before": round(rate, 1), "times": round(n / max(rate, 0.5), 1), "first": min(a["time"] for a in arts),
                         "articles": arts[:10]})

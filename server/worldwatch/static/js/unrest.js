@@ -39,6 +39,7 @@ function make(single) {
          properties: {id: g.id, n: g.outlets, k: KIND[g.cat]?.[0] || '?', ring: g.cat === 'protest'}}))});
     },
     count: () => mine().length,
+    owns: id => mine().some(g => g.id === id),     // hotspot links pick through this
     rows() {
       if (single) return [];
       return mine().filter(g => g.outlets >= 3).map(g => {

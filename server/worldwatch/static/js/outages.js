@@ -1,11 +1,16 @@
 // Country-level internet outage signals from IODA (Georgia Tech). A country has no single point, so each
 // marker sits at the country's geographic centre; the card says so.
 import {ago, esc, local, now, utc, countryBtn} from './util.js';
+import {radarStale} from './netwatch.js';
 
 const SRC = 'ww-outages';
 let events = [], info = null, notes = [], radarInfo = null;   // notes: Cloudflare Radar's written outage annotations
 const CAUSE_K = {POWER_OUTAGE: 'P', MILITARY_ACTION: 'M', CABLE_CUT: 'C', GOVERNMENT_DIRECTED: 'G', CYBERATTACK: 'X', NATURAL_DISASTER: 'N', WEATHER: 'W'};
 const noteAt = n => n.countries.find(c => c.at)?.at;
+// a note without an end is "ongoing" only while the Cloudflare feed is alive; from a stopped feed it is "no end noted
+// when last read", is not counted and faded (a dead feed is shown as dead)
+const open = n => !n.end && !radarStale(radarInfo);
+const noteState = n => n.end ? 'ended ' + ago(n.end) : radarStale(radarInfo) ? `no end noted when last read ${ago(radarInfo?.fetched)} (feed stopped)` : 'ongoing';
 const SIGNALS = {bgp: 'routing announcements (BGP)', 'ping-slash24': 'active probing', 'merit-nt': 'network telescope traffic', gtr: 'Google traffic', 'gtr-norm': 'Google traffic'};
 const ends = e => e.start + e.duration_s;
 const span = s => s < 5400 ? Math.round(s / 60) + ' min' : s < 172800 ? (s / 3600).toFixed(1) + ' h' : Math.round(s / 86400) + ' days';
@@ -37,14 +42,14 @@ export default {
       {type: 'Feature', geometry: {type: 'Point', coordinates: [b.e.lon, b.e.lat]}, properties: {id: b.e.id, cc: String(cc).toUpperCase().slice(0, 3), mag: Math.log10(Math.max(1, b.score)), over: !b.live}})).concat(
       // Cloudflare's notes: one marker per note and country, a little off the IODA marker so both can be clicked
       notes.filter(n => !n.end || n.end > now() - 7 * 86400).flatMap(n => n.countries.filter(c => c.at).map(c => ({type: 'Feature',
-        geometry: {type: 'Point', coordinates: [c.at[0] + 1.2, c.at[1] - 0.8]}, properties: {id: 'cfnote:' + n.id, k: CAUSE_K[n.cause_code] || 'i', over: !!n.end}}))))});
+        geometry: {type: 'Point', coordinates: [c.at[0] + 1.2, c.at[1] - 0.8]}, properties: {id: 'cfnote:' + n.id, k: CAUSE_K[n.cause_code] || 'i', over: !open(n)}}))))});
   },
-  count: () => new Set(events.map(e => e.code)).size + notes.filter(n => !n.end).length,
+  count: () => new Set(events.map(e => e.code)).size + notes.filter(open).length,
   rows() {
     return events.map(e => ({id: e.id, time: e.start, badge: String(e.code || '!').toUpperCase().slice(0, 3), title: `Internet disruption, ${e.where}`,
       meta: `${ends(e) < now() - 900 ? 'Ended ' + ago(ends(e)) : 'Ongoing, ' + span(e.duration_s)} · ${SIGNALS[e.signal] || e.signal} · IODA`})).concat(notes.filter(n => !n.end || n.end > now() - 7 * 86400).map(n => ({
       id: 'cfnote:' + n.id, time: n.start, badge: CAUSE_K[n.cause_code] || 'i', strong: ['MILITARY_ACTION', 'GOVERNMENT_DIRECTED', 'CABLE_CUT'].includes(n.cause_code),
-      title: n.text, meta: `${n.cause ? n.cause[0].toUpperCase() + n.cause.slice(1) : 'Outage'} · ${n.end ? 'ended ' + ago(n.end) : 'ongoing'} · Cloudflare Radar`})));
+      title: n.text, meta: `${n.cause ? n.cause[0].toUpperCase() + n.cause.slice(1) : 'Outage'} · ${noteState(n)} · Cloudflare Radar`})));
   },
   locate(id) {
     if (String(id).startsWith('cfnote:')) { const n = notes.find(x => 'cfnote:' + x.id === id), a = n && noteAt(n); return a ? [a[0] + 1.2, a[1] - 0.8] : null; }
@@ -60,7 +65,7 @@ export default {
         <p class="where">${esc(n.cause ? n.cause[0].toUpperCase() + n.cause.slice(1) : 'Cause not given')}${n.scope ? ' · ' + esc(n.scope) : ''}</p>
         <p>${esc(n.text || '')}</p>
         <dl><dt>Started</dt><dd>${local(n.start)} <span class="soft">(${ago(n.start)})</span></dd>
-          <dt>${n.end ? 'Ended' : 'Status'}</dt><dd>${n.end ? local(n.end) + ` <span class="soft">(${ago(n.end)})</span>` : 'ongoing, as far as Cloudflare has noted'}</dd>
+          <dt>${n.end ? 'Ended' : 'Status'}</dt><dd>${n.end ? local(n.end) + ` <span class="soft">(${ago(n.end)})</span>` : radarStale(radarInfo) ? esc(noteState(n)) : 'ongoing, as far as Cloudflare has noted'}</dd>
           ${n.regions.length ? `<dt>Regions</dt><dd>${n.regions.map(esc).join(', ')}</dd>` : ''}
           ${n.networks.length ? `<dt>Networks</dt><dd>${n.networks.map(esc).join(', ')}</dd>` : ''}</dl>
         ${n.countries[0] ? countryBtn({cc: n.countries[0].cc}) : ''}

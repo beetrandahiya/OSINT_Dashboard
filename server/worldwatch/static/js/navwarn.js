@@ -44,9 +44,10 @@ export default {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => warns.filter(w => w.lon != null).length,
+  owns: id => warns.some(w => w.id === id),
   rows() {
     return warns.filter(w => w.lon != null && ['rocket', 'missile', 'weapons', 'security'].includes(w.kind)).map(w => ({
-      id: w.id, time: info?.fetched || 0, badge: KIND[w.kind]?.[0] || '?',
+      id: w.id, time: w.issued_t || info?.fetched || 0, badge: KIND[w.kind]?.[0] || '?',
       title: `${KIND[w.kind]?.[1]}: ${w.text.replace(/\s+/g, ' ').slice(0, 90)}`, meta: `${w.ref} · ${w.source} · in force`}));
   },
   locate(id) { const w = warns.find(x => x.id === id); return w && w.lon != null ? [w.lon, w.lat] : null; },

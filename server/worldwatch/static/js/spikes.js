@@ -4,6 +4,8 @@ import {ago, esc, skyShot, spyPass, countryBtn} from './util.js';
 import {img} from './news.js';
 
 let d = {spikes: []}, maps = [];
+// ids come from the server (series + place), so a reload that reorders the list never swaps an open card
+const sid = (s, i) => s.id || 'spike:' + i, get = id => d.spikes.find((s, i) => sid(s, i) === id);
 async function load() {
   try { d = await fetch('/api/news/spikes', {cache: 'no-store'}).then(r => r.json()); } catch (e) { return; }
   for (const [l, m] of maps) l.render(m);
@@ -28,16 +30,16 @@ export default {
   },
   onData() {},
   render(map) {
-    map.getSource('ww-spikes')?.setData({type: 'FeatureCollection', features: d.spikes.map((s, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]}, properties: {id: 'spike:' + i, n: s.headlines}}))});
+    map.getSource('ww-spikes')?.setData({type: 'FeatureCollection', features: d.spikes.map((s, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]}, properties: {id: sid(s, i), n: s.headlines}}))});
   },
   count: () => d.spikes.length,
-  rows: () => d.spikes.map((s, i) => ({id: 'spike:' + i, time: d.newest || s.first, badge: '!', strong: true, title: `Breaking: ${s.place.split(',')[0]} · ${s.articles[0]?.title || ''}`,
+  rows: () => d.spikes.map((s, i) => ({id: sid(s, i), time: d.newest || s.first, badge: '!', strong: true, title: `Breaking: ${s.place.split(',')[0]} · ${s.articles[0]?.title || ''}`,
     thumb: img(s.articles.find(a => a.image)?.image), meta: `${s.story_headlines || s.headlines} headlines from ${s.story_outlets || s.outlets} outlets on one story${s.story_words ? ' (“' + s.story_words.join(' ') + '”)' : ''}, ${s.times}× the usual rate`})),
-  owns: id => String(id).startsWith('spike:'),
-  locate(id) { const s = d.spikes[+id.slice(6)]; return s && [s.lon, s.lat]; },
+  owns: id => !!get(id),
+  locate(id) { const s = get(id); return s && [s.lon, s.lat]; },
   ring: () => 16,
   detail(id) {
-    const s = d.spikes[+id.slice(6)]; if (!s) return null;
+    const s = get(id); if (!s) return null;
     return `<p class="eyebrow">Breaking · news picked up</p><h2>${esc(s.place.split(',')[0])}</h2><p class="where">${esc(s.place)}</p>
       <dl><dt>Last hour</dt><dd>${s.headlines} different headlines from ${s.outlets} outlets</dd>
         <dt>Before</dt><dd>${s.rate_before} different headlines an hour over the previous ${d.baseline_h} hours <span class="soft">(${s.times}× now)</span></dd>

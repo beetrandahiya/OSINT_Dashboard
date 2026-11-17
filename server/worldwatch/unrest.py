@@ -285,7 +285,8 @@ class Unrest:
                         "action": ACTION.get(code, ACTION.get(code[:3], "")), "codes": g["codes"],
                         "actions": {ACTION.get(c, ACTION.get(c[:3], c)): n for c, n in g["codes"].items()},
                         "actors": sorted(g["actors"], key=g["actors"].get, reverse=True)[:4],
-                        "articles": list(one.values())[:25], "themes_checked": known})
+                        "articles": [{**a, "time": _t(a["time"])} for a in list(one.values())[:25]],   # epoch seconds, clamped
+                        "themes_checked": known})
         out.sort(key=lambda g: -g["outlets"])
         return out
 

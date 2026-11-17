@@ -7,6 +7,9 @@ let sets = {}, info = {}, events = [];
 const LETTER = {TC: 'C', FL: 'F', VO: 'V', DR: 'D', WF: 'W', IC: 'I', LS: 'L', DH: 'H'};
 const when = e => e.modified;
 
+// util.local() leaves the year out; long-running EONET events began years ago ("21 Sept (1518 d ago)")
+const at = t => { const d = new Date(t * 1000); return d.getFullYear() === new Date().getFullYear() ? local(t)
+  : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'}) + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 export default {
   id: 'hazards', title: 'Disasters', color: ['#ff2d55', '#ff375f'], feeds: {gdacs: 300, eonet: 600}, layers: ['ww-hazards-track', 'ww-hazards', 'ww-hazards-label'],
 
@@ -33,6 +36,7 @@ export default {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => events.length,
+  owns: id => events.some(e => e.id === id),
   rows() {
     return events.map(e => ({id: e.id, time: when(e), badge: LETTER[e.code] || '?', strong: e.level === 'Red' || e.level === 'Orange',
       title: e.name, meta: `${e.kind}${e.level ? ' · ' + e.level.toLowerCase() + ' alert' : ''} · updated ${ago(when(e))}`}));
@@ -49,9 +53,9 @@ export default {
       <dl>
         ${e.level ? `<dt>GDACS alert level</dt><dd>${esc(e.level)} <span class="soft">(green, orange or red by expected humanitarian impact)</span></dd>` : ''}
         ${e.severity ? `<dt>${e.source === 'GDACS' ? 'Severity, as GDACS puts it' : 'Latest strength'}</dt><dd>${esc(e.severity)}</dd>` : ''}
-        <dt>Began</dt><dd>${local(e.from)} <span class="soft">(${ago(e.from)})</span></dd>
-        ${e.to ? `<dt>Alert runs to</dt><dd>${local(e.to)} <span class="soft">(${ago(e.to)})</span></dd>` : ''}
-        <dt>Last update</dt><dd>${local(e.modified)} <span class="soft">(${utc(e.modified)}, ${ago(e.modified)})</span></dd>
+        <dt>Began</dt><dd>${at(e.from)} <span class="soft">(${ago(e.from)})</span></dd>
+        ${e.to ? `<dt>Alert runs to</dt><dd>${at(e.to)} <span class="soft">(${ago(e.to)})</span></dd>` : ''}
+        <dt>Last update</dt><dd>${at(e.modified)} <span class="soft">(${utc(e.modified)}, ${ago(e.modified)})</span></dd>
       </dl>
       ${skyShot(e.lat, e.lon)}
       ${spyPass(e.lat, e.lon)}
