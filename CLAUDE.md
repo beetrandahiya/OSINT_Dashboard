@@ -1645,3 +1645,33 @@ the Blue Marble photo) before drawing the other screens or building anything.
   (line family drops its glow on light grounds); eleven sheets (solid and line on photo, mono, dark and light).
 - Map mock-ups: of the military aircraft in the capture, only those whose broadcast type is in the table get a
   specific silhouette; others (e.g. "MF17", "SIRA") use the general military shape.
+
+### 2026-11-17, God's eye: sci-fi treatment after studying the film (mock-ups, waiting for his pick)
+
+- His verdict on the deeper set: "very very good", but "a lil bit cartoony". **Palettes A and C are both good; B is
+  out.** He asked for something more sci-fi / futuristic, like God's Eye in Furious 7, and asked me to research the film.
+- Research: God's Eye was designed by **Cantina Creative** with director James Wan (graphics supervisor Alan Torres).
+  Read cantinacreative.com/film/furious-7, hudsandguis.com (2015-11-23) and pushing-pixels.org (Torres interview);
+  studied the published stills (kept in the session scratchpad only, never republished). Their words: "organised but
+  not neat", "it's all about the layering of transparencies", "beautifully dense", "pushing back on all the beautiful
+  complexity". What the stills show: a cold desaturated steel-blue picture, stacked thin see-through panels with
+  bright corner brackets, tiny geometric map markers with caps labels, a red broken-ring lock only on the target,
+  condensed capitals plus dense micro text, segmented bars, leader lines, pixel / colour-fringe glitches in transitions.
+- **Why ours looked cartoony:** thick dark outline, flat saturated fills, rounded joins (game-icon language).
+- New canvas page "God's eye: sci-fi treatment" (same link), 8 boards at 1920 x 1080, rendered and checked locally;
+  code `docs/design-eye/scifi.py` + `gen_scifi.py`:
+  1. Research notes: eight observations with our own small diagrams, the designers' quotes, and **take / leave**
+     (leave: orange labels, invented percentages / fake IDs / code columns, face recognition and person tracking,
+     glitch on markers).
+  2. Four treatments of the same silhouettes in A and C: today's solid, **hologram** (glass fill 26 %, bright
+     non-scaling hairline edge, soft glow), **etched** (solid, slim light edge, no dark outline), **hairline** (edge only,
+     corner ticks).
+  3. Building blocks: selection lock (three broken rose arcs, ticks, ice corner brackets; ice for hover), callouts
+     with leader lines and real values, segmented counts that are real numbers, panels, ground (raw, graded, graded +
+     dot grid + scan lines), type (Barlow Condensed caps + IBM Plex Mono numbers, Inter for body; all free).
+  4. Near view (new 1920 x 1080 render over northern Germany, graded): RCH4992 (C-17, FL306, 535 kt, 063°) locked,
+     "In view" list of the 10 military aircraft, "Selected" panel.
+  5-6. Theatre in hologram, palettes A and C, signals panel with segmented outlet counts, layer strip.
+  7-8. All 147 symbols in hologram, A and C.
+- Caught in my own check: a first callout used sample numbers (FL300, 420 kt) instead of RCH4992's real values.
+  Every number on a board must come from the capture.
