@@ -64,7 +64,8 @@ function render() {
   findFigures();
   const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds, figures);
   if (dz.dataset.html !== html) { dz.innerHTML = html; dz.dataset.html = html; dz.scrollTop = y; }
-  $('#graph').toggleAttribute('hidden', tab !== 'graph'); dz.hidden = tab !== 'dossier';   // SVG has no .hidden property, only the attribute $('#legend').style.display = tab === 'graph' ? '' : 'none';
+  $('#graph').toggleAttribute('hidden', tab !== 'graph'); dz.hidden = tab !== 'dossier';   // SVG has no .hidden property, only the attribute
+  $('#legend').style.display = tab === 'graph' ? '' : 'none';
   $('#tab-dossier').setAttribute('aria-pressed', tab === 'dossier'); $('#tab-graph').setAttribute('aria-pressed', tab === 'graph');
   $('#read-pages').disabled = !!S.job.running || !S.findings.length;
   if (tab === 'graph') draw();

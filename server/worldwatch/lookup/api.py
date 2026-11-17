@@ -112,7 +112,7 @@ async def state(request):
 
 
 CHECK = {"username": r"[A-Za-z0-9._-]{2,40}", "email": r"[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,}", "name": r".{3,80}", "phone": r"\+?[0-9 ()/-]{6,24}",
-         "domain": r"([a-z0-9-]+\.)+[a-z]{2,}", "github": r"[A-Za-z0-9-]{1,39}"}
+         "domain": r"([a-z0-9-]+\.)+[a-z]{2,}", "github": r"[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}"}   # GitHub: no leading, trailing or double hyphen
 
 
 @guarded
@@ -123,12 +123,15 @@ async def add(request):
         value = value.lower()
     if kind not in CHECK or not re.fullmatch(CHECK[kind], value):
         return JSONResponse({"error": f"That does not look like a valid {store.KINDS.get(kind, 'entry').lower()}."}, status_code=400)
-    store.add_identifier(kind, value)
+    if not store.add_identifier(kind, value):
+        return JSONResponse({"error": f"{value} is already in the list."}, status_code=409)
     return JSONResponse({"ok": True})
 
 
 @guarded
 async def remove(request):
+    if job["running"]:          # a running scan would keep saving findings for it, with nothing left to show or remove them
+        return JSONResponse({"error": "A scan is running; remove it when the scan has finished."}, status_code=409)
     store.remove_identifier(int(request.path_params["id"]))
     return JSONResponse({"ok": True})
 
@@ -169,6 +172,9 @@ async def _scan(want: set):
         """Run one check for one identifier; whatever happens, say so."""
         if check not in want:
             return
+        if not store.identifier_exists(ident["id"]):
+            job["done"] += 1
+            return
         job["step"] = f"{label}: {ident['value']}"
         try:
             res = await work()
@@ -176,7 +182,7 @@ async def _scan(want: set):
             ran = [t for t in tool_names if not any(p.startswith(t + ":") for p in problems)]
             store.save_findings(ident["id"], ran, found, now)
             job["problems"] += problems
-            summary["findings"] += len(found)
+            summary["findings"] += len({(f["tool"], f["key"]) for f in found})   # as stored: a tool listing one page twice counts once
         except Exception as e:
             job["problems"].append(f"{label} for {ident['value']}: {e if isinstance(e, (tools.ToolProblem, RuntimeError)) else type(e).__name__ + ': ' + str(e)[:120]}")
         job["done"] += 1
@@ -238,6 +244,8 @@ async def start(request):
         _begin("selftest", 0)
         asyncio.create_task(_selftest())
     elif which == "read":
+        if not store.pages_to_read():   # say so, instead of a scan entry that reads "0 findings from 0 checks"
+            return JSONResponse({"ok": True, "note": "Every page found was read in the last 7 days; nothing to read again yet."})
         _begin("scan", 0)
         asyncio.create_task(_scan({"read_pages"}))
     elif which == "scan":
