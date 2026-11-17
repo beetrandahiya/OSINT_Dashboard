@@ -12,7 +12,12 @@ const place = h => {
 // The pulse is a small page element per hotspot with a CSS animation (.hot-pulse in app.css), placed by a map marker:
 // the browser animates it on its own, so the map is not redrawn 60 times a second for it (setting a paint property
 // every frame did that, forever, while the layer was on). Off under Reduce Motion (CSS) and while the layer is off.
+// Rebuilt only when the set of positions changes, so the animation does not restart on every 5-minute reload.
+let pulseKey = '';
 function pulse() {
+  const key = theMap && on ? d.hotspots.map(h => h.lon.toFixed(4) + ',' + h.lat.toFixed(4)).sort().join(';') : '';
+  if (key === pulseKey && pulses.length === (key ? d.hotspots.length : 0)) return;
+  pulseKey = key;
   for (const m of pulses) m.remove();
   pulses = [];
   if (!theMap || !on) return;
