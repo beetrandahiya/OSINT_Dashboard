@@ -1533,3 +1533,32 @@ the Blue Marble photo) before drawing the other screens or building anything.
   coded as, outlets, age) with front / carriers / navy warning / outages rows, and a pill bar of views. Panels stay
   right of x=672 so the markers over Europe and Ukraine stay visible. Not opened in a browser. Direction for the
   God's eye look from now: keep the vibe, carry more information.
+
+### 2026-11-17, God's eye: seven globe views (mock-ups, waiting for his pick)
+
+- He found the denser God's eye board interesting and asked for "many globe views" and more panels, layouts and
+  screens for look 2. **He will use the app on a 22 or 27 inch monitor: boards are now 1920 x 1080**, and panels may
+  be wider than on the laptop-sized boards.
+- New page "God's eye: globe views" on the canvas (https://claude.ai/artifact/5hDJgW4M7dkGq4iAC73d2D), seven boards,
+  all with a strip of small pictures that switches between the views:
+  1. **Whole Earth**: full disc from 35,786 km; signals and leaders left, layers / feeds / launches / quakes right.
+  2. **Theatre**: tilted view over Europe and the Black Sea with the horizon; a camera panel (position, height,
+     bearing) and five cards along the bottom that list what is in the view (they would follow the camera).
+  3. **Day and night**: disc centred on South-East Asia with the computed evening edge and NASA city lights on the
+     night side; a table of everything on that side sorted from night to day with the sun's height at each place.
+  4. **Two sides**: two discs (Americas; Europe-Africa-Asia) and four region columns below.
+  5. **Wall of four**: four fixed looks straight down (Europe, Middle East, East Asia, North America), each with the
+     counts inside its frame.
+  6. **Look down**: eastern Ukraine from 1,019 km with DeepState's occupied area and a sheet for the front line.
+  7. **Search**: a palette over the horizon view (country, items on the map now, people from Wikidata).
+- How they were made (sources in `docs/design-eye/`: `cam.py` pinhole camera and renderer, `views.py` the seven
+  cameras, `gen_eye.py` the boards; paths inside point at the session scratchpad): NASA GIBS WMS without a key
+  (`BlueMarble_NextGeneration` world 8192 px and a Europe patch 6000 px, `VIIRS_Black_Marble` for the night side),
+  ray-cast per pixel, marks projected with the same camera, items under a panel left out. Sun position from the
+  date (subsolar 19.0 S 25.9 E at the capture). These boards were rendered locally in headless Chromium and
+  checked for overflow (unlike the earlier boards).
+- Honest limits said on the boards: Blue Marble is a cloud-free composite, the city lights are a composite of past
+  years, the look-down ground is about 500 m per pixel (the app's sharp photo would replace it), the search board's
+  "items on the map" group is a new idea (today's search finds only countries and people).
+- In the app, the tilted and whole-disc views are camera presets of the existing MapLibre globe; the two-sides and
+  wall views need several map instances (cost on the GPU unmeasured). Nothing built.
