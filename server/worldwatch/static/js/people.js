@@ -1,12 +1,13 @@
 // People layer: current heads of state and government at their countries. Click one for a full profile.
 // Profiles come from public records (Wikidata, Wikipedia, GDELT, optional OpenSanctions) via our server.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {every} from './prefs.js';
 import {ago, esc, countryBtn} from './util.js';
 import {openProfile} from './profile.js';
 
 let leaders = [], info = null;
 export default {
-  id: 'people', title: 'People', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-people', 'ww-people-label'], defaultOff: true, local: true,
+  id: 'people', title: 'People', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-people', 'ww-people-label', 'ww-people-eye'], defaultOff: true, local: true,
   addTo(map) {
     map.addSource('ww-people', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-people', type: 'circle', source: 'ww-people',
@@ -36,6 +37,8 @@ export default {
   paint(map, dark) {
     map.setPaintProperty('ww-people', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-people', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    if (!map.getLayer('ww-people-eye')) addEye(map, 'ww-people-eye', 'ww-people', 'eye-head', ['interpolate', ['linear'], ['zoom'], 1, 0.3, 5, 0.5]);
+    eyeImages(map, dark); eyeSwap(map, ['ww-people-eye'], ['ww-people']);
     map.setPaintProperty('ww-people-label', 'text-color', dark ? '#e5e5ea' : '#3a3a3c');
     map.setPaintProperty('ww-people-label', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
   },

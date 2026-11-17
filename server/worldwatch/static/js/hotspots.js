@@ -1,5 +1,6 @@
 // Hotspots: places where at least three different kinds of security signal coincide within a day (hotspots.py).
 // A pulsing ring on the map; the card lists every signal behind it, each with its source and a way to show it.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {every} from './prefs.js';
 import {ago, esc, local, countryBtn, spyPass} from './util.js';
 
@@ -49,12 +50,14 @@ const hotspots = {
       layout: {'text-field': ['to-string', ['get', 'kinds']], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
     load(); every(300, load);   // prefs.js: not while hidden, slower in low power
   },
-  layers: ['ww-hot-area', 'ww-hot', 'ww-hot-label'],
+  layers: ['ww-hot-area', 'ww-hot', 'ww-hot-label', 'ww-hot-eye'],
   visible(v) { on = v; pulse(); },
   paint(map, dark) {
     const c = this.color[+dark];
     for (const [id, p] of [['ww-hot', 'circle-color'], ['ww-hot-area', 'circle-color'], ['ww-hot-area', 'circle-stroke-color']]) map.setPaintProperty(id, p, c);
     map.getContainer().style.setProperty('--hot', c);
+    if (!map.getLayer('ww-hot-eye')) addEye(map, 'ww-hot-eye', 'ww-hot', 'eye-hotspot', 0.7);
+    eyeImages(map, dark); eyeSwap(map, ['ww-hot-eye'], ['ww-hot']);   // the number of kinds stays on top
     map.setPaintProperty('ww-hot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
   },
   onData() {},

@@ -2,6 +2,7 @@
 // Satellite positions are calculated in the browser from CelesTrak's published orbit data with the standard
 // SGP4 model (the same maths every tracker uses). The card shows how old the orbit data is.
 // Launches come from Launch Library 2 and are drawn at their pads. No flight paths: none are published.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {json2satrec} from '../vendor/satellite/io.js';
 import {propagate, gstime} from '../vendor/satellite/propagation.js';
 import {eciToGeodetic, degreesLat, degreesLong, eciToEcf, ecfToLookAngles} from '../vendor/satellite/transforms.js';
@@ -442,7 +443,7 @@ function corridor(l) {
 }
 export const launches = {
   id: 'launches', title: 'Launches', color: ['#00a3b4', '#40c8e0'], feeds: {launches: 300, airspace: 900, navwarn: 600},
-  layers: ['ww-corridor-fill', 'ww-corridor-line', 'ww-launches', 'ww-launches-label'],
+  layers: ['ww-corridor-fill', 'ww-corridor-line', 'ww-launches', 'ww-launches-label', 'ww-launches-eye'],
   addTo(map) {
     map.addSource('ww-corridor', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-corridor-fill', type: 'fill', source: 'ww-corridor', filter: ['==', ['geometry-type'], 'Polygon'], paint: {'fill-opacity': 0.18}});
@@ -457,6 +458,8 @@ export const launches = {
     map.setPaintProperty('ww-corridor-fill', 'fill-color', this.color[+dark]);
     map.setPaintProperty('ww-corridor-line', 'line-color', this.color[+dark]);
     map.setPaintProperty('ww-launches', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    if (!map.getLayer('ww-launches-eye')) addEye(map, 'ww-launches-eye', 'ww-launches', 'eye-launch', 0.62);
+    eyeImages(map, dark); eyeSwap(map, ['ww-launches-eye'], ['ww-launches', 'ww-launches-label']);
   },
   onData(feed, d) { if (feed === 'airspace') airInfo = d; else if (feed === 'navwarn') navInfo = d; else { launchInfo = d; launchList = d.payload.launches; } },
   render(map) {

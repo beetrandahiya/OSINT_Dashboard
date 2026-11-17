@@ -2,6 +2,7 @@
 // military exercises, security threats, GPS interference. Official notices from NGA (US, worldwide series) and
 // UKHO (UK). Areas are drawn only where the notice states them (a circle "within n miles of" a point, or an
 // "area bound by" listed points); otherwise the points it names are marked.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc, spyPass} from './util.js';
 
 const SRC = 'ww-navwarn';
@@ -11,7 +12,7 @@ let warns = [], info = null;
 
 export default {
   id: 'navwarn', title: 'Navy warnings', color: ['#c9a400', '#ffd60a'], feeds: {navwarn: 600},
-  layers: ['ww-navwarn-fill', 'ww-navwarn-line', 'ww-navwarn-dot', 'ww-navwarn-label'],
+  layers: ['ww-navwarn-fill', 'ww-navwarn-line', 'ww-navwarn-dot', 'ww-navwarn-label', 'ww-navwarn-eye'],
   about: () => 'Official warnings at sea (NGA, UKHO): firings, launches, exercises, threats.',
 
   addTo(map) {
@@ -29,6 +30,9 @@ export default {
     map.setPaintProperty('ww-navwarn-dot', 'circle-color', c);
     map.setPaintProperty('ww-navwarn-dot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-navwarn-label', 'text-color', '#1c1c1e');
+    if (!map.getLayer('ww-navwarn-eye')) addEye(map, 'ww-navwarn-eye', SRC, ['match', ['get', 'k'], 'R', 'eye-nw_rocket', 'M', 'eye-nw_missile', 'W', 'eye-nw_weapons',
+      'X', 'eye-nw_exercise', 'S', 'eye-nw_security', 'G', 'eye-nw_gnss', 'eye-nw_weapons'], 0.55, {filter: ['==', ['get', 'marker'], true]});
+    eyeImages(map, dark); eyeSwap(map, ['ww-navwarn-eye'], ['ww-navwarn-dot', 'ww-navwarn-label']);
   },
   onData(feed, d) { warns = d.payload.warnings || []; info = d; },
   render(map) {

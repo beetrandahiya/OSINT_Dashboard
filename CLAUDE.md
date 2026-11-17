@@ -1717,7 +1717,9 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   shows one or the other (original opacities read once and restored for Apple Maps).
 - Measured (sandbox, software GL, so only relative): frame time with ~15,000 aircraft 350 ms Apple vs 367 ms God's eye, within
   noise; drawing all ~400 icon images 21 ms. **Real speed on his GPU and Safari untested.**
-- **Not converted yet** (still the Apple Maps symbols inside God's eye): news, hotspots, breaking, leaders, launches,
-  satellites (canvas), navy warnings, airspace, front line points, sanctioned, orbits and tankers, VIP/doomsday halos, fires,
-  GPS, cables, hijacks. Also: in palettes A and C civil (grey-white) and military (white) aircraft are nearly the same colour,
+- Also converted: launches, navy warnings (by kind), hotspots (the number stays on top; none existed during the test, so
+  unchecked), People (heads of state).
+- **Not converted yet** (still the Apple Maps symbols inside God's eye): news clusters, breaking, leaders today, satellites
+  (canvas), airspace, front line points, sanctioned, orbits and tankers, VIP/doomsday halos, fires, GPS, cables, hijacks.
+  **The legend panel still shows the Apple Maps symbols** (its colours are duplicated from each layer's paint). Also: in palettes A and C civil (grey-white) and military (white) aircraft are nearly the same colour,
   as on the boards; military reads by silhouette only. Ask him whether that is right on the real map.
