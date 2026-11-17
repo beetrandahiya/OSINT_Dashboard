@@ -53,7 +53,7 @@ async def gravatar(c: httpx.AsyncClient, email: str) -> list[dict]:
     r.raise_for_status()
     e = (r.json().get("entry") or [{}])[0]
     out = [_f("Gravatar", "profile", "gravatar", f"Gravatar profile “{e.get('displayName') or e.get('preferredUsername')}”", e.get("profileUrl"),
-              username=e.get("preferredUsername"), about=e.get("aboutMe"), photo=e.get("thumbnailUrl"))]
+              username=e.get("preferredUsername"), about=e.get("aboutMe"), image=e.get("thumbnailUrl"))]   # "image": the field the dossier shows pictures from
     for a in e.get("accounts") or []:
         out.append(_f("Gravatar", "account", "gravatar:" + (a.get("shortname") or a.get("domain") or ""), f"{a.get('name') or a.get('shortname')} account linked on Gravatar", a.get("url"), username=a.get("username")))
     return out

@@ -32,6 +32,7 @@
     <h3>Scan</h3>
     <p class="line" id="scan-line"></p>
     <button class="btn primary" id="plan">Scan</button> <button class="btn" id="read-pages">Read the pages</button>
+    <p class="note" id="note" hidden></p>
     <div class="sheet" id="sheet" hidden></div>
     <div id="progress" hidden><div class="bar"><i id="bar"></i></div><p class="line" id="step"></p></div>
     <ul class="problems" id="problems"></ul>
@@ -39,12 +40,12 @@
     <h3>Stored on this computer</h3>
     <p class="line" id="stored"></p>
     <button class="btn danger" id="wipe">Delete everything</button>
-    <p class="src">Results stay in a file on this computer (data/lookup.db). This page only answers on the computer World Watch runs on.</p>
+    <p class="src">Results stay in a file on this computer (data/lookup.db). This page only answers on the computer World Watch runs on, and only to its own page.</p>
   </div>
 </aside>
 
 <div class="right"><section class="glass detail" id="detail" hidden></section><span class="spring"></span>
-  <section class="glass legend" id="legend"></section></div>
+  <section class="glass lk-legend" id="legend"></section></div>
 
 <script type="module" src="/static/js/lookup.js"></script>
 </body>

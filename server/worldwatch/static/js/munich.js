@@ -13,6 +13,13 @@ function from(a) {   // distance in km and compass direction from home to an air
   return {km: 12742 * Math.asin(Math.sqrt(h)), dir: COMPASS[Math.round(((b + 360) % 360) / 45) % 8]};
 }
 
+// the station reports nothing (null) for an unknown value and no direction when calm: never "from the undefined"
+function wind(n) {
+  if (n.wind_speed_10 == null) return 'Wind not reported';
+  const dir = n.wind_direction_10 == null || Math.round(n.wind_speed_10) === 0 ? '' : ` from the ${COMPASS[Math.round(n.wind_direction_10 / 45) % 8]}`;
+  return `Wind ${Math.round(n.wind_speed_10)} km/h${dir}` + (n.wind_gust_speed_10 == null ? '' : `, gusts ${Math.round(n.wind_gust_speed_10)} km/h`);
+}
+
 async function load(name) { try { got[name] = await api('/api/data/' + name); } catch (e) { /* the feeds card reports failures */ } }
 
 function render() {
@@ -24,7 +31,7 @@ function render() {
   if (w?.payload) {
     const n = w.payload.now;
     html += `<div class="m-now"><b>${n.temperature == null ? '?' : n.temperature.toFixed(1)} °C</b><span>${esc(CONDITION[n.condition] || n.condition || '')}</span></div>
-      <p class="m-line">Wind ${Math.round(n.wind_speed_10)} km/h from the ${COMPASS[Math.round(n.wind_direction_10 / 45) % 8]}, gusts ${Math.round(n.wind_gust_speed_10)} km/h · humidity ${n.relative_humidity} % · cloud ${n.cloud_cover} %</p>
+      <p class="m-line">${wind(n)} · humidity ${n.relative_humidity ?? '?'} % · cloud ${n.cloud_cover ?? '?'} %</p>
       <p class="m-src">German Weather Service station ${esc(w.payload.station || '')}, measured ${local(w.payload.observed)} (${ago(w.payload.observed)})</p>`;
     html += '<h3>Official warnings</h3>';
     html += w.payload.alerts.length ? w.payload.alerts.map(a => `<div class="m-item"><b>${esc(a.headline || a.event || 'Warning')}</b>
@@ -44,18 +51,24 @@ function render() {
 
   html += '<h3>Public transport</h3>';
   if (m?.payload) {
-    const msgs = m.payload.messages, show = msgs.slice(0, 8);
-    html += m.payload.incidents ? '' : '<p class="m-line">No incidents reported right now.</p>';
+    const t = Date.now() / 1000, msgs = m.payload.messages.filter(x => !x.to || x.to > t), show = msgs.slice(0, 8);   // fetched every 5 min: drop what ended since
+    const incidents = msgs.filter(x => x.kind === 'INCIDENT').length, more = msgs.slice(8), moreInc = more.filter(x => x.kind === 'INCIDENT').length;
+    html += incidents ? '' : '<p class="m-line">No incidents reported right now.</p>';
     html += show.map(x => `<div class="m-item${x.kind === 'INCIDENT' ? ' incident' : ''}"><b>${x.kind === 'INCIDENT' ? 'Incident: ' : ''}${esc(x.title || '')}</b>
         ${x.title_original ? `<span class="soft">${esc(x.title_original)}</span>` : ''}
         <span class="soft">${esc([...new Set(x.transport.map(t => TRANSPORT[t] || t))].join(', '))}${x.lines.length ? ' · ' + esc(x.lines.slice(0, 8).join(', ')) + (x.lines.length > 8 ? ' and more' : '') : ''} · ${x.kind === 'INCIDENT' ? 'since ' + local(x.from) : 'planned change'}</span></div>`).join('');
-    if (msgs.length > show.length) html += `<p class="m-line">${msgs.length - show.length} more planned changes in force.</p>`;
+    if (more.length) html += `<p class="m-line">${[moreInc && `${moreInc} more ${moreInc === 1 ? 'incident' : 'incidents'}`, more.length - moreInc && `${more.length - moreInc} more planned ${more.length - moreInc === 1 ? 'change' : 'changes'}`].filter(Boolean).join(' and ')} in force.</p>`;
     html += `<a class="link" href="https://www.mvg.de/meldungen.html" target="_blank" rel="noopener">All messages on mvg.de</a>
-      <p class="m-src">From the feed behind mvg.de, fetched ${ago(m.fetched)}. It is not an official public service and may stop working. English headlines are machine-translated.</p>`;
+      <p class="m-src">From the feed behind mvg.de, fetched ${ago(m.fetched)}. It is not an official public service and may stop working. ${
+        m.payload.messages.some(x => x.title_original) ? 'English headlines are machine-translated; the German original is beneath.' : ''}${
+        m.payload.untranslated ? ` ${m.payload.untranslated} headlines are in German: machine translation is unavailable right now.` : ''}</p>`;
   } else html += '<p class="m-line">Transport messages not loaded yet.</p>';
 
-  if (el.dataset.html !== html && !el.matches(':hover')) { const y = el.scrollTop; el.innerHTML = html; el.dataset.html = html; el.scrollTop = y; }
-  else if (!el.dataset.html) { el.innerHTML = html; el.dataset.html = html; }
+  // not redrawn under the pointer (a list moving while you aim at it), but never frozen for more than a minute
+  const stale = Date.now() - (+el.dataset.drawn || 0) > 60000;
+  if (el.dataset.html !== html && (!el.matches(':hover') || stale || !el.dataset.html)) {
+    const y = el.scrollTop; el.innerHTML = html; el.dataset.html = html; el.dataset.drawn = Date.now(); el.scrollTop = y;
+  }
 }
 
 export function start(pick) {

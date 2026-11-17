@@ -1,6 +1,7 @@
 """Lookup results live in their own file, data/lookup.db, apart from the map's data. For now there is one
 subject, the owner himself. Deleting the subject deletes everything about it."""
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -39,29 +40,68 @@ def identifiers():
 
 def add_identifier(kind, value):
     with _lock:
-        db().execute("INSERT OR IGNORE INTO identifiers (kind, value, added) VALUES (?,?,?)", (kind, value, time.time()))
+        cur = db().execute("INSERT OR IGNORE INTO identifiers (kind, value, added) VALUES (?,?,?)", (kind, value, time.time()))
         db().commit()
+        return cur.rowcount > 0
+
+
+def identifier_exists(ident_id) -> bool:
+    with _lock:
+        return db().execute("SELECT 1 FROM identifiers WHERE id = ?", (ident_id,)).fetchone() is not None
+
+
+def _forget_names(c, names):
+    """What the page cached because of a full name you typed: the Wikidata name search (its key holds the name
+    itself) and the public-figure records it led to (profile, court records). Those records describe public
+    people, not you, but they exist only because of your name, so they go with it."""
+    from .. import courts
+    for name in names:
+        key = "search:" + name.lower()
+        row = c.execute("SELECT body FROM cache WHERE key = ?", (key,)).fetchone()
+        for hit in (json.loads(row[0]) if row else []):
+            qid = hit.get("qid") if isinstance(hit, dict) else None
+            if qid:
+                c.execute("DELETE FROM cache WHERE key GLOB ? OR key = ?", ("profile*:" + qid, "wdent:" + qid))
+                if hit.get("name"):
+                    c.execute("DELETE FROM cache WHERE key = ?", ("ukcase2:" + courts.fold(hit["name"]),))
+        c.execute("DELETE FROM cache WHERE key = ?", (key,))
 
 
 def remove_identifier(ident_id):
+    _cache_table()
     with _lock:
-        db().execute("DELETE FROM pages WHERE finding IN (SELECT id FROM findings WHERE identifier = ?)", (ident_id,))
-        db().execute("DELETE FROM findings WHERE identifier = ?", (ident_id,))
-        db().execute("DELETE FROM identifiers WHERE id = ?", (ident_id,))
-        db().commit()
+        c = db()
+        row = c.execute("SELECT kind, value FROM identifiers WHERE id = ?", (ident_id,)).fetchone()
+        if row and row["kind"] == "name":
+            _forget_names(c, [row["value"]])
+        c.execute("DELETE FROM pages WHERE finding IN (SELECT id FROM findings WHERE identifier = ?)", (ident_id,))
+        c.execute("DELETE FROM findings WHERE identifier = ?", (ident_id,))
+        c.execute("DELETE FROM identifiers WHERE id = ?", (ident_id,))
+        c.commit()
+
+
+def norm_url(u) -> str:
+    """The same page under small spelling differences; must match norm() in lookup.js, which joins findings into one dot."""
+    return re.sub(r"[/?#]+$", "", re.sub(r"^https?://(www\.)?", "", (u or "").lower()))
 
 
 def save_findings(ident_id, tool_names, found, now):
     """Store what a scan found for one identifier. A finding that no longer shows up is removed (for the
-    tools that ran), except its 'not me' mark, which is kept so it stays hidden if it returns."""
+    tools that ran), except its 'not me' mark, which is kept so it stays hidden if it returns. A page you
+    marked 'not me' stays so when another tool finds it later: the new row starts out marked."""
     with _lock:
         c = db()
+        hidden = {norm_url(r[0]) for r in c.execute("SELECT url FROM findings WHERE identifier = ? AND not_me = 1 AND url IS NOT NULL", (ident_id,))}
         for f in found:
-            c.execute("""INSERT INTO findings (identifier, tool, kind, key, title, url, detail, first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?)
+            nm = int(bool(f.get("url")) and f["kind"] == "account" and norm_url(f["url"]) in hidden)   # only for new rows: the update leaves not_me alone
+            c.execute("""INSERT INTO findings (identifier, tool, kind, key, title, url, detail, first_seen, last_seen, not_me) VALUES (?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT (identifier, tool, key) DO UPDATE SET title = excluded.title, url = excluded.url, detail = excluded.detail, kind = excluded.kind, last_seen = excluded.last_seen""",
-                      (ident_id, f["tool"], f["kind"], f["key"], f["title"], f.get("url"), json.dumps(f.get("detail") or {}), now, now))
+                      (ident_id, f["tool"], f["kind"], f["key"], f["title"], f.get("url"), json.dumps(f.get("detail") or {}), now, now, nm))
         for tool in tool_names:
-            c.execute("DELETE FROM findings WHERE identifier = ? AND tool = ? AND last_seen < ? AND not_me = 0", (ident_id, tool, now))
+            gone = "SELECT id FROM findings WHERE identifier = ? AND tool = ? AND last_seen < ? AND not_me = 0"
+            # the page read goes with its finding: SQLite hands a freed id to the next new finding, which would inherit it
+            c.execute(f"DELETE FROM pages WHERE finding IN ({gone})", (ident_id, tool, now))
+            c.execute(gone.replace("SELECT id", "DELETE"), (ident_id, tool, now))
         c.commit()
 
 
@@ -118,12 +158,28 @@ def last_scan():
     return r and {"started": r["started"], "finished": r["finished"], "summary": json.loads(r["summary"] or "{}")}
 
 
-def wipe():
+def checks_run() -> dict:
+    """For each check, when the newest finished scan that ran it started, and the problems that scan reported:
+    so the dossier can tell "checked, nothing found" from "not checked"."""
+    out = {}
     with _lock:
+        rows = db().execute("SELECT started, summary FROM scans WHERE finished IS NOT NULL ORDER BY id").fetchall()
+    for started, summary in rows:
+        sm = json.loads(summary or "{}")
+        for c in sm.get("checks") or []:
+            out[c] = {"started": started, "problems": sm.get("problems") or []}
+    return out
+
+
+def wipe():
+    _cache_table()
+    with _lock:
+        c = db()
+        _forget_names(c, [r[0] for r in c.execute("SELECT value FROM identifiers WHERE kind = 'name'")])
         for t in ("pages", "findings", "identifiers", "scans"):
-            db().execute(f"DELETE FROM {t}")
-        db().commit()
-        db().execute("VACUUM")
+            c.execute(f"DELETE FROM {t}")
+        c.commit()
+        c.execute("VACUUM")
 
 
 # ---- public-figure profiles: a cache, since Wikidata is slow. Not personal data; separate from findings. ----

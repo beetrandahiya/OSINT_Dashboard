@@ -1212,13 +1212,16 @@ async def mvg(feed: Feed, f: Fetcher) -> Result:
     out.sort(key=lambda m: (m["kind"] != "INCIDENT", not (rail & set(m["transport"])), -m["published"]))
     incidents = sum(1 for m in out if m["kind"] == "INCIDENT")
     # The first screenful gets an English headline by machine translation; the German stays beside it.
-    english, _ = await translate.to_english(f, [m["title"] for m in out[:30] if m["title"]], "de")
+    english, failed = await translate.to_english(f, [m["title"] for m in out[:30] if m["title"]], "de")
     for m in out[:30]:
         if english.get(m["title"], m["title"]) != m["title"]:
             m["title_original"], m["title"] = m["title"], english[m["title"]]
     newest = max((m["published"] for m in out), default=None)
-    return Result(incidents, {"messages": out, "incidents": incidents}, data_time=newest,
-                  note=f"{incidents} incidents and {len(out) - incidents} planned changes in force; data time is the newest message")
+    translated = sum(1 for m in out if m.get("title_original"))
+    left = (f"; {failed} headlines left in German (translation {'paused: Google is limiting requests' if translate.blocked() else 'failed'})"
+            if failed else "")
+    return Result(incidents, {"messages": out, "incidents": incidents, "translated": translated, "untranslated": failed}, data_time=newest,
+                  note=f"{incidents} incidents and {len(out) - incidents} planned changes in force; data time is the newest message{left}")
 
 
 async def fires(feed: Feed, f: Fetcher) -> Result:

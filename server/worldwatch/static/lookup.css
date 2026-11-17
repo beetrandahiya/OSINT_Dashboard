@@ -29,10 +29,10 @@ body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
 .bar { height: 4px; border-radius: 2px; background: var(--fill-strong); overflow: hidden; margin: 10px 0 6px; }
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width var(--move); }
 .problems { margin: 6px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
-.legend { padding: 10px 16px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-radius: var(--radius-ctl); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 10px; height: 10px; border-radius: 50%; }
-.legend button { margin-left: auto; }
+.lk-legend { padding: 10px 16px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-radius: var(--radius-ctl); }
+.lk-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lk-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.lk-legend button { margin-left: auto; }
 .empty-note { position: absolute; left: calc(var(--side-w) + 80px); top: 42%; max-width: 420px; color: var(--text-2); font-size: 17px; line-height: 22px; margin: 0; }
 #graph text { font: 500 11px var(--font); fill: var(--text); pointer-events: none; }
 #graph text.big { font-size: 13px; font-weight: 600; }
@@ -97,3 +97,8 @@ body.lookup .detail, body.lookup input, body.lookup .ids span { -webkit-user-sel
 .ds-acc { cursor: default; } .ds-acc:hover { background: var(--hover); }
 body.lookup:has(#detail:not([hidden])) .dossier { right: calc(340px + var(--gap) * 2); }
 .ds-fig { cursor: pointer; } .ds-fig .link { color: var(--accent); font-size: 13px; margin-top: 2px; }
+.ds-stats dd small { font-size: 15px; font-weight: 500; color: var(--text-2); }   /* "not checked": not a count */
+.lk-legend[hidden] { display: none; }
+.note { color: var(--text-2); font-size: 13px; margin: 6px 0 0; }
+/* graph labels can run under the tab buttons: give them the panels' frosted backing so they stay readable */
+.tabs { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-shadow); }

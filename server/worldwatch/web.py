@@ -55,7 +55,8 @@ async def status(request):
     s = collector.status()
     s["feeds"] = [_ships_world_state(f) if f["name"] == "ships_world" else f for f in s["feeds"]]
     s["feeds"].append({"name": "windy", "layer": "Public webcams worldwide", "source": "Windy", "home": "https://www.windy.com/webcams",
-                       "interval": None, "limit_note": "asked only for the area on screen, from zoom 3, with the Cameras chip on; the 50 most popular at a time (free key)",
+                       "interval": None, "total_bytes": 0, "last_bytes": None, "last_ms": None, "ok_count": 0, "fail_count": 0,
+                       "tried": _WINDY_LAST["time"], "next_at": None, "limit_note": "asked only for the area on screen, from zoom 3, with the Cameras chip on; the 50 most popular at a time (free key)",
                        "state": ("waiting" if not config.windy_key() else "failing" if _WINDY_LAST["error"] else "ok"),
                        "fetched": _WINDY_LAST["time"], "data_time": _WINDY_LAST["time"], "items": _WINDY_LAST["cams"], "error": _WINDY_LAST["error"],
                        "note": ("not set up: put a free Windy Webcams key in data/windy-key.txt" if not config.windy_key()

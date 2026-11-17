@@ -1,6 +1,6 @@
 // The lookup page: your identifiers in the middle, everything found about them around, as a graph.
 import {$, ago, esc, local} from './util.js';
-import {render as dossier} from './dossier.js';
+import {render as dossier, safeUrl} from './dossier.js';
 import {openProfile} from './profile.js';
 
 const KIND = {account: ['Account', 'light-dark(#5856d6, #7d7aff)'], breach: ['Breach', 'light-dark(#ff3b30, #ff453a)'], exposure: ['Malware exposure', 'light-dark(#ff9500, #ff9f0a)'],
@@ -33,50 +33,79 @@ try { tab = localStorage.getItem('ww-lookup-tab') || 'dossier'; } catch (e) { /*
 let S = null, picked = null, showHidden = false, view = {x: 0, y: 0, k: 1}, sheetOpen = false, chosen = null;
 try { chosen = JSON.parse(localStorage.getItem('ww-lookup-run') || 'null'); } catch (e) { /* private window */ }
 
+// Changes go out as JSON with the X-WW header: the server refuses anything else, so other websites cannot drive this API.
 async function call(path, method = 'GET', body) {
-  const r = await fetch(path, {method, cache: 'no-store', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  if (method === 'POST') body = body || {};
+  const r = await fetch(path, {method, cache: 'no-store', headers: method === 'GET' ? {} : {'X-WW': '1', ...(body ? {'Content-Type': 'application/json'} : {})},
+    body: body ? JSON.stringify(body) : undefined});
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'The server answered ' + r.status);
   return d;
 }
-async function load() { try { S = await call('/api/lookup/state'); G = grouped(); render(); } catch (e) { $('#empty').hidden = false; $('#empty').textContent = e.message; } }
+// The state is asked for on load, after every action, when the tab comes back, and every 2 s only while a scan
+// runs. An answer equal to the last one redraws nothing (a rebuilt card would lose a text selection).
+let lastSig = '', pollTimer = 0;
+async function load() {
+  try {
+    const d = await call('/api/lookup/state'), sig = JSON.stringify({...d, now: 0});
+    if (sig !== lastSig) { lastSig = sig; S = d; G = grouped(); render(); }
+  } catch (e) { $('#empty').hidden = false; $('#empty').textContent = e.message; }
+  clearTimeout(pollTimer);
+  if (S?.job.running) pollTimer = setTimeout(load, 2000);
+}
 
 // ---- left panel ----
 function render() {
   const busy = !!S.job.running;
   $('#kind').innerHTML ||= Object.entries(S.kinds).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
-  $('#ids').innerHTML = S.identifiers.map(i => `<li><small>${esc(S.kinds[i.kind])}</small><span>${esc(i.value)}</span><button data-id="${i.id}" aria-label="Remove">✕</button></li>`).join('')
+  const ids = S.identifiers.map(i => `<li><small>${esc(S.kinds[i.kind])}</small><span>${esc(i.value)}</span><button data-id="${i.id}" aria-label="Remove"${busy ? ' disabled title="Wait for the scan to finish"' : ''}>✕</button></li>`).join('')
     || '<li><span style="color:var(--text-2)">Nothing yet. Add a username or an email address of yours.</span></li>';
-  const t = S.selftest;
-  $('#test').textContent = t ? `Tested ${ago(t.tested)}: ${t.trusted} of ${t.total} sites give a correct answer from this computer and will be used. ${t.blind} are skipped (blocked, slow or changed)${t.false_alarm ? `, ${t.false_alarm} of them because they claim a made-up name exists` : ''}.`
-    : 'Not tested on this computer yet. The test asks every site about an account known to exist and about a made-up name, and keeps only the sites that get both right. It takes about a minute.';
+  if ($('#ids').dataset.html !== ids) { $('#ids').innerHTML = ids; $('#ids').dataset.html = ids; }
+  times();
   $('#run-test').disabled = busy; $('#plan').disabled = busy || !S.identifiers.length; $('#wipe').disabled = busy;
-  const ls = S.last_scan;
-  $('#scan-line').textContent = !ls ? 'No scan yet.' : !(ls.summary.checks || []).length && ls.summary.pages_read != null ? `Pages read ${ago(ls.finished)}: ${ls.summary.pages_read} opened, ${ls.summary.pages_dead} dead.` : `Last scan ${ago(ls.finished)}: ${ls.summary.findings ?? (ls.summary.usernames + ls.summary.emails)} findings from ${(ls.summary.checks || []).length} checks${ls.summary.pages_read != null ? `, ${ls.summary.pages_read} pages read` : ''}.`;
   $('#progress').hidden = !busy;
   if (busy) { $('#bar').style.width = S.job.total ? Math.round(S.job.done / S.job.total * 100) + '%' : '8%'; $('#step').textContent = S.job.step + (S.job.total ? ` (${S.job.done} of ${S.job.total})` : ''); }
+  const ls = S.last_scan;
   $('#problems').innerHTML = (busy ? S.job.problems : ls?.summary.problems || S.job.problems || []).map(p => `<li>${esc(p)}</li>`).join('');
   $('#stored').textContent = `${S.identifiers.length} identifiers, ${S.findings.length} findings (${G.length} after joining the same page found by several tools).`;
   if (sheetOpen) renderSheet();
   findFigures();
-  const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds, figures);
+  const dz = $('#dossier'), y = dz.scrollTop, html = dossier(S, G, S.kinds, figures, figNote);
   if (dz.dataset.html !== html) { dz.innerHTML = html; dz.dataset.html = html; dz.scrollTop = y; }
-  $('#graph').toggleAttribute('hidden', tab !== 'graph'); dz.hidden = tab !== 'dossier';   // SVG has no .hidden property, only the attribute $('#legend').style.display = tab === 'graph' ? '' : 'none';
+  $('#graph').toggleAttribute('hidden', tab !== 'graph'); dz.hidden = tab !== 'dossier';   // SVG has no .hidden property, only the attribute
+  $('#legend').style.display = tab === 'graph' ? '' : 'none';
   $('#tab-dossier').setAttribute('aria-pressed', tab === 'dossier'); $('#tab-graph').setAttribute('aria-pressed', tab === 'graph');
   $('#read-pages').disabled = !!S.job.running || !S.findings.length;
   if (tab === 'graph') draw();
   renderDetail(); legend();
 }
+// the texts with an age in them; refreshed on their own, since the state is not polled while nothing runs
+function times() {
+  if (!S) return;
+  const t = S.selftest;
+  $('#test').textContent = t ? `Tested ${ago(t.tested)}: ${t.trusted} of ${t.total} sites give a correct answer from this computer and will be used. ${t.blind} are skipped (blocked, slow or changed)${t.false_alarm ? `, ${t.false_alarm} of them because they claim a made-up name exists` : ''}.`
+    : 'Not tested on this computer yet. The test asks every site about an account known to exist and about a made-up name, and keeps only the sites that get both right. It takes about a minute.';
+  const ls = S.last_scan;
+  $('#scan-line').textContent = !ls ? 'No scan yet.' : !(ls.summary.checks || []).length && ls.summary.pages_read != null ? `Pages read ${ago(ls.finished)}: ${ls.summary.pages_read} opened, ${ls.summary.pages_dead} dead.` : `Last scan ${ago(ls.finished)}: ${ls.summary.findings ?? (ls.summary.usernames + ls.summary.emails)} findings from ${(ls.summary.checks || []).length} checks${ls.summary.pages_read != null ? `, ${ls.summary.pages_read} pages read` : ''}.`;
+}
+setInterval(times, 30000);
 // A full name may belong to a public figure. Their real record (offices, companies, ties) is in the People
 // profile, not in username sweeps; offer it at the top of the dossier.
 const figures = {}, asked = new Set();
+let figNote = '';
 function findFigures() {
   for (const i of S.identifiers.filter(i => i.kind === 'name')) {
     if (asked.has(i.value)) continue;
     asked.add(i.value);
-    fetch('/api/people/search?q=' + encodeURIComponent(i.value), {cache: 'no-store'}).then(r => r.json())
-      .then(d => { figures[i.value] = (d.results || []).filter(x => x.description).slice(0, 3); render(); }).catch(() => {});
+    fetch('/api/people/search?q=' + encodeURIComponent(i.value), {cache: 'no-store'})
+      .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Wikidata search failed (' + r.status + ')'); return d; })
+      .then(d => { figures[i.value] = (d.results || []).filter(x => x.description).slice(0, 3); figNote = ''; render(); })
+      .catch(e => {   // Wikidata often limits requests for a minute: say so and ask again, instead of never showing the record
+        figNote = `Public figure record: ${e.message}. Asking again in a minute.`; render();
+        setTimeout(() => { asked.delete(i.value); if (S) render(); }, 60000);
+      });
   }
+  for (const k of Object.keys(figures)) if (!S.identifiers.some(i => i.kind === 'name' && i.value === k)) { delete figures[k]; asked.delete(k); }
 }
 function setTab(t) { tab = t; try { localStorage.setItem('ww-lookup-tab', t); } catch (e) { /* private window */ } render(); }
 function renderSheet() {
@@ -121,7 +150,7 @@ function draw() {
   const w = svg.clientWidth, h = svg.clientHeight, cx = (w + 380) / 2 + view.x, cy = h / 2 + view.y;
   $('#empty').hidden = S.identifiers.length > 0 && G.length > 0;
   if (!$('#empty').hidden) $('#empty').textContent = S.identifiers.length ? 'Nothing found yet. Run a scan to see what public sources show about these identifiers.' : 'Add your usernames and email addresses on the left, then scan. What is found will be drawn here, linked to the identifier it belongs to.';
-  svg.innerHTML = `<g transform="translate(${cx},${cy}) scale(${view.k})">` +
+  const html = `<g transform="translate(${cx},${cy}) scale(${view.k})">` +
     links.map(([a, b]) => `<line x1="${by[a].x}" y1="${by[a].y}" x2="${by[b].x}" y2="${by[b].y}"/>`).join('') +
     nodes.map(n => {
       const deg = n.a == null ? 0 : n.a * 180 / Math.PI, flip = Math.cos(n.a ?? 0) < 0;
@@ -129,12 +158,14 @@ function draw() {
         : `<text transform="translate(${n.x},${n.y}) rotate(${flip ? deg + 180 : deg})" x="${flip ? -11 : 11}" y="4" text-anchor="${flip ? 'end' : 'start'}">${esc(n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label)}</text>`;
       return `<g class="${n.dim ? 'dim' : ''}"><circle data-node="${n.id}" class="${picked === n.id ? 'sel' : ''}" cx="${n.x}" cy="${n.y}" r="${n.r}" style="fill:${n.color}"/>${text}</g>`;
     }).join('') + '</g>';
+  if (svg.dataset.html !== html) { svg.innerHTML = html; svg.dataset.html = html; }
 }
 function legend() {
   const hidden = G.filter(f => f.not_me).length, used = [...new Set(G.map(f => f.kind))];
   $('#legend').hidden = !G.length;
-  $('#legend').innerHTML = used.map(k => `<span><i style="background:${kindOf(k)[1]}"></i>${kindOf(k)[0]}</span>`).join('') + '<span style="color:var(--text-2)">larger dot: found by more tools</span>' +
+  const html = used.map(k => `<span><i style="background:${kindOf(k)[1]}"></i>${kindOf(k)[0]}</span>`).join('') + '<span style="color:var(--text-2)">larger dot: found by more tools</span>' +
     (hidden ? `<button class="btn" id="toggle-hidden">${showHidden ? 'Hide' : 'Show'} ${hidden} marked not me</button>` : '');
+  if ($('#legend').dataset.html !== html) { $('#legend').innerHTML = html; $('#legend').dataset.html = html; }
 }
 const nice = k => k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 function renderDetail() {
@@ -143,26 +174,26 @@ function renderDetail() {
   const ident = S.identifiers.find(i => i.id === f.identifier), d = f.detail || {};
   const rows = Object.entries(d).filter(([k, v]) => v != null && v !== '' && !['what', 'image'].includes(k) && typeof v !== 'object').map(([k, v]) => `<dt>${esc(nice(k))}</dt><dd>${esc(v)}</dd>`).join('');
   const lists = Object.entries(d).filter(([, v]) => v && typeof v === 'object').map(([k, v]) => `<p class="source">${esc(nice(k))}: ${(Array.isArray(v) ? v : [v]).map(x => esc(typeof x === 'object' ? Object.values(x).filter(Boolean).join(', ') : x)).join('; ')}</p>`).join('');
-  const key = f.id + '|' + f.last_seen + '|' + f.not_me, y = el.dataset.key === key ? el.scrollTop : 0;
-  el.dataset.key = key;
-  el.innerHTML = `<button class="close" id="close" aria-label="Close"></button>
+  const html = `<button class="close" id="close" aria-label="Close"></button>
     ${d.image && /^https:\/\//.test(d.image) ? `<img class="face" src="${esc(d.image)}" alt="Picture shown on that profile" referrerpolicy="no-referrer" loading="lazy">` : ''}
     <p class="eyebrow">${esc(kindOf(f.kind)[0])}</p><h2>${esc(f.title)}</h2>
     <p class="where">Found for ${esc((S.kinds[ident?.kind] || '').toLowerCase())} ${esc(ident?.value || '')}</p>
     ${d.what ? `<p class="source" style="margin:0 0 12px;font-size:13px;line-height:16px">${esc(d.what)}</p>` : ''}
     ${rows ? `<dl>${rows}</dl>` : ''}${lists}
-    ${f.url ? `<a class="link" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">Open the page</a>` : ''}
+    ${safeUrl(f.url) ? `<a class="link" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">Open the page</a>` : ''}
     <p class="source">Found by: ${f.tools.map(esc).join(', ')}. First seen ${local(f.first_seen)}, last confirmed ${ago(f.last_seen)}.</p>
     <button class="btn not-me" id="not-me">${f.not_me ? 'This is me after all' : 'Not me'}</button>`;
-  el.scrollTop = y;
+  if (el.dataset.html === html) return;           // unchanged: keep the card as it is, selection and scroll included
+  const y = el.dataset.fid === String(f.id) ? el.scrollTop : 0;
+  el.innerHTML = html; el.dataset.html = html; el.dataset.fid = f.id; el.scrollTop = y;
 }
 
 // ---- actions ----
-const act = async (fn) => { $('#err').hidden = true; try { await fn(); } catch (e) { $('#err').hidden = false; $('#err').textContent = e.message; } await load(); };
+const act = async (fn) => { $('#err').hidden = true; $('#note').hidden = true; try { await fn(); } catch (e) { $('#err').hidden = false; $('#err').textContent = e.message; } await load(); };
 $('#add').addEventListener('submit', e => { e.preventDefault(); act(async () => { await call('/api/lookup/identifiers', 'POST', {kind: $('#kind').value, value: $('#value').value}); $('#value').value = ''; }); });
 $('#ids').addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) act(() => call('/api/lookup/identifiers/' + b.dataset.id, 'DELETE')); });
 $('#run-test').onclick = () => act(() => call('/api/lookup/run/selftest', 'POST'));
-$('#read-pages').onclick = () => act(() => call('/api/lookup/run/read', 'POST'));
+$('#read-pages').onclick = () => act(async () => { const d = await call('/api/lookup/run/read', 'POST'); $('#note').hidden = !d.note; $('#note').textContent = d.note || ''; });
 $('#tab-dossier').onclick = () => setTab('dossier');
 $('#tab-graph').onclick = () => setTab('graph');
 // a card in the dossier opens the same detail panel as a dot in the graph, with its "Not me" button
@@ -199,4 +230,5 @@ addEventListener('resize', () => S && draw());
 addEventListener('keydown', e => { if (e.key === 'Escape') { picked = null; render(); } });
 
 load();
-setInterval(() => { if (S?.job.running || document.visibilityState === 'visible') load(); }, 2000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
+addEventListener('focus', () => load());
