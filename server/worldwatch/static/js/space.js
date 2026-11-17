@@ -199,11 +199,21 @@ function drawHeights() {
   }
   // which colour is which orbit, top of the map, centred over the part of the map no panel covers
   x.font = '500 12px "SF Pro", -apple-system, system-ui, sans-serif';
-  const items = [...(anySpy ? ['Military imaging or signals'] : []), ...usedCls.map(c => CLASS[c][0])], need = items.reduce((n, t2) => n + x.measureText(t2).width + 34, -25);
-  const free = freeArea(box);
-  let lx = Math.max(free[0] + 12, (free[0] + free[1] - need) / 2), ly = 34;
-  if (anySpy) { x.fillStyle = red; x.beginPath(); x.moveTo(lx, ly - 8); x.lineTo(lx + 4, ly - 4); x.lineTo(lx, ly); x.lineTo(lx - 4, ly - 4); x.closePath(); x.fill(); const t2 = 'Military imaging or signals'; x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += x.measureText(t2).width + 34; }
-  for (const c of usedCls) { x.fillStyle = CLASS[c][1 + dark]; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.fill(); x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(CLASS[c][0], lx + 9, ly); x.fillStyle = ink; x.fillText(CLASS[c][0], lx + 9, ly); lx += x.measureText(CLASS[c][0]).width + 34; }
+  // in rows that fit between the panels (one row ran under the card)
+  const items = [...(anySpy ? [['spy', 'Military imaging or signals']] : []), ...usedCls.map(c => [c, CLASS[c][0]])].map(([k, t2]) => [k, t2, x.measureText(t2).width + 9]);
+  const free = freeArea(box), room = free[1] - free[0] - 24, rows = [[]];
+  let used = -25;
+  for (const it of items) { if (used + it[2] + 25 > room && rows[rows.length - 1].length) { rows.push([]); used = -25; } rows[rows.length - 1].push(it); used += it[2] + 25; }
+  x.lineWidth = 3; x.strokeStyle = edge;
+  rows.forEach((row, i) => {
+    const w = row.reduce((n, it) => n + it[2] + 25, -25), ly = 34 + i * 18;
+    let lx = Math.max(free[0] + 16, (free[0] + free[1] - w) / 2) + 4;
+    for (const [k, t2, wd] of row) {
+      x.fillStyle = k === 'spy' ? red : CLASS[k][1 + dark]; x.beginPath();
+      if (k === 'spy') { x.moveTo(lx, ly - 8); x.lineTo(lx + 4, ly - 4); x.lineTo(lx, ly); x.lineTo(lx - 4, ly - 4); x.closePath(); } else x.arc(lx, ly - 4, 4, 0, 7);
+      x.fill(); x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += wd + 25;
+    }
+  });
 }
 
 // "Look down from it": put the map's camera at the satellite's own point in space, facing straight down, north up.

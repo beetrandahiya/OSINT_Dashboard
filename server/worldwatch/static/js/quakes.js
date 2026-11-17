@@ -38,6 +38,7 @@ export default {
       // plain text: the list escapes it (escaping here too showed &amp; for a type with an ampersand)
       meta: (t => t ? `☢ ${t.km} km from ${t.name} nuclear test site · ` : '')(nearTestSite(q.lon, q.lat)) + `${q.type && q.type !== 'earthquake' ? q.type[0].toUpperCase() + q.type.slice(1) : 'Earthquake'} · ${local(q.time)} · ${ago(q.time)}`}));
   },
+  owns: id => quakes.some(q => q.id === id),   // lets links from other cards (hotspots) open a quake's card
   locate(id) { const q = quakes.find(x => x.id === id); return q && [q.lon, q.lat]; },
   ring(id) { const q = quakes.find(x => x.id === id); return q ? 8 + Math.max(0, (q.mag ?? 0) - 2) * 3 : 12; },
   detail(id) {
