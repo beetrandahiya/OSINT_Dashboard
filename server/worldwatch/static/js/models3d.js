@@ -75,7 +75,7 @@ function boot() {
     const g = types.default_aircraft[0];
     load(g, catalog[g].file);
     for (const [name, c] of Object.entries(catalog)) if (c.category === 'aircraft' || c.category === 'helicopters') load(name, c.file);
-  })().catch(e => { booting = null; console.error('3D models could not be loaded', e); });
+  })().catch(e => { booting = null; console.error('3D models could not be loaded', e); theMap?.once('zoomend', () => theMap.getZoom() >= MODEL_ZOOM - 1 && boot()); });   // try again on a later zoom
 }
 function template(spec) {
   const t = templates.get(spec.name);
