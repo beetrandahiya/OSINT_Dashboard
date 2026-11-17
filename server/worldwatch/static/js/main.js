@@ -137,8 +137,8 @@ for (const l of LAYERS) for (const [feed, secs] of Object.entries(l.feeds)) {
   const u = users[feed] ||= {layers: [], secs};
   u.layers.push(l); u.secs = Math.min(u.secs, secs);
 }
-const LIVE = new Set(['ships']);
-const VIEW_OF = {sites_nuclear: 'sites'};   // a part of another feed (web.py VIEWS): its status is that feed's  // merged with the live AIS stream on every request: asked on a timer, not by version
+const LIVE = new Set(['ships']);  // merged with the live AIS stream on every request: asked on a timer, not by version
+const VIEW_OF = {sites_nuclear: 'sites'};   // a part of another feed (web.py VIEWS): its status is that feed's
 const OFF_SECS = 900;
 const busy = new Set(), changed = new Set(), fetchedAt = {}, versionAt = {}, loadedAt = {}, held = {};
 async function load(feed) {

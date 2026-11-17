@@ -988,7 +988,7 @@ async def sanctioned_live(request):
     if not lists:
         return JSONResponse({"ships": [], "aircraft": [], "note": "the sanctions lists have not been read yet"})
     world = ais_stream.status()
-    key = (_fetched("sanctioned", "ships", "aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view"), world["last_message"])
+    key = (_fetched("sanctioned", "ships", "aircraft_world", "aircraft_military", "aircraft_near", "aircraft_view"), (world["last_message"] or 0) // 30)   # the AIS stream moves every second
     if _SANCTIONED.enc is not None and key == _SANCTIONED.key and time.time() - _SANCTIONED.at < _SANCTIONED.max_age:
         return wire.respond(request, _SANCTIONED.enc, {"now": time.time()})
     ships = list({x["mmsi"]: x for x in [*((collector.states["ships"].payload or {}).get("ships", []) if collector.states.get("ships") else []),
