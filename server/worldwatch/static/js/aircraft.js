@@ -261,7 +261,7 @@ function inLive(a) {
 // holds them there), turn grey and are labelled "last known"; the card says how old the position is and why. After
 // DROP seconds they are taken off and the world / military positions take over again.
 const STALE = 30, DROP = 120;
-let viewErr = null, wasStale = false;
+let viewErr = null, wasStale = false, selFrom;
 const viewAge = () => viewInfo ? now() - viewInfo.data_time : 0;
 export const liveStale = () => !!view.length && viewAge() > STALE;
 function checkLive() {
@@ -278,8 +278,10 @@ function checkLive() {
 // the drawn aircraft is a few seconds behind them, which the "fresh" line says)
 function liveCard() {
   checkLive();
-  const el = $('#ac-alt'); if (!el || !sel) return;
-  const h = find(sel); if (!h || h.from === 'world') return;
+  if (!sel) return;
+  const h = find(sel), from = h?.from || null;
+  if (from !== selFrom) { const was = selFrom; selFrom = from; if (was !== undefined && $('#photo')?.dataset.hex === sel) { document.dispatchEvent(new Event('ww-detail')); return; } }   // it moved between feeds (live feed lost or back): the card is redrawn
+  const el = $('#ac-alt'); if (!el || !h || h.from === 'world') return;
   const a = h.a, f = h.from === 'view' ? viewInfo : info.aircraft_military, at = (f?.data_time ?? now()) - (a.seen_pos_s ?? 0);
   el.innerHTML = ft(a.alt_ft);
   $('#ac-gs') && ($('#ac-gs').innerHTML = kt(a.gs_kt));
@@ -350,7 +352,7 @@ function drawExtras(force = false) {
   const map = theMap; if (!map?.getSource('ww-air-extra')) return;
   const hit = sel && find(sel), w = hit && where(hit), at = w && [w.lon, w.lat];
   const key = (sel || '') + '|' + (flown?.hex === sel ? flown.points.length : '') + '|' + (route?.for === sel ? route.fits : '') + '|' + (isOn() ? '3d' : at ? at[0].toFixed(5) + ',' + at[1].toFixed(5) : '');
-  if (!force && key === sent.extra) return;
+  if ((!force || !sel) && key === sent.extra) return;
   sent.extra = key;
   const feats = [];
   const line = hit && flownLine(hit, w);
@@ -366,7 +368,7 @@ function posTime(h) {   // when the position the symbol is drawn at was reported
   return where(h).t;
 }
 export function select(id) {
-  if (id !== sel) { flown = null; route = null; clearTimeout(routeAgain); routeAgain = 0; }
+  if (id !== sel) { flown = null; route = null; clearTimeout(routeAgain); routeAgain = 0; selFrom = undefined; }
   sel = id; drawExtras(true); loadTrack(); theMap?.triggerRepaint();
 }
 

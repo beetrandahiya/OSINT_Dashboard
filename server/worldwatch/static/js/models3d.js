@@ -328,7 +328,7 @@ function drawOverlay(w, h, dark, sel, z) {
     if (sel.d.above) {   // the camera is below the aircraft (zoomed in very far): say so instead of losing it
       const t = `${sel.d.label ? sel.d.label + ' is ' : ''}above the camera, ${Math.round(sel.altM).toLocaleString('en-GB')} m up: zoom out to see it`;
       x.lineWidth = 3; x.strokeStyle = dark ? '#1c1c1e' : '#ffffff'; x.fillStyle = dark ? '#e5e5ea' : '#3a3a3c';
-      x.strokeText(t, sel.d.x, sel.d.y + 22); x.fillText(t, sel.d.x, sel.d.y + 22);
+      x.textBaseline = 'bottom'; x.strokeText(t, sel.d.x, sel.d.y - 22); x.fillText(t, sel.d.x, sel.d.y - 22);
     }
   }
 }
