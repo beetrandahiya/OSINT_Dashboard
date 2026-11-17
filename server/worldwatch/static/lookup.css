@@ -100,3 +100,5 @@ body.lookup:has(#detail:not([hidden])) .dossier { right: calc(340px + var(--gap)
 .ds-stats dd small { font-size: 15px; font-weight: 500; color: var(--text-2); }   /* "not checked": not a count */
 .lk-legend[hidden] { display: none; }
 .note { color: var(--text-2); font-size: 13px; margin: 6px 0 0; }
+/* graph labels can run under the tab buttons: give them the panels' frosted backing so they stay readable */
+.tabs { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-shadow); }
