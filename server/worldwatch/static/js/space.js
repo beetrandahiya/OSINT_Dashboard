@@ -9,6 +9,8 @@ import {ago, esc, local, now, utc} from './util.js';
 import {satFlags, flagText, flagsHtml} from './flags.js';
 
 const ISS = 25544, EARTH_KM = 6371;
+let baseIds = new Set();   // satellites from the main CelesTrak feed (the rest came with the spy-satellite feed)
+const span = d => d < 2 ? Math.round(d * 24) + ' hours' : Math.round(d) + ' days';
 let sats = [], baseOmm = [], reconOmm = [], purposes = {}, reconInfo = null, catInfo = null, satInfo = null, launchList = [], launchInfo = null, shown = true, theMap = null, sel = null, following = false, cv = null;
 
 function where(rec, t) {
@@ -30,28 +32,9 @@ function orbit(s) {
   return ['High Earth orbit', 'above the geostationary belt'];
 }
 
-function lines(points) {   // a path as map lines, split where it crosses the date line
-  const out = [[]]; let last = null;
-  for (const [lon, lat] of points) { if (last !== null && Math.abs(lon - last) > 180) out.push([]); out[out.length - 1].push([lon, lat]); last = lon; }
-  return out.filter(l => l.length > 1);
-}
-// Where the satellite passes over the ground: half an orbit back and one orbit ahead (at most 3 hours each way).
-function track(s, t) {
-  const back = Math.min(period(s) / 2, 180), fwd = Math.min(period(s), 180), step = Math.max(0.5, (back + fwd) / 240), pts = [];
-  for (let m = -back; m <= fwd; m += step) { const p = where(s.rec, t + m * 60); if (p) pts.push([p.lon, p.lat]); }
-  return {type: 'Feature', geometry: {type: 'MultiLineString', coordinates: lines(pts)}, properties: {}};
-}
 // The part of the Earth a satellite can see at this moment: everything out to its horizon.
+const R2D = 180 / Math.PI;
 const horizon = km => Math.acos(EARTH_KM / (EARTH_KM + km));       // angle from the point beneath it, in radians
-function footprint(p) {
-  const d = horizon(p.km), la = p.lat * Math.PI / 180, lo = p.lon * Math.PI / 180, pts = [];
-  for (let b = 0; b <= 360; b += 3) {
-    const th = b * Math.PI / 180, la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(th));
-    const lo2 = lo + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
-    pts.push([((lo2 * 180 / Math.PI + 540) % 360) - 180, la2 * 180 / Math.PI]);
-  }
-  return {type: 'Feature', geometry: {type: 'MultiLineString', coordinates: lines(pts)}, properties: {}};
-}
 
 // ---- the globe: satellites in real 3D ----
 // On the globe every satellite is drawn at its true point in space, to the same scale as the Earth, on a
@@ -67,40 +50,47 @@ const what = s => purposes[s.id] || (s.source === 'amateur observers' ? ['classi
 const isSpy = s => { const w = what(s); return !!w && (w[0] === 'classified' || (w[1] && ['imaging', 'radar', 'signals', 'warning'].includes(w[0]))); };
 // What each satellite is, worked out once when the data arrives instead of on every frame.
 const satById = new Map();
+let issSat = null, usedCls = [], anySpy = false;
 function annotate() {
   satById.clear();
   for (const s of sats) { s.w = what(s); s.spy = isSpy(s); s.flags = flagText(flagsOf(s)); satById.set('sat:' + s.id, s); }
+  issSat = satById.get('sat:' + ISS) || null; usedCls = [...new Set(sats.map(s => s.cls))].filter(c => CLASS[c]); anySpy = sats.some(s => s.spy);
 }
 document.addEventListener('ww-flags', () => annotate());
 const isGlobe = () => theMap?.getProjection?.()?.type === 'globe';
-const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
-const tint = s => CLASS[s.cls][1 + isDark()];
-let M = null, view = null, drawn = [];
+const darkQ = matchMedia('(prefers-color-scheme: dark)');
+const tint = (s, dark = darkQ.matches) => CLASS[s.cls][1 + dark];   // the per-frame drawing passes `dark` (matchMedia per satellite per frame was measurable)
+let M = null, view = null, drawn = [], cleared = true;
 
-const mul = (A, B) => { const o = new Float64Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let v = 0; for (let k = 0; k < 4; k++) v += A[k * 4 + r] * B[c * 4 + k]; o[c * 4 + r] = v; } return o; };
-// Only the last column of M x model is needed (where the model's origin lands), so compute just that: four dot
-// products instead of a full 4x4 multiplication and a new array per satellite per frame.
-function clip(lon, lat, km) {
-  const T = theMap.transform.getMatrixForModel([lon, lat], km * 1000), a = T[12], b = T[13], c = T[14], d = T[15];
-  return [M[0] * a + M[4] * b + M[8] * c + M[12] * d, M[1] * a + M[5] * b + M[9] * c + M[13] * d, M[3] * a + M[7] * b + M[11] * c + M[15] * d];
+// The globe in the engine's own frame: the Earth is the unit sphere around the origin, a point at a height h lies at
+// (1 + h / R) x (cos lat sin lon, sin lat, cos lat cos lon) (MapLibre's globe getMatrixForModel: rotate by longitude,
+// by latitude, move out along z), and mainMatrix takes that frame straight to clip space. Computing the point directly
+// spares a 4x4 matrix per satellite per frame.
+const R_KM = 6371.0088;   // the engine's Earth radius
+function world(lon, lat, km) {
+  const la = lat / R2D, lo = lon / R2D, m = 1 + km / R_KM, c = Math.cos(la);
+  return [m * c * Math.sin(lo), m * Math.sin(la), m * c * Math.cos(lo)];
 }
-// Once per frame: where the camera is. It sits straight above the map's centre; its distance from the Earth's
-// centre (in Earth radii) follows from how the engine's depth value changes between the ground and one radius up.
+// Once per frame: where the camera is, in the same frame. It is the one point clip space puts at x = y = w = 0, so it
+// solves three rows of the camera matrix (Cramer's rule). Exact at any tilt and turn; the old estimate assumed the camera
+// straight above the map centre and drew satellites through the Earth (and hid visible ones) whenever the map was tilted.
+const cross = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
 function camera() {
-  const c = theMap.getCenter(), w0 = clip(c.lng, c.lat, 0)[2], w1 = clip(c.lng, c.lat, EARTH_KM)[2], box = theMap.getContainer();
-  if (!(w0 - w1 > 0)) return null;
-  return {d: w0 / (w0 - w1) + 1, lon0: c.lng * Math.PI / 180, lat0: c.lat * Math.PI / 180, w: box.clientWidth, h: box.clientHeight};
+  if (theMap.transform.isGlobeRendering === false) return null;   // zoomed in so far that the globe is drawn flat
+  const a0 = [M[0], M[4], M[8]], a1 = [M[1], M[5], M[9]], a2 = [M[3], M[7], M[11]], b = [-M[12], -M[13], -M[15]];
+  const c12 = cross(a1, a2), c20 = cross(a2, a0), c01 = cross(a0, a1), D = a0[0] * c12[0] + a0[1] * c12[1] + a0[2] * c12[2];
+  if (!D) return null;
+  const c = [0, 1, 2].map(k => (b[0] * c12[k] + b[1] * c20[k] + b[2] * c01[k]) / D), box = theMap.getContainer();
+  return {c, cc: c[0] * c[0] + c[1] * c[1] + c[2] * c[2], w: box.clientWidth, h: box.clientHeight};
 }
 // A point at a height -> its place on screen, or null when the Earth is in the way or it is behind the camera.
 function place(lon, lat, km) {
-  const r = Math.PI / 180, la = lat * r, dl = lon * r - view.lon0, m = 1 + km / EARTH_KM;
-  const x = m * Math.cos(la) * Math.sin(dl), y = m * (Math.cos(view.lat0) * Math.sin(la) - Math.sin(view.lat0) * Math.cos(la) * Math.cos(dl));
-  const z = m * (Math.sin(view.lat0) * Math.sin(la) + Math.cos(view.lat0) * Math.cos(la) * Math.cos(dl));
-  if (z >= view.d - 0.02) return null;
-  const vz = z - view.d, a = x * x + y * y + vz * vz, b = 2 * view.d * vz, cc = view.d * view.d - 1, disc = b * b - 4 * a * cc;
-  if (disc > 0) { const t = (-b - Math.sqrt(disc)) / (2 * a); if (t > 0 && t < 0.9995) return null; }
-  const p = clip(lon, lat, km);
-  return [(p[0] / p[2] + 1) / 2 * view.w, (1 - p[1] / p[2]) / 2 * view.h];
+  const p = world(lon, lat, km), w = M[3] * p[0] + M[7] * p[1] + M[11] * p[2] + M[15];
+  if (!(w > 0)) return null;
+  // the line from the camera to the point: does it meet the Earth (unit sphere) before it gets there?
+  const c = view.c, dx = p[0] - c[0], dy = p[1] - c[1], dz = p[2] - c[2], a = dx * dx + dy * dy + dz * dz, bb = 2 * (c[0] * dx + c[1] * dy + c[2] * dz), disc = bb * bb - 4 * a * (view.cc - 1);
+  if (disc > 0) { const t = (-bb - Math.sqrt(disc)) / (2 * a); if (t > 0 && t < 0.9995) return null; }
+  return [((M[0] * p[0] + M[4] * p[1] + M[8] * p[2] + M[12]) / w + 1) / 2 * view.w, (1 - (M[1] * p[0] + M[5] * p[1] + M[9] * p[2] + M[13]) / w) / 2 * view.h];
 }
 // One whole orbit as a ring in space, frozen at this instant (the Earth turns beneath it as time passes).
 function ringOf(s, t) {
@@ -116,7 +106,6 @@ function stroke(x, pts, color, width, alpha) {   // a 3D line: drawn where it is
   x.stroke(); x.globalAlpha = 1;
 }
 // Points as 3D vectors in Earth radii (x toward 0°E on the equator, z toward the north pole), and back.
-const R2D = 180 / Math.PI;
 const vec = (lon, lat, km) => { const r = 1 + km / EARTH_KM, la = lat / R2D, lo = lon / R2D; return [r * Math.cos(la) * Math.cos(lo), r * Math.cos(la) * Math.sin(lo), r * Math.sin(la)]; };
 const geo = v => { const r = Math.hypot(v[0], v[1], v[2]); return [Math.atan2(v[1], v[0]) * R2D, Math.asin(v[2] / r) * R2D, (r - 1) * EARTH_KM]; };
 const mix = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
@@ -138,8 +127,8 @@ function mesh(x, grid, alphaOf, col) {
   x.globalAlpha = 1;
 }
 const SPOKES = 48, RINGS = 6, STEPS = 9;
-function spotlight(x, s) {   // the beam from the selected satellite and the patch of ground it can see
-  const ang = horizon(s.pos.km), lo = s.pos.lon / R2D, la = s.pos.lat / R2D, col = tint(s), top = vec(s.pos.lon, s.pos.lat, s.pos.km);
+function spotlight(x, s, dark) {   // the beam from the selected satellite and the patch of ground it can see
+  const ang = horizon(s.pos.km), lo = s.pos.lon / R2D, la = s.pos.lat / R2D, col = tint(s, dark), top = vec(s.pos.lon, s.pos.lat, s.pos.km);
   const rim = Array.from({length: SPOKES}, (_, j) => around(lo, la, ang, j / SPOKES * 2 * Math.PI));
   // the lit patch: rings from the point beneath the satellite out to its horizon, brighter in the middle
   const patch = [];
@@ -158,24 +147,35 @@ function spotlight(x, s) {   // the beam from the selected satellite and the pat
   // the horizon line, broken where it goes round the back of the Earth
   stroke(x, [...rim, rim[0]].map(g => [g[0], g[1], 0]), col, 1.5, 0.9);
 }
+// The stretch of the map between the sidebar and the card (whichever are open), in map pixels.
+function freeArea(box) {
+  const m = box.getBoundingClientRect(), vis = el => el && !el.hidden && el.offsetParent !== null && !el.classList.contains('min');
+  const side = document.getElementById('sidebar'), card = document.getElementById('detail');
+  let l = 0, r = m.width;
+  if (vis(side)) { const b = side.getBoundingClientRect(); if (b.left - m.left < m.width / 2) l = Math.max(l, b.right - m.left); }
+  if (vis(card)) { const b = card.getBoundingClientRect(); if (b.left - m.left > m.width / 2) r = Math.min(r, b.left - m.left); else l = Math.max(l, b.right - m.left); }
+  return r - l > 200 ? [l, r] : [0, m.width];
+}
 function drawHeights() {
   if (!cv || !theMap) return;
   const box = theMap.getContainer(), dpr = Math.min(devicePixelRatio || 1, 2);
   if (cv.width !== Math.round(box.clientWidth * dpr) || cv.height !== Math.round(box.clientHeight * dpr)) { cv.width = Math.round(box.clientWidth * dpr); cv.height = Math.round(box.clientHeight * dpr); }
-  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, box.clientWidth, box.clientHeight);
-  drawn = [];
-  if (!shown || !isGlobe() || !M || !(view = camera())) return;
-  const dark = isDark(), edge = dark ? '#1c1c1e' : '#ffffff', ink = dark ? '#f2f2f7' : '#1c1c1e', red = dark ? '#ff453a' : '#ff3b30', picked = sel && byId(sel), t = now();
-  if (picked?.pos && !following) spotlight(x, picked);
-  const iss = sats.find(s => s.id === ISS);
-  for (const s of [iss, picked].filter((v, i, a) => v && a.indexOf(v) === i)) {
+  const x = cv.getContext('2d');
+  const live = shown && isGlobe() && M && (view = camera());
+  if (!live && cleared) return;                      // nothing drawn last frame either: no work while the layer is off
+  x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, box.clientWidth, box.clientHeight);
+  drawn = []; cleared = !live;
+  if (!live) return;
+  const dark = darkQ.matches, edge = dark ? '#1c1c1e' : '#ffffff', ink = dark ? '#f2f2f7' : '#1c1c1e', red = dark ? '#ff453a' : '#ff3b30', picked = sel && byId(sel), t = now();
+  if (picked?.pos && !following) spotlight(x, picked, dark);
+  for (const s of [issSat, picked].filter((v, i, a) => v && a.indexOf(v) === i)) {
     if (!s.ring || t - s.ringAt > 20) { s.ring = ringOf(s, t); s.ringAt = t; }
-    stroke(x, s.ring, tint(s), s === picked ? 2 : 1.2, s === picked ? 0.95 : 0.55);
+    stroke(x, s.ring, tint(s, dark), s === picked ? 2 : 1.2, s === picked ? 0.95 : 0.55);
   }
   for (const s of sats) {
     if (!s.pos) continue;
-    const up = place(s.pos.lon, s.pos.lat, s.pos.km); if (!up) continue;
-    const big = s.id === ISS || s === picked, col = tint(s);
+    const up = place(s.pos.lon, s.pos.lat, s.pos.km); if (!up || up[0] < -20 || up[1] < -20 || up[0] > box.clientWidth + 20 || up[1] > box.clientHeight + 20) continue;
+    const big = s.id === ISS || s === picked, col = CLASS[s.cls][1 + dark];
     if (big) { x.setLineDash([2, 3]); stroke(x, Array.from({length: 13}, (_, i) => [s.pos.lon, s.pos.lat, s.pos.km * i / 12]), col, 1, 0.6); x.setLineDash([]); }
     if (s.spy && !big) {                          // military imaging / radar / signals: a small red diamond
       x.fillStyle = red; x.strokeStyle = edge; x.lineWidth = 0.6;
@@ -186,7 +186,7 @@ function drawHeights() {
     }
     if (s === picked) { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(up[0], up[1], 9, 0, 7); x.stroke(); }
     if (big) { x.font = '600 11px "SF Pro", -apple-system, system-ui, sans-serif'; x.lineWidth = 3; x.strokeStyle = edge; const name = s.id === ISS ? 'ISS' : s.name; x.strokeText(name, up[0] + 12, up[1] + 4); x.fillStyle = ink; x.fillText(name, up[0] + 12, up[1] + 4); }
-    drawn.push([up[0], up[1], 'sat:' + s.id]);
+    drawn.push([up[0], up[1], 'sat:' + s.id, big, s.spy]);
   }
   // what each one does, as a letter beside it, once few enough are in view to read
   if (drawn.length && drawn.length < 160) {
@@ -197,29 +197,48 @@ function drawHeights() {
       if (L) { x.font = '600 9px "SF Pro", -apple-system, system-ui, sans-serif'; x.strokeStyle = edge; x.strokeText(L, px + 5, py - 4); x.fillStyle = sat.spy ? red : ink; x.fillText(L, px + 5, py - 4); }
     }
   }
-  // which colour is which orbit, top of the map
-  const used = [...new Set(sats.map(s => s.cls))].filter(c => CLASS[c]); let lx = (box.clientWidth + 420 - 340) / 2 - used.length * 62, ly = 34;
+  // which colour is which orbit, top of the map, centred over the part of the map no panel covers
   x.font = '500 12px "SF Pro", -apple-system, system-ui, sans-serif';
-  if (sats.some(s => s.spy)) { x.fillStyle = red; x.beginPath(); x.moveTo(lx, ly - 8); x.lineTo(lx + 4, ly - 4); x.lineTo(lx, ly); x.lineTo(lx - 4, ly - 4); x.closePath(); x.fill(); const t2 = 'Military imaging or signals'; x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += x.measureText(t2).width + 34; }
-  for (const c of used) { x.fillStyle = CLASS[c][1 + dark]; x.beginPath(); x.arc(lx, ly - 4, 4, 0, 7); x.fill(); x.lineWidth = 3; x.strokeStyle = edge; x.strokeText(CLASS[c][0], lx + 9, ly); x.fillStyle = ink; x.fillText(CLASS[c][0], lx + 9, ly); lx += x.measureText(CLASS[c][0]).width + 34; }
+  // in rows that fit between the panels (one row ran under the card)
+  const items = [...(anySpy ? [['spy', 'Military imaging or signals']] : []), ...usedCls.map(c => [c, CLASS[c][0]])].map(([k, t2]) => [k, t2, x.measureText(t2).width + 9]);
+  const free = freeArea(box), room = free[1] - free[0] - 24, rows = [[]];
+  let used = -25;
+  for (const it of items) { if (used + it[2] + 25 > room && rows[rows.length - 1].length) { rows.push([]); used = -25; } rows[rows.length - 1].push(it); used += it[2] + 25; }
+  x.lineWidth = 3; x.strokeStyle = edge;
+  rows.forEach((row, i) => {
+    const w = row.reduce((n, it) => n + it[2] + 25, -25), ly = 34 + i * 18;
+    let lx = Math.max(free[0] + 16, (free[0] + free[1] - w) / 2) + 4;
+    for (const [k, t2, wd] of row) {
+      x.fillStyle = k === 'spy' ? red : CLASS[k][1 + dark]; x.beginPath();
+      if (k === 'spy') { x.moveTo(lx, ly - 8); x.lineTo(lx + 4, ly - 4); x.lineTo(lx, ly); x.lineTo(lx - 4, ly - 4); x.closePath(); } else x.arc(lx, ly - 4, 4, 0, 7);
+      x.fill(); x.strokeText(t2, lx + 9, ly); x.fillStyle = ink; x.fillText(t2, lx + 9, ly); lx += wd + 25;
+    }
+  });
 }
 
-// "Look down from it": put the map's camera at the satellite's own point in space, facing straight down.
+// "Look down from it": put the map's camera at the satellite's own point in space, facing straight down, north up.
+// The camera's distance from the map centre is fixed in pixels, so in Earth radii it scales with cos(latitude) / 2^zoom
+// (the globe is drawn at the Mercator scale of its centre): solve the zoom that puts it at the satellite's height.
 function sitAt(s, jump) {
-  if (!view) return;
-  const have = (view.d - 1) * EARTH_KM, z = theMap.getZoom() + Math.log2(have / Math.max(120, s.pos.km));
-  theMap[jump ? 'jumpTo' : 'easeTo']({center: [s.pos.lon, s.pos.lat], zoom: z, ...(jump ? {} : {duration: 1900, easing: v => v})});
+  const v = M && camera(); if (!v) return;
+  const c = theMap.getCenter(), g = world(c.lng, c.lat, 0), d = Math.hypot(v.c[0] - g[0], v.c[1] - g[1], v.c[2] - g[2]);
+  const cos = la => Math.max(0.02, Math.cos(la / R2D));
+  const z = theMap.getZoom() + Math.log2(d * R_KM / Math.max(120, s.pos.km)) + Math.log2(cos(s.pos.lat) / cos(c.lat));
+  theMap[jump ? 'jumpTo' : 'easeTo']({center: [s.pos.lon, s.pos.lat], zoom: z, pitch: 0, bearing: 0, ...(jump ? {} : {duration: 1900, easing: v2 => v2})});
 }
 
+let flatSent = false;
 function tick(map) {
-  if (!map.getSource('ww-sats')) return;
-  const t = now(), feats = [];
+  const src = map.getSource('ww-sats');
+  if (!src || !shown) return;                       // nothing to work out while the layer is off
+  const t = now(), flat = !isGlobe(), feats = [];
   for (const s of sats) {
     const p = where(s.rec, t); if (!p) continue;
     s.pos = p;
-    feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, spy: !!s.spy, label: s.id === ISS ? 'ISS' : ''}});
+    if (flat) feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'sat:' + s.id, iss: s.id === ISS, cls: s.cls, spy: !!s.spy, label: s.id === ISS ? 'ISS' : ''}});
   }
-  map.getSource('ww-sats').setData({type: 'FeatureCollection', features: shown && !isGlobe() ? feats : []});   // dots on the flat map only
+  // dots on the flat map only; on the globe the canvas draws them, so the source is emptied once, not every tick
+  if (flat || flatSent) { src.setData({type: 'FeatureCollection', features: feats}); flatSent = flat; }
   const picked = sel && byId(sel);
   if (following && picked?.pos) sitAt(picked, false);
   map.triggerRepaint();
@@ -239,7 +258,10 @@ export const satellites = {
     map.getContainer().appendChild(cv);
     // an invisible layer whose only job is to hand us the engine's camera matrix on every frame
     map.addLayer({id: 'ww-sat-3d', type: 'custom', renderingMode: '3d', render(gl, args) { M = args.defaultProjectionData?.mainMatrix || null; drawHeights(); }});
-    map.on('dragstart', () => { if (following) stopFollowing(); });
+    // a drag, turn or tilt by hand while riding hands the camera back where the owner put it (no flying back, card kept);
+    // the engine fires rotatestart / pitchstart for our own easeTo too, so only events from the mouse or touch count
+    const takeOver = e => { if (following && e.originalEvent) { following = false; ride = null; refresh?.(); } };
+    for (const ev of ['dragstart', 'rotatestart', 'pitchstart']) map.on(ev, takeOver);
     setInterval(() => tick(map), 2000);
   },
   paint(map, dark) {
@@ -252,7 +274,7 @@ export const satellites = {
   shape(map) { if (!isGlobe() && following) stopFollowing(); tick(map); },   // called when the map switches between flat and globe
   onData(feed, d) {
     if (feed === 'sat_catalog') { catInfo = d; purposes = d.payload.purpose || {}; annotate(); return; }
-    if (feed === 'recon_sats') { reconInfo = d; reconOmm = d.payload.omm || []; } else { satInfo = d; baseOmm = d.payload.omm; }
+    if (feed === 'recon_sats') { reconInfo = d; reconOmm = d.payload.omm || []; } else { satInfo = d; baseOmm = d.payload.omm || []; baseIds = new Set(baseOmm.map(o => o.NORAD_CAT_ID)); }
     const keep = new Map(sats.map(s => [s.id, s])), seen = new Set();
     sats = [...baseOmm, ...reconOmm].filter(o => !seen.has(o.NORAD_CAT_ID) && seen.add(o.NORAD_CAT_ID)).map(o => {
       try { const s = {id: o.NORAD_CAT_ID, name: o.OBJECT_NAME, omm: o, rec: json2satrec(o), source: o.SOURCE || 'CelesTrak'}; s.cls = classOf(s); s.pos = keep.get(s.id)?.pos; return s; } catch (e) { return null; }
@@ -261,19 +283,33 @@ export const satellites = {
   },
   render(map) { tick(map); },
   visible(on) { shown = on; if (!on && following) stopFollowing(); if (theMap?.getSource('ww-sats')) tick(theMap); },
-  select(id) { const mine = id && String(id).startsWith('sat:') ? id : null; if (mine !== sel && following) stopFollowing(); sel = mine; theMap?.triggerRepaint(); },
-  hit(point) {   // a click on a satellite drawn above the globe
-    let best = null, d2 = 144;
-    for (const [x, y, id] of drawn) { const q = (x - point.x) ** 2 + (y - point.y) ** 2; if (q < d2) { d2 = q; best = id; } }
+  select(id) {
+    const mine = id && String(id).startsWith('sat:') ? id : null; if (mine !== sel && following) stopFollowing(); sel = mine;
+    // on the globe the list cannot fly to it through locate() (the ring is drawn at height): bring it into view when it
+    // is not on screen, e.g. a manoeuvre row for a satellite on the far side
+    const s = mine && isGlobe() && shown && byId(mine);
+    if (s?.pos && !drawn.some(d => d[2] === mine)) theMap.easeTo({center: [s.pos.lon, s.pos.lat], duration: calmQ.matches ? 0 : 900});
+    theMap?.triggerRepaint();
+  },
+  hit(point) {   // a click on a satellite drawn above the globe: 6 px around a dot, 12 around the ISS or the selected one;
+    // when more than 300 are on screen the plain dots cover much of the globe, so only the ISS and spy diamonds answer
+    let best = null, d2 = Infinity; const crowd = drawn.length > 300;
+    for (const [x, y, id, big, spy] of drawn) {
+      if (crowd && !big && !spy) continue;
+      const q = (x - point.x) ** 2 + (y - point.y) ** 2, r = big ? 12 : 6;
+      if (q < r * r && q < d2) { d2 = q; best = id; }
+    }
     return best;
   },
   act(name, map) {
     const s = sel && byId(sel); if (!s?.pos) return;
     if (name === 'follow') {
       if (following) return stopFollowing();
-      if (!isGlobe()) document.getElementById('globe')?.click();          // the view from a point in space needs the globe
-      following = true; restore = {center: map.getCenter(), zoom: map.getZoom()};
-      setTimeout(() => { if (following) { map.triggerRepaint(); setTimeout(() => following && sitAt(s, true), 120); } }, isGlobe() ? 0 : 400);
+      ride = {restore: {center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing()}, wasFlat: !isGlobe()};
+      // the view from a point in space needs the globe: switched for the ride only, the saved choice stays as it was
+      if (ride.wasFlat) document.dispatchEvent(new CustomEvent('ww-shape', {detail: {globe: true}}));
+      following = true;
+      setTimeout(() => { if (following) { map.triggerRepaint(); setTimeout(() => following && sitAt(s, false), 120); } }, ride.wasFlat ? 400 : 0);
     }
   },
   async fill(id) {
@@ -307,7 +343,7 @@ export const satellites = {
   rows: () => (reconInfo?.payload.manoeuvres || []).filter(m => m.to > Date.now() / 1000 - 7 * 86400 && byId('sat:' + m.norad)).map(m => ({
     id: 'sat:' + m.norad, time: m.to, badge: '⇅',
     title: `${m.name || 'Satellite ' + m.norad} ${m.kinds.map(k => k === 'raised' ? 'raised its orbit' : k === 'lowered' ? 'lowered its orbit' : 'changed its orbital plane').join(' and ')}`,
-    meta: `perigee ${m.perigee[0]} → ${m.perigee[1]} km, apogee ${m.apogee[0]} → ${m.apogee[1]} km${m.amateur ? ' · amateur-tracked orbit' : ''}`})),
+    meta: `perigee ${m.perigee[0]} → ${m.perigee[1]} km, apogee ${m.apogee[0]} → ${m.apogee[1]} km · orbits ${span(m.days)} apart${m.amateur ? ' · amateur-tracked orbit' : ''}`})),
   locate(id) { const s = byId(id); return s?.pos && !isGlobe() ? [s.pos.lon, s.pos.lat] : null; },   // on the globe the ring is drawn at height by the canvas
   ring: id => id === 'sat:' + ISS ? 11 : 8,
   moving: true,
@@ -336,23 +372,32 @@ export const satellites = {
         const mv = (reconInfo?.payload.manoeuvres || []).filter(m => m.norad === s.id);
         const kept = reconInfo?.payload.history_days;
         if (!reconOmm.some(o => o.NORAD_CAT_ID === s.id)) return '';
-        return `<section class="pz"><h3>Orbit changes</h3>${mv.length ? `<ul class="dos-list">${mv.map(m => `<li><b>${m.kinds.join(', ')}</b> between ${local(m.from)} and ${local(m.to)}<br><span class="soft">perigee ${m.perigee[0]} → ${m.perigee[1]} km · apogee ${m.apogee[0]} → ${m.apogee[1]} km · inclination ${m.inclination[0]}° → ${m.inclination[1]}°</span></li>`).join('')}</ul>` : `<p class="soft">None seen in the ${kept != null ? kept + ' days' : 'time'} this server has kept its orbits (up to 45).</p>`}
-          <p class="source">Worked out here by comparing each new published orbit with the one before. Air drag only lowers an orbit, slowly, so a rise, a drop much faster than drag, or a change of plane means the satellite fired its engine. Thresholds: rise over ${s.source === 'amateur observers' ? '5' : '0.8'} km, drop over ${s.source === 'amateur observers' ? '10' : '3'} km plus 1 km a day, plane change over ${s.source === 'amateur observers' ? '0.2' : '0.03'}°.</p></section>`;
+        const am = s.source === 'amateur observers', high = period(s) > 225;   // the same limits as satinfo.limits() on the server
+        const rule = am ? `rise over 5 km, drop over 10 km plus 1 km a day, plane change over 0.2°${high ? ' plus 0.0025° a day' : ''} (amateur orbits are rougher)`
+          : high ? 'rise or drop over 3 km, plane change over 0.03° plus 0.0025° a day (in high orbits the Sun and Moon tilt the plane by up to 0.85° a year and the Earth\'s uneven gravity moves the orbit by a few km)'
+          : 'rise over 0.8 km, drop over 3 km plus 1 km a day, plane change over 0.03° plus 0.0005° a day';
+        return `<section class="pz"><h3>Orbit changes</h3>${mv.length ? `<ul class="dos-list">${mv.map(m => `<li><b>${m.kinds.join(', ')}</b> between the orbits of ${local(m.from)} and ${local(m.to)} <span class="soft">(${span(m.days)} apart)</span><br><span class="soft">perigee ${m.perigee[0]} → ${m.perigee[1]} km · apogee ${m.apogee[0]} → ${m.apogee[1]} km · inclination ${m.inclination[0]}° → ${m.inclination[1]}°</span></li>`).join('')}</ul>`
+          : `<p class="soft">None seen in the orbits this server has collected${kept != null ? ` since it started keeping them ${span(kept)} ago` : ''} (up to 45 days; the first orbit kept can be older than that).</p>`}
+          <p class="source">Worked out here by comparing each new published orbit with the one before. Air drag only lowers an orbit, slowly, so a rise, a drop much faster than drag, or a change of plane beyond natural drift means the satellite fired its engine. Limits for this one: ${rule}. The longer two orbits lie apart, the more natural change is allowed.</p></section>`;
       })()}
       <div id="satabout"></div>
       ${s.source === 'amateur observers' ? `<p class="source">Its orbit is not published by its owner. These elements come from amateur observers who track it by eye and camera (Mike McCants' list, from the SeeSat-L community), dated ${local(e)}; they can be off by tens of kilometres.</p>` : ''}
       <button class="btn" data-act="follow">${following ? 'Leave the satellite' : 'Look down from it'}</button>
       <p class="links"><a class="link" href="https://celestrak.org/satcat/table-satcat.php?CATNR=${s.id}" target="_blank" rel="noopener">CelesTrak catalogue entry</a>
       <a class="link" href="https://www.watched.earth" target="_blank" rel="noopener">watched.earth: which satellites passed over a place, and their pictures</a></p>
-      <p class="source">Calculated here, now, from CelesTrak's orbit data (fetched ${ago(satInfo.fetched)}) with the standard SGP4 model; the older the orbit data, the less exact. On the globe: the ring is its orbit at this moment, the lit patch is everything it has in line of sight, the cone joins the two. That is geometry: where a camera on board points is not published. "Look down from it" puts the map's camera at the satellite's own point in space, facing straight down, and rides along; the picture is our map through a 37° lens, not a live image. The flat map shows a dot at the point beneath it.</p>`;
+      <p class="source">Calculated here, now, from ${s.source === 'amateur observers' ? 'the amateur observers\' orbit data' : 'CelesTrak\'s orbit data'} (fetched ${(i => i ? ago(i.fetched) : 'at an unknown time')(baseIds.has(s.id) ? satInfo : reconInfo)}) with the standard SGP4 model; the older the orbit data, the less exact. On the globe: the ring is its orbit at this moment, the lit patch is everything it has in line of sight, the cone joins the two. That is geometry: where a camera on board points is not published. "Look down from it" puts the map's camera at the satellite's own point in space, facing straight down with north up, and rides along (drag the map to take the camera back; "Leave the satellite" returns to your view); the picture is our map through a 37° lens, not a live image. The flat map shows a dot at the point beneath it.</p>`;
   },
 };
-let restore = null;
-const satCards = new Map();
+let ride = null;           // while riding: the view to go back to, and whether the map was flat before
+const satCards = new Map(), calmQ = matchMedia('(prefers-reduced-motion: reduce)');
 function stopFollowing() {
   following = false;
-  if (restore) theMap.easeTo({...restore, duration: 700});
-  restore = null; refresh?.();
+  const r = ride; ride = null;
+  if (r) {
+    if (r.wasFlat && isGlobe()) { document.dispatchEvent(new CustomEvent('ww-shape', {detail: {globe: false}})); theMap.jumpTo(r.restore); }
+    else theMap.easeTo({...r.restore, duration: calmQ.matches ? 0 : 700});
+  }
+  refresh?.();
 }
 let refresh = null;
 export const onSatChange = fn => { refresh = fn; };
@@ -367,7 +412,7 @@ let airInfo = null, navInfo = null;
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const kmApart = (a, b) => { const r = Math.PI / 180, x = Math.sin((b[1] - a[1]) * r / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin((b[0] - a[0]) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
-const ringMid = rings => { let x = 0, y = 0, n = 0; for (const r of rings) for (const p of r) { x += p[0]; y += p[1]; n++; } return [x / n, y / n]; };
+const ringMid = rings => { let x = 0, y = 0, n = 0; for (const r of rings || []) for (const p of r) { x += p[0]; y += p[1]; n++; } return n ? [x / n, y / n] : null; };   // null: no shape to place
 function launchDays(l) { const d = new Date(Date.parse(l.net)); return [-1, 0, 1].map(k => new Date(d.getTime() + k * 86400000)); }
 function corridor(l) {
   if (l.lat == null) return null;
@@ -375,7 +420,7 @@ function corridor(l) {
   for (const t of airInfo?.payload.tfrs || []) {
     if (!/SPACE/i.test(t.type || '')) continue;
     const mid = ringMid(t.polys);
-    if (kmApart(pad, mid) > 150) continue;
+    if (!mid || kmApart(pad, mid) > 150) continue;
     if (!days.some(d => (t.where || '').includes(`${MONTH[d.getUTCMonth()]} ${d.getUTCDate()},`))) continue;
     areas.push({kind: 'US flight restriction', ref: 'NOTAM ' + t.notam, rings: t.polys, mid});
   }
@@ -384,7 +429,7 @@ function corridor(l) {
     const rings = w.geoms.filter(g => g.type === 'Polygon').map(g => g.coordinates[0]);
     if (!rings.length) continue;
     const mid = ringMid(rings);
-    if (kmApart(pad, mid) > 4000) continue;
+    if (!mid || kmApart(pad, mid) > 4000) continue;
     const text = w.text.toUpperCase();
     const named = days.some(d => new RegExp(`\\b${String(d.getUTCDate()).padStart(2, '0')}\\d{4}Z(?:\\s+TO\\s+\\d{6}Z)?\\s+${MON[d.getUTCMonth()]}\\b`).test(text) ||
       new RegExp(`\\b${d.getUTCDate()}\\s+(?:THRU|TO|AND|-)?\\s*\\d*\\s*${MON[d.getUTCMonth()]}\\b`).test(text));
@@ -463,28 +508,44 @@ export const launches = {
 // For every military imaging, radar or signals satellite we have an orbit for, its position every minute over the
 // last day, and its elevation as seen from the place. A pass counts when it rose above 30 degrees: high enough that
 // its sensors could have been pointed at the place. Whether they were is not published.
-function passes(lat, lon, hours = 24) {
-  const obs = {latitude: lat * Math.PI / 180, longitude: lon * Math.PI / 180, height: 0}, t1 = Date.now() / 1000, out = [];
-  for (const s of sats) {
-    if (!isSpy(s) || period(s) > 225) continue;    // low orbits only: high ones watch half the Earth all day, "passing over" means nothing there
-    let best = null, cur = null;
-    for (let t = t1 - hours * 3600; t <= t1; t += 60) {
-      const d = new Date(t * 1000), pv = propagate(s.rec, d);
-      if (!pv || !pv.position) continue;
-      const el = ecfToLookAngles(obs, eciToEcf(pv.position, gstime(d))).elevation * 180 / Math.PI;
-      if (el >= 30) { if (!cur || el > cur.el) cur = {t, el}; }
-      else if (cur) { if (!best || cur.t > best.t) best = cur; out.push({s, ...cur}); cur = null; }
+// Coarse to fine, so the page does not freeze (it took over a second in one go): every 150 seconds first, then every
+// 30 seconds wherever a satellite was more than 5 degrees up. A pass that climbs past 30 degrees stays above 5 degrees for
+// at least 260 seconds even at 180 km (geometry), so no coarse gap can miss one; the peak is found more exactly than the
+// old one-minute steps. A few satellites at a time, with a pause for the page in between.
+const COARSE = 150, FINE = 30, LOOK = 5;
+async function passes(lat, lon, hours = 24) {
+  const obs = {latitude: lat / R2D, longitude: lon / R2D, height: 0}, t1 = Date.now() / 1000, t0 = t1 - hours * 3600, out = [];
+  const elev = (s, t) => { const d = new Date(t * 1000), pv = propagate(s.rec, d); return pv?.position ? ecfToLookAngles(obs, eciToEcf(pv.position, gstime(d))).elevation * R2D : -90; };
+  const list = sats.filter(s => isSpy(s) && period(s) <= 225);   // low orbits only: high ones watch half the Earth all day, "passing over" means nothing there
+  for (let i = 0; i < list.length; i++) {
+    if (i && i % 12 === 0) await new Promise(r => setTimeout(r, 0));
+    const s = list[i], spans = [];
+    for (let t = t0; t <= t1; t += COARSE) if (elev(s, t) >= LOOK) {
+      const a = Math.max(t0, t - COARSE), b = Math.min(t1, t + COARSE), last = spans[spans.length - 1];
+      if (last && a <= last[1]) last[1] = b; else spans.push([a, b]);
     }
-    if (cur) out.push({s, ...cur});
+    for (const [a, b] of spans) {
+      let cur = null;
+      for (let t = a; t <= b + 0.1; t += FINE) {
+        const el = elev(s, t);
+        if (el >= 30) { if (!cur || el > cur.el) cur = {t, el}; }
+        else if (cur) { out.push({s, ...cur}); cur = null; }
+      }
+      if (cur) out.push({s, ...cur});
+    }
   }
   return out.sort((a, b) => b.t - a.t);
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-spypass]'); if (!b) return;
-  const box = b.closest('.spypass'), lat = +box.dataset.lat, lon = +box.dataset.lon;
-  b.disabled = true; b.textContent = 'Working it out…';
-  setTimeout(() => {
-    const list = passes(lat, lon), n = new Set(list.map(p => p.s.id)).size;
+  let box = b.closest('.spypass'); const lat = +box.dataset.lat, lon = +box.dataset.lon;
+  b.disabled = true; b.textContent = 'Working it out…'; box.dataset.done = 'wait';   // a redraw keeps the box as it is
+  setTimeout(async () => {
+    const list = await passes(lat, lon), n = new Set(list.map(p => p.s.id)).size;
+    // the card may have been redrawn meanwhile (feeds refresh it): write into the box that is there now, same place
+    const now2 = [...document.querySelectorAll('.spypass')].find(x => +x.dataset.lat === lat && +x.dataset.lon === lon);
+    if (!now2) return;
+    box = now2;
     box.dataset.done = '1';
     box.innerHTML = `<h3>Spy satellites overhead, last 24 hours</h3>${list.length ? `<ul class="pz-list">${list.slice(0, 25).map(p => {
       const w = what(p.s), kind = w[0] === 'classified' ? 'classified US satellite' : WHAT[w[0]][1].toLowerCase();
@@ -496,3 +557,5 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-satpick]'); if (!a) return;
   e.preventDefault(); window.dispatchEvent(new CustomEvent('ww-pick', {detail: {layer: 'satellites', id: 'sat:' + a.dataset.satpick}}));
 });
+// for checking the geometry from the browser console: place(lon, lat, km) as the last frame drew it
+export const satDebug = {view: () => view, passes: (lat, lon) => passes(lat, lon), spies: () => sats.filter(s => isSpy(s) && period(s) <= 225), place: (lon, lat, km) => (M && view ? place(lon, lat, km) : undefined)};

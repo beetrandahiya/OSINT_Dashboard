@@ -64,7 +64,7 @@ const LEGENDS = {
   aurora: [['area', L('#00a878', '#63e6be'), 'Where the aurora may be seen now (NOAA forecast)']],
   photo: [['note', null, 'Yesterday\'s satellite picture (NASA, NOAA-20 VIIRS, 375 m)']],
   livephoto: [['note', null, 'Geostationary satellite pictures, 10-15 minutes old (EUMETSAT, NOAA)']],
-  sharp: [['note', null, 'Sharp aerial/satellite photo (Esri); the date under the map centre is shown in the corner']],
+  sharp: [['note', null, 'Sharp aerial/satellite photo (Esri); the date of the picture under the map centre is shown on its chip']],
 };
 
 function swatch(shape, c, letter = '', alpha = 1) {

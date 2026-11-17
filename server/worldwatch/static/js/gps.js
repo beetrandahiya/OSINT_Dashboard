@@ -1,20 +1,30 @@
 // GPS interference, as worked out by GPSJAM (gpsjam.org) from the navigation accuracy that aircraft report.
 // This is the one layer that is somebody else's analysis rather than raw readings; it shows a whole past day.
 import {ago, esc} from './util.js';
+import {slot} from './map.js';
+
+// A hexagon that straddles the date line arrives with corners near +180 and -180; drawn as given it would smear across
+// the whole map. Moving the western corners past 180 keeps it one small shape (the map draws longitudes beyond 180).
+function unwrap(fc) {
+  for (const f of fc?.features || []) for (const ring of f.geometry?.type === 'Polygon' ? f.geometry.coordinates : []) {
+    const lons = ring.map(p => p[0]);
+    if (Math.max(...lons) - Math.min(...lons) > 180) for (const p of ring) if (p[0] < 0) p[0] += 360;
+  }
+  return fc;
+}
 
 let data = null, info = null, cells = new Map();
 export default {
   id: 'gps', title: 'GPS', color: ['#d49a00', '#ffd60a'], feeds: {gps: 1800}, layers: ['ww-gps'],
   addTo(map) {
     map.addSource('ww-gps', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-rain', 'ww-aurora'].includes(l.id))?.id;
-    map.addLayer({id: 'ww-gps', type: 'fill', source: 'ww-gps', paint: {'fill-opacity': 0.3}}, first);
+    map.addLayer({id: 'ww-gps', type: 'fill', source: 'ww-gps', paint: {'fill-opacity': 0.3}}, slot(map, 'gps'));
   },
   paint(map, dark) {
     map.setPaintProperty('ww-gps', 'fill-color', ['match', ['get', 'level'], 'high', dark ? '#ff453a' : '#ff3b30', dark ? '#ffd60a' : '#f5b800']);
     map.setPaintProperty('ww-gps', 'fill-outline-color', 'rgba(0,0,0,0)');
   },
-  onData(feed, d) { data = d.payload; info = d; cells = new Map(data.features.map(f => [f.properties.id, f.properties])); },
+  onData(feed, d) { data = unwrap(d.payload); info = d; cells = new Map(data.features.map(f => [f.properties.id, f.properties])); },
   render(map) { map.getSource('ww-gps').setData(data); },
   count: () => 0,
   note: () => data ? data.day.slice(8) + '.' + data.day.slice(5, 7) + '.' : '',
@@ -47,7 +57,7 @@ export const gpsLive = {
   about: () => 'GPS interference in the last hour, worked out by World Watch from live aircraft in 15 sampled regions (faint circles). Derived, not a measurement of jammers.',
   addTo(map) {
     map.addSource('ww-gpsl', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-rain', 'ww-aurora', 'ww-gps'].includes(l.id))?.id;
+    const first = slot(map, 'gps');
     map.addLayer({id: 'ww-gpsl-area', type: 'line', source: 'ww-gpsl', filter: ['==', ['get', 'kind'], 'region'], paint: {'line-width': 1, 'line-dasharray': [2, 3], 'line-opacity': 0.45}}, first);
     map.addLayer({id: 'ww-gpsl', type: 'fill', source: 'ww-gpsl', filter: ['has', 'level'], paint: {'fill-opacity': 0.45}}, first);
     map.addLayer({id: 'ww-gpsl-line', type: 'line', source: 'ww-gpsl', filter: ['has', 'level'], paint: {'line-width': 1.2}}, first);
@@ -57,7 +67,7 @@ export const gpsLive = {
     map.setPaintProperty('ww-gpsl', 'fill-color', col); map.setPaintProperty('ww-gpsl-line', 'line-color', col);
     map.setPaintProperty('ww-gpsl-area', 'line-color', dark ? '#aeaeb2' : '#636366');
   },
-  onData(feed, d) { live = d.payload; liveInfo = d; liveCells = new Map((live.features || []).map(f => [f.properties.id, f.properties])); },
+  onData(feed, d) { live = unwrap(d.payload); liveInfo = d; liveCells = new Map((live.features || []).map(f => [f.properties.id, f.properties])); },
   render(map) {
     if (!live) return;
     const regions = Object.entries(live.regions || {}).map(([name, [lat, lon]]) => ({type: 'Feature', geometry: {type: 'LineString', coordinates: circle(lon, lat, 463)}, properties: {kind: 'region', name}}));

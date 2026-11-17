@@ -361,6 +361,7 @@ function shape(globe, save = true) {
   $('#globe').setAttribute('aria-pressed', globe);
   if (save) try { localStorage.setItem('ww-globe', globe ? '1' : ''); } catch (e) { /* private window */ }
 }
+document.addEventListener('ww-shape', e => shape(!!e.detail?.globe, false));   // a layer switching for a moment (satellites' "Look down"), not saved
 $('#flat').onclick = () => { if (chase) chase.wasGlobe = false; shape(false); };
 $('#globe').onclick = () => { if (chase) chase.wasGlobe = true; else shape(true); };
 map.on('load', () => { try { if (localStorage.getItem('ww-globe')) shape(true); } catch (e) { /* private window */ } });

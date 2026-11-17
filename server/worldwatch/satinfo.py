@@ -129,7 +129,8 @@ def parse_mccants(raw: bytes, max_age_days=60) -> list[dict]:
                 o = tle_to_omm(lines[i], lines[i + 1], lines[i + 2])
             except (ValueError, IndexError):
                 continue
-            name = o["OBJECT_NAME"]
+            # the list abbreviates the NRO's StarShield satellites (USA 354 onwards) to fit its 14-character name field
+            o["OBJECT_NAME"] = name = re.sub(r"\bStarSh$", "StarShield", o["OBJECT_NAME"])
             if re.search(r"(\s(r|rk|deb|r/b)|\sdeb.*)$", name, re.I) or not name.upper().startswith("USA"):
                 continue                       # rocket stages, debris and non-US objects: only classified US payloads
             if calendar.timegm(time.strptime(o["EPOCH"][:19], "%Y-%m-%dT%H:%M:%S")) >= cut:
@@ -197,6 +198,21 @@ def record_history(omm: list[dict]) -> dict:
     return {**hist, "_started": started}
 
 
+# How much an orbit changes by itself between two element sets, and how rough the element sets are, depends on the
+# orbit and on the time between them. Low orbits: drag only lowers them (allowed for below), the plane stays put.
+# High orbits (an orbit takes more than 225 minutes: geostationary, Molniya): the Sun and Moon tilt the plane by up to
+# ~0.85 degrees a year (~0.0025 a day), and the published semi-major axis wanders by a few km from the Earth's
+# uneven gravity, so a fixed 0.03 degrees / 0.8 km called weeks of natural drift a burn (USA 325, 24 days apart).
+def limits(axis: float, days: float, amateur: bool) -> tuple[float, float, float]:
+    """(rise km, drop km, plane change degrees) that an orbit change must exceed to count as a manoeuvre."""
+    high = 2 * 3.141592653589793 * (axis ** 3 / MU) ** 0.5 / 60 > 225
+    if amateur:
+        return 5.0, 10.0 + 1.0 * days, 0.2 + (0.0025 * days if high else 0)
+    if high:
+        return 3.0, 3.0, 0.03 + 0.0025 * days
+    return 0.8, 3.0 + 1.0 * days, 0.03 + 0.0005 * days   # natural decay above ~300 km is well under 1 km a day
+
+
 def manoeuvres(hist: dict, names: dict, since_days=30) -> list[dict]:
     out, cut = [], time.time() - since_days * 86400
     for norad, rows in hist.items():
@@ -211,18 +227,18 @@ def manoeuvres(hist: dict, names: dict, since_days=30) -> list[dict]:
             di = b[3] - a[3]
             per_a, apo_a = a[1] * (1 - a[2]) - RE, a[1] * (1 + a[2]) - RE
             per_b, apo_b = b[1] * (1 - b[2]) - RE, b[1] * (1 + b[2]) - RE
-            raise_km, drop_km, incl_deg = (5.0, 10.0, 0.2) if amateur else (0.8, 3.0, 0.03)
-            # natural decay above ~300 km is well under 1 km a day; allow for it before calling a drop a burn
+            raise_km, drop_km, incl_deg = limits(a[1], days, bool(amateur))
             kinds = []
             if da > raise_km:
                 kinds.append("raised")
-            elif da < -(drop_km + 1.0 * days):
+            elif da < -drop_km:
                 kinds.append("lowered")
             if abs(di) > incl_deg:
                 kinds.append("plane change")
             if kinds:
                 out.append({"norad": int(norad), "name": names.get(int(norad)), "kinds": kinds, "from": a[0], "to": b[0], "days": round(days, 2),
                             "perigee": [round(per_a, 1), round(per_b, 1)], "apogee": [round(apo_a, 1), round(apo_b, 1)],
-                            "inclination": [a[3], b[3]], "amateur": bool(amateur)})
+                            "inclination": [a[3], b[3]], "amateur": bool(amateur),
+                            "limits": [round(raise_km, 2), round(drop_km, 2), round(incl_deg, 3)]})
     out.sort(key=lambda m: -m["to"])
     return out
