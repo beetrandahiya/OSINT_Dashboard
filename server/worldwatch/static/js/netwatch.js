@@ -122,7 +122,7 @@ export default {
     info = x; stale = radarStale(x);
     d = {hijacks: (p.hijacks || []).filter(h => (h.start || 0) + (h.duration_s || 0) > cut), leaks: (p.leaks || []).filter(l => (l.last || l.start || 0) > cut)};
   },
-  about: () => stale ? `Cloudflare Radar feed stopped: last read ${info?.fetched ? ago(info.fetched) : 'never'}${info?.error ? ' (' + info.error + ')' : ''}. Only events of the last 24 hours are drawn.` : 'BGP hijacks and route leaks of the last 24 hours, from Cloudflare Radar.',
+  about: () => stale ? `Cloudflare Radar feed stopped: last read ${info?.fetched ? ago(info.fetched) : 'never'}${info?.error ? ' (' + (info.error.match(/not set up.*/)?.[0] || info.error) + ')' : ''}. Only events of the last 24 hours are drawn.` : 'BGP hijacks and route leaks of the last 24 hours, from Cloudflare Radar.',
   render(map = theMap) {
     if (!map) return;
     const f = [];
