@@ -108,7 +108,7 @@ async def state(request):
     test = usernames.last_self_test()
     return JSONResponse({"now": time.time(), "identifiers": store.identifiers(), "findings": store.findings(), "kinds": store.KINDS,
                          "selftest": test and {k: test[k] for k in ("tested", "total", "trusted", "false_alarm", "blind")},
-                         "job": job, "last_scan": store.last_scan(), "plan": _plan()}, headers={"Cache-Control": "no-store"})
+                         "job": job, "last_scan": store.last_scan(), "checks_run": store.checks_run(), "plan": _plan()}, headers={"Cache-Control": "no-store"})
 
 
 CHECK = {"username": r"[A-Za-z0-9._-]{2,40}", "email": r"[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,}", "name": r".{3,80}", "phone": r"\+?[0-9 ()/-]{6,24}",

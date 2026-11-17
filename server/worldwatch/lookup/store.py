@@ -158,6 +158,19 @@ def last_scan():
     return r and {"started": r["started"], "finished": r["finished"], "summary": json.loads(r["summary"] or "{}")}
 
 
+def checks_run() -> dict:
+    """For each check, when the newest finished scan that ran it started, and the problems that scan reported:
+    so the dossier can tell "checked, nothing found" from "not checked"."""
+    out = {}
+    with _lock:
+        rows = db().execute("SELECT started, summary FROM scans WHERE finished IS NOT NULL ORDER BY id").fetchall()
+    for started, summary in rows:
+        sm = json.loads(summary or "{}")
+        for c in sm.get("checks") or []:
+            out[c] = {"started": started, "problems": sm.get("problems") or []}
+    return out
+
+
 def wipe():
     _cache_table()
     with _lock:
