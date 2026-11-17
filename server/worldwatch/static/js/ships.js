@@ -2,6 +2,12 @@
 // A ship is drawn where it last reported; nothing is moved forward.
 import {ago, esc, local} from './util.js';
 import {shipFlag, flagImg} from './flags.js';
+import {eyeOn, eyeImages} from './eyeicons.js';
+// God's eye: the symbol for the kind of ship its AIS message gives; a ship that gives none gets the plain hull (cargo)
+const SHIP_EYE = {'Cargo ship': 'cargo', 'Tanker': 'tanker_s', 'Passenger ship': 'passenger', 'Tug': 'tug', 'Port tender': 'tug', 'Dredger': 'tug',
+  'Pilot vessel': 'sar', 'Search and rescue vessel': 'sar', 'Military vessel': 'warship_s', 'Sailing vessel': 'sailing', 'Pleasure craft': 'pleasure',
+  'High-speed craft': 'hsc', 'Fishing vessel': 'fishing', 'Fishing': 'fishing'};
+const shipIcon = (s, apple) => eyeOn() ? 'eye-' + (SHIP_EYE[s.kind] || 'cargo') : apple;
 
 const HULL = 'M32 4c7 9 10 17 10 26v24c0 3-2 5-5 5H27c-3 0-5-2-5-5V30c0-9 3-17 10-26z';
 const RING_KM = {region: 400, port: 10};   // how far "in the Arabian Sea" or "in port at Sasebo" can mean, drawn to scale
@@ -72,20 +78,21 @@ const shipsLayer = {
     map.addLayer({id: 'ww-ship-trail', type: 'line', source: 'ww-ship-trail', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-width': 2.5, 'line-opacity': 0.85}});
     trailMap = map;
     map.addSource('ww-ships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    map.addLayer({id: 'ww-ships', type: 'symbol', source: 'ww-ships', layout: {'icon-image': 'ww-ship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
+    map.addLayer({id: 'ww-ships', type: 'symbol', source: 'ww-ships', layout: {'icon-image': ['get', 'icon'], 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.16, 5, 0.3, 9, 0.5, 13, 0.75], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'text-field': ['step', ['zoom'], '', 8.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.4], 'text-anchor': 'top', 'text-optional': true}});
   },
   paint(map, dark) {
     const img = icon(this.color[+dark], dark ? '#1c1c1e' : '#ffffff');
     if (map.hasImage('ww-ship')) map.updateImage('ww-ship', img); else map.addImage('ww-ship', img, {pixelRatio: 2});
+    eyeImages(map, dark); if (map.getSource('ww-ships')) this.render(map);
     map.setPaintProperty('ww-ship-trail', 'line-color', this.color[+dark]);
     map.setPaintProperty('ww-ships', 'text-color', dark ? '#e5e5ea' : '#3a3a3c'); map.setPaintProperty('ww-ships', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-ships', 'text-halo-width', 1.3);
   },
   onData(feed, d) { list = d.payload.ships; info = d; },
   render(map) {
     map.getSource('ww-ships').setData({type: 'FeatureCollection', features: list.map(s => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]},
-      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || ''}}))});
+      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || '', icon: shipIcon(s, 'ww-ship')}}))});
   },
   count: () => list.length,
   rows: () => [],
@@ -127,7 +134,7 @@ function fleetFeatures() {
   for (const x of fleetShips()) {
     const k = x.lat + ',' + x.lon, n = seen[k] = (seen[k] || 0) + 1;     // ships in the same region are spread a little so each can be clicked
     const lon = x.lon + (n - 1) * 1.6, lat = x.lat - (n - 1) * 0.8;
-    out.push({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]}, properties: {id: 'usni:' + x.hull, label: x.name.replace('USS ', '') + ' (' + x.hull + ')', carrier: x.hull.startsWith('CVN'),
+    out.push({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]}, properties: {id: 'usni:' + x.hull, label: x.name.replace('USS ', '') + ' (' + x.hull + ')', carrier: x.hull.startsWith('CVN'), icon: eyeOn() ? (x.hull.startsWith('CVN') ? 'eye-carrier' : 'eye-amphib') : 'ww-warship',
       // ring radius in pixels at zoom 0 for a real distance (Web Mercator, 512-pixel world): it then doubles with each zoom step
       r0: (x.placed === 'port' ? RING_KM.port : RING_KM.region) * 1000 / (78271.517 * Math.cos(lat * Math.PI / 180))}});
   }
@@ -147,15 +154,16 @@ export const warships = {
     map.addSource('ww-warships', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addSource('ww-usni', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-usni-ring', type: 'circle', source: 'ww-usni', paint: {'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['get', 'r0'], 20, ['*', ['get', 'r0'], 1048576]], 'circle-opacity': 0.06, 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.6}});
-    map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': 'ww-warship', 'icon-size': ['case', ['==', ['get', 'carrier'], true], 0.75, 0.6], 'icon-allow-overlap': true,
+    map.addLayer({id: 'ww-usni', type: 'symbol', source: 'ww-usni', layout: {'icon-image': ['get', 'icon'], 'icon-size': ['case', ['==', ['get', 'carrier'], true], 0.75, 0.6], 'icon-allow-overlap': true,
       'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.8], 'text-anchor': 'top', 'text-optional': true}});
-    map.addLayer({id: 'ww-warships', type: 'symbol', source: 'ww-warships', layout: {'icon-image': 'ww-warship', 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
+    map.addLayer({id: 'ww-warships', type: 'symbol', source: 'ww-warships', layout: {'icon-image': ['get', 'icon'], 'icon-rotate': ['get', 'dir'], 'icon-rotation-alignment': 'map',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.3, 5, 0.45, 9, 0.7], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'text-field': ['step', ['zoom'], '', 3.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5, 'text-offset': [0, 1.6], 'text-anchor': 'top', 'text-optional': true}});
   },
   paint(map, dark) {
     const img = icon(dark ? '#c7c7cc' : '#48484a', dark ? '#1c1c1e' : '#ffffff');
     if (map.hasImage('ww-warship')) map.updateImage('ww-warship', img); else map.addImage('ww-warship', img, {pixelRatio: 2});
+    eyeImages(map, dark); if (map.getSource('ww-warships')) this.render(map);
     map.setPaintProperty('ww-warships', 'text-color', dark ? '#e5e5ea' : '#1c1c1e');
     for (const p of [['ww-usni-ring', 'circle-color'], ['ww-usni-ring', 'circle-stroke-color']]) map.setPaintProperty(...p, dark ? '#c7c7cc' : '#48484a');
     map.setPaintProperty('ww-usni', 'text-color', dark ? '#e5e5ea' : '#1c1c1e'); map.setPaintProperty('ww-usni', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-usni', 'text-halo-width', 1.3); map.setPaintProperty('ww-warships', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff'); map.setPaintProperty('ww-warships', 'text-halo-width', 1.3);
@@ -164,7 +172,7 @@ export const warships = {
   render(map) {
     map.getSource('ww-usni').setData({type: 'FeatureCollection', features: fleetFeatures()});
     map.getSource('ww-warships').setData({type: 'FeatureCollection', features: list.filter(s => s.kind === 'Military vessel').map(s => ({type: 'Feature', geometry: {type: 'Point', coordinates: [s.lon, s.lat]},
-      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || ''}}))});
+      properties: {id: 'ship:' + s.mmsi, dir: s.heading ?? s.course ?? 0, label: s.name || '', cc: shipFlag(s.mmsi)?.cc || '', icon: shipIcon(s, 'ww-warship')}}))});
   },
   count: () => list.filter(s => s.kind === 'Military vessel').length + fleetShips().length,
   rows: () => [],

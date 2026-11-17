@@ -4,6 +4,17 @@
 // Groups seen by one outlet only live in a second chip, off by default: those are where false alarms gather.
 import {ago, esc, local, skyShot, utc, spyPass, countryBtn} from './util.js';
 import {img} from './news.js';
+import {eyeOn, eyeImages} from './eyeicons.js';
+
+// God's eye: one symbol per CAMEO action as GDELT words it (the icon set's conflict group); the category when the
+// action is not in the table
+const ACT_EYE = {'use of conventional military force': 'clash', 'fighting with small arms': 'smallarms', 'fighting with small arms and light weapons': 'smallarms',
+  'fighting with artillery and tanks': 'artillery', 'aerial weapons (air strike, drone)': 'aerial', 'occupation of territory': 'occupy',
+  'blockade or restricted movement': 'blockade', 'physical assault': 'attack', 'killing by physical assault': 'attack', 'sexual assault': 'attack', 'torture': 'attack',
+  'unconventional violence': 'attack', 'bombing': 'bombing', 'abduction or hijacking': 'abduct', 'assassination': 'assassin', 'mass killings': 'mass',
+  'demonstration or rally': 'protest', 'protest': 'protest', 'strike or boycott': 'strike', 'blockade or obstruction': 'obstruct', 'violent protest or riot': 'riot'};
+const CAT_EYE = {protest: 'protest', riot: 'riot', attack: 'attack', clash: 'clash', 'mass violence': 'mass'};
+const eyeOf = g => 'eye-' + (ACT_EYE[g.action] || CAT_EYE[g.cat] || 'clash');
 
 const KIND = {protest: ['P', 'Protest'], riot: ['R', 'Riot'], attack: ['A', 'Attack'], clash: ['C', 'Armed clash'], 'mass violence': ['M', 'Mass violence']};
 let groups = [], info = null;
@@ -15,7 +26,7 @@ function make(single) {
   const SRC = single ? 'ww-unrest1' : 'ww-unrest', mine = () => groups.filter(g => single ? g.outlets < 2 : g.outlets >= 2);
   return {
     id: single ? 'unrest1' : 'unrest', title: single ? 'Unrest, one outlet' : 'Protests and clashes', color: ['#a2845e', '#ac8e68'],
-    feeds: {unrest: 120}, layers: [SRC + '-dot', SRC + '-label'], defaultOff: single,
+    feeds: {unrest: 120}, layers: [SRC + '-dot', SRC + '-label', SRC + '-eye'], defaultOff: single,
     about: () => single ? 'Events only one outlet reported. Most false alarms are here.' : 'Machine-coded from news by GDELT; reported by two or more outlets.',
 
     addTo(map) {
@@ -25,18 +36,28 @@ function make(single) {
         paint: {'circle-radius': size, 'circle-stroke-width': ['case', ['==', ['get', 'ring'], true], 2.5, 1.2], 'circle-opacity': single ? 0.55 : 0.92, 'circle-stroke-opacity': single ? 0.7 : 1}});
       map.addLayer({id: SRC + '-label', type: 'symbol', source: SRC,
         layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}});
+      // God's eye symbols, sized by the number of outlets like the dots (shown instead of dot and letter in that theme)
+      map.addLayer({id: SRC + '-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'], 'symbol-sort-key': ['get', 'n'],
+        'icon-size': ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 0.42, 3, 0.52, 6, 0.7, 12, 0.95], 'icon-allow-overlap': true, 'icon-ignore-placement': true},
+        paint: {'icon-opacity': single ? 0.6 : 1}});
     },
     paint(map, dark) {
       const c = this.color[+dark], bg = dark ? '#1c1c1e' : '#ffffff';
       map.setPaintProperty(SRC + '-dot', 'circle-color', ['case', ['==', ['get', 'ring'], true], bg, c]);
       map.setPaintProperty(SRC + '-dot', 'circle-stroke-color', ['case', ['==', ['get', 'ring'], true], c, bg]);
       map.setPaintProperty(SRC + '-label', 'text-color', ['case', ['==', ['get', 'ring'], true], c, '#ffffff']);
+      eyeImages(map, dark);
+      const eye = eyeOn();
+      map.setPaintProperty(SRC + '-dot', 'circle-opacity', eye ? 0 : single ? 0.55 : 0.92);
+      map.setPaintProperty(SRC + '-dot', 'circle-stroke-opacity', eye ? 0 : single ? 0.7 : 1);
+      map.setPaintProperty(SRC + '-label', 'text-opacity', eye ? 0 : 1);
+      map.setPaintProperty(SRC + '-eye', 'icon-opacity', eye ? (single ? 0.6 : 1) : 0);
     },
     onData(feed, d) { groups = d.payload.groups || []; info = d; },
     render(map) {
       map.getSource(SRC).setData({type: 'FeatureCollection', features: mine().map(g => (
         {type: 'Feature', geometry: {type: 'Point', coordinates: [g.lon, g.lat]},
-         properties: {id: g.id, n: g.outlets, k: KIND[g.cat]?.[0] || '?', ring: g.cat === 'protest'}}))});
+         properties: {id: g.id, n: g.outlets, k: KIND[g.cat]?.[0] || '?', ring: g.cat === 'protest', eye: eyeOf(g)}}))});
     },
     count: () => mine().length,
     owns: id => mine().some(g => g.id === id),     // hotspot links pick through this

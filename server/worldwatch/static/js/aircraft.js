@@ -4,6 +4,7 @@
 //   military  adsb.lol, worldwide, every 5 minutes
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
+import {eyeOn, eyeImages, aircraftSymbol, turns} from './eyeicons.js';
 import {$, ago, api, esc, local, now} from './util.js';
 import {prefs} from './prefs.js';
 import {addModelProvider, addPathProvider, hitModel, isOn, onReady, MODEL_ZOOM} from './models3d.js';
@@ -177,13 +178,22 @@ function icons(map, dark) {
   }
 }
 
-const feature = (a, cls, at) => { const [shape, size] = kind(a); return {type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
-  properties: {id: a.hex, track: STILL.has(shape) ? 0 : (at && hist.has(a.hex) ? display(a).track : a.track) ?? 0, label: a.flight || a.reg || '', s: size, icon: 'ww-' + shape + (cls === 'mil' ? '-mil' : ''), cc: planeFlag(a.hex)?.cc || ''}}; };
+const feature = (a, cls, at) => {
+  const [shape, size] = kind(a), track = (at && hist.has(a.hex) ? display(a).track : a.track) ?? 0;
+  let icon, icons, still = STILL.has(shape);
+  if (eyeOn()) {   // God's eye: the symbol for its type code (or broadcast category); VIP and doomsday planes get their own
+    const v = vipList[a.hex], id = v ? (v.category === 'Doomsday' ? 'doomsday' : 'vip') : aircraftSymbol(a, cls === 'mil'), m = cls === 'mil' && !v ? '-mil' : '';
+    icon = 'eye-' + id + m; icons = 'eye-' + id + '-s' + m; still = !turns(id);
+  } else icon = icons = 'ww-' + shape + (cls === 'mil' ? '-mil' : '');
+  return {type: 'Feature', geometry: {type: 'Point', coordinates: at || [a.lon, a.lat]},
+    properties: {id: a.hex, track: still ? 0 : track, label: a.flight || a.reg || '', s: size, icon, icons, cc: planeFlag(a.hex)?.cc || ''}};
+};
 const empty = {type: 'FeatureCollection', features: []};
 const SIZE = ['interpolate', ['linear'], ['zoom'], 1, ['*', 0.22, ['get', 's']], 5, ['*', 0.46, ['get', 's']], 9, ['*', 0.8, ['get', 's']]];
 const label = {'text-field': ['step', ['zoom'], '', 6.5, ['get', 'label']], 'text-font': ['Noto Sans Bold'], 'text-size': 10.5,
   'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-optional': true, 'text-allow-overlap': false};
-const symbol = (id, source) => ({id, type: 'symbol', source, layout: {'icon-image': ['get', 'icon'], 'icon-size': SIZE, 'icon-rotate': ['get', 'track'],
+// small on screen (zoomed out) an aircraft of the God's eye set falls back to its simple class shape, as on the boards
+const symbol = (id, source) => ({id, type: 'symbol', source, layout: {'icon-image': ['step', ['zoom'], ['get', 'icons'], 5.5, ['get', 'icon']], 'icon-size': SIZE, 'icon-rotate': ['get', 'track'],
   'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true, ...label}});
 
 function find(id) {
@@ -511,6 +521,8 @@ export const civil = {
   },
   paint(map, dark) {
     icons(map, dark);
+    eyeImages(map, dark);
+    sent.live = sent.mil = null; sent.world = ''; glide(true);   // theme or palette changed: every symbol is chosen again
     const ink = dark ? '#e5e5ea' : '#3a3a3c', halo = dark ? '#1c1c1e' : '#ffffff';
     for (const l of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-airport']) if (map.getLayer(l)) {
       map.setPaintProperty(l, 'text-color', ink); map.setPaintProperty(l, 'text-halo-color', halo); map.setPaintProperty(l, 'text-halo-width', 1.3);

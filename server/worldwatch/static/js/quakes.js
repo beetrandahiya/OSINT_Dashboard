@@ -1,18 +1,23 @@
 // Earthquakes, exactly as the USGS feed lists them. Circle size follows magnitude; nothing else is implied.
 import {ago, esc, local, utc} from './util.js';
 import {nearTestSite} from './sites.js';
+import {eyeOn, eyeImages} from './eyeicons.js';
+// God's eye: three sizes, a quake within 50 km of a nuclear test site, and USGS's own explosion types
+const quakeEye = q => 'eye-' + (/explosion/.test(q.type || '') ? 'explosion' : nearTestSite(q.lon, q.lat) ? 'quake_test' : (q.mag ?? 0) >= 6 ? 'quake_l' : (q.mag ?? 0) >= 4.5 ? 'quake_m' : 'quake_s');
 
 const SRC = 'ww-quakes', LIST_MIN_MAG = 4;   // the list shows these; the map shows every quake in the feed
 let quakes = [], info = null;
 const mag = q => q.mag == null ? '?' : q.mag.toFixed(1);
 
 export default {
-  id: 'quakes', title: 'Earthquakes', color: ['#ff9500', '#ff9f0a'], feeds: {quakes: 30}, layers: ['ww-quakes', 'ww-quakes-label'],
+  id: 'quakes', title: 'Earthquakes', color: ['#ff9500', '#ff9f0a'], feeds: {quakes: 30}, layers: ['ww-quakes', 'ww-quakes-eye', 'ww-quakes-label'],
 
   addTo(map) {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     const size = ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 2.5, 3, 4, 4.5, 9, 6, 13, 7, 18, 8, 25];
     map.addLayer({id: 'ww-quakes', type: 'circle', source: SRC, paint: {'circle-radius': size, 'circle-opacity': 0.9, 'circle-stroke-width': 1.2}});
+    map.addLayer({id: 'ww-quakes-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'], 'symbol-sort-key': ['coalesce', ['get', 'mag'], 0],
+      'icon-size': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 0.22, 3, 0.3, 4.5, 0.48, 6, 0.66, 7, 0.82, 8, 1], 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
     // Apple's map guidance allows a short label inside a marker; the stronger quakes carry their magnitude.
     map.addLayer({id: 'ww-quakes-label', type: 'symbol', source: SRC, filter: ['>=', ['coalesce', ['get', 'mag'], 0], 4.5],
       layout: {'text-field': ['number-format', ['get', 'mag'], {'min-fraction-digits': 1, 'max-fraction-digits': 1}],
@@ -23,11 +28,19 @@ export default {
   paint(map, dark) {
     map.setPaintProperty('ww-quakes', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-quakes', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    eyeImages(map, dark);
+    const eye = eyeOn();     // God's eye: the symbol instead of the circle; the magnitude moves below it
+    map.setPaintProperty('ww-quakes', 'circle-opacity', eye ? 0 : 0.9); map.setPaintProperty('ww-quakes', 'circle-stroke-opacity', eye ? 0 : 1);
+    map.setPaintProperty('ww-quakes-eye', 'icon-opacity', eye ? 1 : 0);
+    map.setLayoutProperty('ww-quakes-label', 'text-offset', eye ? [0, 1.5] : [0, 0]);
+    map.setPaintProperty('ww-quakes-label', 'text-color', eye ? (dark ? '#e8f1f6' : '#0b141b') : '#ffffff');
+    map.setPaintProperty('ww-quakes-label', 'text-halo-color', eye ? (dark ? '#05080c' : '#ffffff') : 'rgba(0,0,0,0)'); map.setPaintProperty('ww-quakes-label', 'text-halo-width', eye ? 1.2 : 0);
+    if (map.getSource(SRC)) this.render(map);
   },
   onData(feed, d) { quakes = d.payload.quakes; info = d; },
   render(map) {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: quakes.map(q => (
-      {type: 'Feature', geometry: {type: 'Point', coordinates: [q.lon, q.lat]}, properties: {id: q.id, mag: q.mag}}))});
+      {type: 'Feature', geometry: {type: 'Point', coordinates: [q.lon, q.lat]}, properties: {id: q.id, mag: q.mag, eye: quakeEye(q)}}))});
   },
   count: () => quakes.length,
   rows() {
