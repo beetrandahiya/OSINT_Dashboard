@@ -2,6 +2,7 @@
 // the air. Worked out on our server from the positions it received (patterns.py); derived, and said so.
 import {ago, esc, spyPass} from './util.js';
 import {planeFlag, flagImg} from './flags.js';
+import {liveAt} from './aircraft.js';
 const flagOf = a => { const f = planeFlag(a.hex); return f ? ' ' + flagImg(f.cc, f.name) : ''; };
 
 let data = {orbits: [], tankers: [], now: 0, fetched: null}, maps = [];
@@ -16,7 +17,11 @@ async function load() {
 let started = false;
 function start(layer, map) {
   maps.push([layer, map]);
-  if (!started) { started = true; load(); setInterval(load, 120000); }
+  if (!started) {
+    started = true; load(); setInterval(load, 120000);
+    // the tanker markers follow the aircraft as the aircraft feeds move it (the list itself is a 2-minute snapshot)
+    setInterval(() => { for (const [l, m] of maps) if (l === tankers && data.tankers.length && !document.hidden && m.getLayoutProperty('ww-tanker', 'visibility') !== 'none') l.render(m); }, 2000);
+  }
 }
 
 const SOURCE = `Worked out by this server from military positions published by adsb.fi (every 30 seconds) and kept for 3 hours.`;
@@ -94,7 +99,7 @@ export const tankers = {
   onData() {},
   render(map) {
     map.getSource('ww-tankers')?.setData({type: 'FeatureCollection', features: data.tankers.map(t => ({type: 'Feature',
-      geometry: {type: 'Point', coordinates: [t.lon, t.lat]}, properties: {id: 'tanker:' + t.hex}}))});
+      geometry: {type: 'Point', coordinates: liveAt(t.hex) || [t.lon, t.lat]}, properties: {id: 'tanker:' + t.hex}}))});
   },
   count: () => data.tankers.length,
   rows() {
@@ -104,7 +109,8 @@ export const tankers = {
       meta: `${alt(t)}${near(t) ? ` · ${near(t)} more tankers within 500 km` : ''}`}));
   },
   owns: id => String(id).startsWith('tanker:'),
-  locate(id) { const t = data.tankers.find(x => 'tanker:' + x.hex === id); return t && [t.lon, t.lat]; },
+  moving: true,
+  locate(id) { const t = data.tankers.find(x => 'tanker:' + x.hex === id); return t && (liveAt(t.hex) || [t.lon, t.lat]); },
   ring: () => 12,
   detail(id) {
     const t = data.tankers.find(x => 'tanker:' + x.hex === id);

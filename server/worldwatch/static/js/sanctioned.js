@@ -2,10 +2,12 @@
 // matched by IMO number / MMSI (ships) and registration / transponder address (aircraft). See sanctions.py.
 import {ago, esc, spyPass} from './util.js';
 import {flagImg, shipFlag, planeFlag} from './flags.js';
-import {fillShip} from './ships.js';
+import {fillShip, still} from './ships.js';
+import {liveAt} from './aircraft.js';
 
 let d = {ships: [], aircraft: []}, maps = [];
 const all = () => [...d.ships, ...d.aircraft];
+const at = x => (x.kind !== 'ship' && x.hex && liveAt(x.hex)) || [x.lon, x.lat];   // an aircraft sits where the aircraft feeds draw it now
 async function load() {
   try { d = await fetch('/api/sanctioned/live', {cache: 'no-store'}).then(r => r.json()); } catch (e) { return; }
   for (const [l, m] of maps) l.render(m);
@@ -21,7 +23,10 @@ export default {
     map.addLayer({id: 'ww-sanc-k', type: 'symbol', source: 'ww-sanc',
       layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}, paint: {'text-color': '#ffffff'}});
     maps.push([this, map]);
-    if (maps.length === 1) { load(); setInterval(load, 60000); }
+    if (maps.length === 1) {
+      load(); setInterval(load, 60000);
+      setInterval(() => { if (d.aircraft.length && !document.hidden && map.getLayoutProperty('ww-sanc-ring', 'visibility') !== 'none') this.render(map); }, 2000);
+    }
   },
   paint(map, dark) {
     map.setPaintProperty('ww-sanc-ring', 'circle-color', this.color[+dark]);
@@ -29,7 +34,7 @@ export default {
   },
   onData() {},
   render(map) {
-    map.getSource('ww-sanc')?.setData({type: 'FeatureCollection', features: all().map(x => ({type: 'Feature', geometry: {type: 'Point', coordinates: [x.lon, x.lat]},
+    map.getSource('ww-sanc')?.setData({type: 'FeatureCollection', features: all().map(x => ({type: 'Feature', geometry: {type: 'Point', coordinates: at(x)},
       properties: {id: x.id, k: x.kind === 'ship' ? 'S' : 'A'}}))});
   },
   count: () => all().length,
@@ -37,8 +42,13 @@ export default {
     title: `${x.name}${x.kind === 'ship' ? (x.ship_kind ? ' · ' + x.ship_kind : '') : (x.type ? ' · ' + x.type : '')}`,
     meta: x.kind === 'ship' ? `${(x.risk || []).join(', ')} · matched by ${x.matched_by}` : `sanctioned aircraft · matched by ${x.matched_by}`})),
   owns: id => /^s(ship|plane):/.test(String(id)),
-  locate(id) { const x = all().find(v => v.id === id); return x && [x.lon, x.lat]; },
-  heading(id) { const x = all().find(v => v.id === id); return x ? (x.heading ?? x.course ?? x.track ?? null) : undefined; },
+  moving: true,
+  locate(id) { const x = all().find(v => v.id === id); return x && at(x); },
+  heading(id) {   // undefined (no chase camera) for a ship at rest or an aircraft on the ground
+    const x = all().find(v => v.id === id);
+    if (!x || (x.kind === 'ship' ? still(x) : x.alt_ft === 'ground')) return undefined;
+    return x.heading ?? x.course ?? x.track ?? null;
+  },
   ring: () => 13,
   fill(id) { if (String(id).startsWith('sship:')) fillShip(); },   // aircraft photos are filled by main.js for every card
   detail(id) {
@@ -48,7 +58,7 @@ export default {
       const fl = shipFlag(x.mmsi);
       return `<div id="shippic" data-mmsi="${x.mmsi}" data-imo="${esc(x.imo || '')}" data-name="${esc(x.name || '')}" data-mil=""><p class="pic-wait">Looking for a picture of this ship…</p></div>
         <p class="eyebrow">Ship on a sanctions list</p><h2>${esc(x.name)}${fl ? ' ' + flagImg(fl.cc, fl.name) : ''}</h2>
-        <p class="where">${esc(x.ship_kind || 'Ship')}${x.speed_kn != null ? ` · ${x.speed_kn} kn` : ''}${x.destination ? ' · bound for ' + esc(x.destination) : ''}</p>
+        <p class="where">${esc(x.ship_kind || 'Ship')}${x.speed_kn != null && x.speed_kn < 102.25 ? ` · ${x.speed_kn} kn` : ''}${x.destination ? ' · bound for ' + esc(x.destination) : ''}</p>
         <dl><dt>Listed as</dt><dd>${esc(x.listed_as)}${x.flag_listed ? ` <span class="soft">(flag on the list: ${esc(x.flag_listed)})</span>` : ''}</dd>
           <dt>Why</dt><dd>${(x.risk || []).map(esc).join('; ')}</dd>
           <dt>Matched by</dt><dd>${esc(x.matched_by)} ${esc(x.matched_by === 'IMO' ? x.imo : String(x.mmsi))}</dd>
