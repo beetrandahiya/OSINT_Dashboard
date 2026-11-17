@@ -1503,3 +1503,26 @@ globe (generated from Natural Earth), jitter/flicker/glow classes, scan lines, o
 in that spirit, not a copy of the film's screen. Rule kept: only presentation moves; no animated or invented numbers.
 Not checked in a browser. Waiting for his reaction (how strong the movement should be; which ground: points of light or
 the Blue Marble photo) before drawing the other screens or building anything.
+
+### 2026-11-17, his notes on board 6 and nine more boards (waiting for his pick)
+
+- Movement on board 6: "alright, not super top, decrease it a bit", and **"dont make movements at the expense of
+  accuracy of markers"**. Standing rule for any theme: markers and their map labels never animate; only panel
+  text may flicker, and less than the first draft (jitter 0.3 px, periods 5-8 s, no pulse).
+- He wants looks **1, 2 and 6 developed**. Asked how: **more mock-ups first** (build nothing yet), **new layouts**
+  (not today's layout, not the "Apple Maps, tidied" proposal), and **the Apple Maps look stays as a fourth theme**.
+- Nine boards added on page "More screens" of the same canvas (https://claude.ai/artifact/5hDJgW4M7dkGq4iAC73d2D),
+  one layout idea per look, same frozen capture:
+  - **Command deck, "ring and timeline":** globe as a scope inside a ring (outside dimmed), a 72 px rail of views, a
+    signals column, one right panel, and a full-width timeline (past 24 h linear, next 5 days compressed, lanes for
+    unrest, quakes, launches; the gap where unrest files are not loaded yet is drawn as a gap). Boards: overview,
+    Kyiv clash selected (card: tiles, one action row, reports), layers panel (33 layers in 9 groups) with a key.
+  - **God's eye, "dock and sheet":** full-screen Earth, a dock at the bottom, a sheet that rises. Boards: overview,
+    aircraft followed with sheet open, layers as a grid of tiles.
+  - **Live signal, "briefing and globe":** a written briefing by region on the left (place, what was reported,
+    outlets, age, source), the globe on the right, a layer strip below. Boards: briefing, a record opened in place
+    (the Arabian Sea ships, with USNI's sentences), a settings sheet (four themes, ground, motion off / subtle /
+    full, units, key files).
+- Caveats told to him: boards are static and were not opened in a browser; in the Deck layers board counts marked *
+  were read from the server 45 min after the capture; the Bush carrier has no sentence of its own in USNI's tracker;
+  the wording of the settings descriptions is design wording, not existing behaviour.
