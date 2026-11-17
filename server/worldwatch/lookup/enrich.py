@@ -6,10 +6,13 @@ picture and any profile details the page publishes in its own metadata. Nothing 
 """
 import asyncio
 import html as _html
+import ipaddress
 import json
 import re
+import socket
 import time
-from urllib.parse import urlparse
+import urllib.request
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -58,17 +61,72 @@ def _jsonld(text):
     return out
 
 
-async def read_page(client: httpx.AsyncClient, url: str) -> dict:
-    """What a page shows: alive or not, its title, description, picture, and any profile facts it publishes."""
-    start = urlparse(url)
+class Refused(Exception):
+    pass
+
+
+def _bad_ip(a: str) -> bool:
+    ip = ipaddress.ip_address(a.split("%")[0])
+    ip = getattr(ip, "ipv4_mapped", None) or ip
+    return not ip.is_global or ip.is_multicast      # loopback, private, link-local, ULA, CGNAT 100.64/10 (Tailscale), ...
+
+
+async def check_url(url: str) -> None:
+    """Raise Refused unless the address is an http(s) page on the public internet. Found links come from strangers'
+    pages and search results: one that points (or redirects) at this computer, the router or a Tailscale machine
+    must not be fetched and its answer stored."""
+    u = urlparse(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise Refused("not a web address")
     try:
-        async with client.stream("GET", url, headers={"User-Agent": BROWSER, "Accept-Language": "en"}, follow_redirects=True) as r:
-            body = b""
-            async for chunk in r.aiter_bytes():
-                body += chunk
-                if len(body) > MAX_BYTES:
-                    break
-            status, final = r.status_code, str(r.url)
+        if _bad_ip(u.hostname):
+            raise Refused("it points at a private or local network address")
+        return
+    except ValueError:
+        pass                                          # a name, not an address: resolve it
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(u.hostname, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    except OSError:
+        raise Refused("its name does not resolve")
+    if not infos or any(_bad_ip(i[4][0]) for i in infos):
+        raise Refused("its name resolves to a private or local network address")
+
+
+def _peer_ok(r: httpx.Response, url: str) -> bool:
+    """The address we really connected to. httpx resolves the name again after check_url, so a name that changes
+    its answer in between (DNS rebinding) is caught here, before the body is read. Through a configured proxy the
+    peer is the proxy and the proxy resolves names; then only check_url's answer counts."""
+    ns = r.extensions.get("network_stream")
+    peer = ns and ns.get_extra_info("server_addr")
+    host = urlparse(url).hostname or ""
+    if not peer or (urllib.request.getproxies() and not urllib.request.proxy_bypass(host)):
+        return True
+    return not _bad_ip(peer[0])
+
+
+async def read_page(client: httpx.AsyncClient, url: str) -> dict:
+    """What a page shows: alive or not, its title, description, picture, and any profile facts it publishes.
+    Redirects are followed by hand (at most 5), every hop checked like the first address."""
+    start, final, body, status = urlparse(url), url, b"", 0
+    try:
+        for _ in range(6):
+            await check_url(final)
+            async with client.stream("GET", final, headers={"User-Agent": BROWSER, "Accept-Language": "en"}, follow_redirects=False) as r:
+                if not _peer_ok(r, final):
+                    raise Refused("it connected to a private or local network address")
+                if r.is_redirect and r.headers.get("location"):
+                    final = urljoin(final, r.headers["location"])
+                    continue
+                async for chunk in r.aiter_bytes():
+                    body += chunk
+                    if len(body) > MAX_BYTES:
+                        break
+                status = r.status_code
+                break
+        else:
+            return {"alive": None, "why": "it redirects more than 5 times", "read": time.time()}
+    except Refused as e:
+        return {"alive": None, "why": f"not opened: {e}", "read": time.time(), "final_url": final if final != url else None}
     except httpx.TimeoutException:
         return {"alive": None, "why": "did not answer in time", "read": time.time()}
     except httpx.HTTPError as e:
