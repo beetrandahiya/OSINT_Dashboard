@@ -26,7 +26,7 @@ export default {
   addTo(map) {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     map.addLayer({id: 'ww-airspace-fill', type: 'fill', source: SRC, paint: {'fill-opacity': ['case', ['get', 'strong'], 0.07, 0.03]}});
-    map.addLayer({id: 'ww-airspace-line', type: 'line', source: SRC, paint: {'line-width': ['case', ['get', 'tfr'], 1.2, 1.2], 'line-opacity': 0.7}});
+    map.addLayer({id: 'ww-airspace-line', type: 'line', source: SRC, paint: {'line-width': 1.2, 'line-opacity': 0.7}});
   },
   paint(map, dark) {
     const c = this.color[+dark];
@@ -41,6 +41,7 @@ export default {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => firs.size + tfrs.length,
+  owns: id => /^(FIR|TFR):/.test(String(id)),
   rows() {   // only bulletins revised in the last week; standing warnings would crowd the list for months
     const week = Date.now() / 1000 - 7 * 86400;
     return zones.filter(z => z.source === 'EASA' && dmy(z.revised || z.issued) > week && Object.keys(z.shapes).length).map(z => ({

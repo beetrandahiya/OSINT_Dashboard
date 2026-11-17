@@ -5,7 +5,17 @@ import {ago, esc, spyPass} from './util.js';
 const SRC = 'ww-front';
 const KIND = {unit: ['U', 'Russian unit position'], attack: ['➜', 'Direction of attack'], airfield: ['A', 'Airfield'], hq: ['H', 'Headquarters']};
 const AREA = {occupied: 'Occupied by Russia', contested: 'Status unknown (contested)', held: 'Held by Russia-backed authorities'};
-let d = null, info = null;
+let d = null, info = null, byKey = new Map();
+// ids from the item itself, not its list position: a refresh with more or fewer changes must not turn an open card into
+// another item (the server's hotspot signals use the same change id)
+const r4 = x => Math.round(x * 1e4) / 1e4;
+const keyOf = {a: a => `front:a${a.kind}|${a.name}|${a.rings[0]?.[0]?.map(r4).join(',')}`, p: p => `front:p${p.kind}|${r4(p.lon)},${r4(p.lat)}`, c: c => `front:c${c.id}|${c.place}`};
+// polygon centroid of the outer ring (the first vertex can be far from the area)
+function centroid(r) {
+  let a = 0, x = 0, y = 0;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const f = r[j][0] * r[i][1] - r[i][0] * r[j][1]; a += f; x += (r[j][0] + r[i][0]) * f; y += (r[j][1] + r[i][1]) * f; }
+  return a ? [x / (3 * a), y / (3 * a)] : r[0];
+}
 const day = t => new Date(t * 1000).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
 
 export default {
@@ -36,37 +46,39 @@ export default {
     map.setPaintProperty('ww-front-label', 'text-color', '#ffffff');
     map.setPaintProperty('ww-front-change', 'circle-stroke-color', dark ? '#ffd60a' : '#b25000');
   },
-  onData(feed, x) { d = x.payload; info = x; },
+  onData(feed, x) {
+    d = x.payload; info = x; byKey = new Map();
+    for (const k of ['a', 'p', 'c']) for (const it of d[{a: 'areas', p: 'points', c: 'changes'}[k]] || []) byKey.set(keyOf[k](it), [k, it]);
+  },
   render(map) {
     if (!d) return;
     const feats = [];
-    d.areas.forEach((a, i) => feats.push({type: 'Feature', geometry: {type: 'Polygon', coordinates: a.rings}, properties: {id: 'front:a' + i, kind: a.kind}}));
-    d.points.forEach((p, i) => feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: 'front:p' + i, kind: p.kind, k: KIND[p.kind][0]}}));
-    d.changes.forEach((c, i) => feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [c.lon, c.lat]}, properties: {id: 'front:c' + i, change: true}}));
+    d.areas.forEach(a => feats.push({type: 'Feature', geometry: {type: 'Polygon', coordinates: a.rings}, properties: {id: keyOf.a(a), kind: a.kind}}));
+    d.points.forEach(p => feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: keyOf.p(p), kind: p.kind, k: KIND[p.kind]?.[0] || '?'}}));
+    d.changes.forEach(c => feats.push({type: 'Feature', geometry: {type: 'Point', coordinates: [c.lon, c.lat]}, properties: {id: keyOf.c(c), change: true}}));
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => d ? d.changes.length : 0,
   rows() {
     if (!d) return [];
-    return d.changes.map((c, i) => ({id: 'front:c' + i, time: c.time, badge: '⚔', title: c.text.slice(0, 110),
-      meta: `${esc(c.place)} · DeepState, ${day(c.time)}`}));
+    return d.changes.map(c => ({id: keyOf.c(c), time: c.time, badge: '⚔', title: c.text.slice(0, 110),
+      meta: `${c.place} · DeepState, ${day(c.time)}`}));     // the list escapes meta itself
   },
   owns: id => String(id).startsWith('front:'),
   locate(id) {
-    if (!d) return null;
-    const [k, n] = [id.slice(6, 7), +id.slice(7)];
-    if (k === 'p') return [d.points[n].lon, d.points[n].lat];
-    if (k === 'c') return [d.changes[n].lon, d.changes[n].lat];
-    const r = d.areas[n]?.rings[0]; return r ? r[0] : null;
+    const [k, it] = byKey.get(id) || [];
+    if (!it) return null;
+    return k === 'a' ? (it.rings[0] ? centroid(it.rings[0]) : null) : [it.lon, it.lat];
   },
   ring: () => 12,
   detail(id) {
     if (!d) return null;
-    const [k, n] = [id.slice(6, 7), +id.slice(7)];
+    const [k, it] = byKey.get(id) || [];
+    if (!it) return '<p class="eyebrow">Front line</p><h2>No longer in the feed</h2><p class="soft">DeepState\'s newest update no longer has this item.</p>';
     const wk = d.week ? d.occupied_km2 - d.week.occupied_km2 : null;
     const src = `<p class="source">Source: DeepState (deepstatemap.live), a Ukrainian open-source team that maps the war from geolocated footage and official statements; their update of ${day(d.update.time)}, read ${ago(info?.fetched)}. One side's assessment, published hours to a day after the fact. Occupied area summed by us from their shapes: ${d.occupied_km2.toLocaleString('en-GB')} km²${wk != null ? ` (${wk >= 0 ? '+' : ''}${wk.toLocaleString('en-GB')} km² since ${day(d.week.time)})` : ''}.</p>`;
     if (k === 'c') {
-      const c = d.changes[n];
+      const c = it;
       const same = d.changes.filter(x => x.id === c.id && x !== c).map(x => x.place);
       return `<p class="eyebrow">Front line · change</p><h2>${esc(c.place)}</h2>
         <p class="where">${new Date(c.time * 1000).toLocaleString('en-GB', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}</p>
@@ -74,14 +86,14 @@ export default {
         ${spyPass(c.lat, c.lon)}${src}`;
     }
     if (k === 'p') {
-      const p = d.points[n];
-      return `<p class="eyebrow">Front line · ${esc(KIND[p.kind][1])}</p><h2>${esc(p.name)}</h2>
+      const p = it;
+      return `<p class="eyebrow">Front line · ${esc(KIND[p.kind]?.[1] || p.kind)}</p><h2>${esc(p.name)}</h2>
         ${p.note ? `<p>${esc(p.note)}</p>` : ''}
         ${p.kind === 'attack' ? '<p class="soft">DeepState draws these as arrows; the direction is in their picture, which we do not read, so only the place is marked.</p>' : ''}
         ${p.kind === 'unit' ? '<p class="soft">Where DeepState places this Russian unit. Positions of units are their reading of reports and footage.</p>' : ''}
         ${spyPass(p.lat, p.lon)}${src}`;
     }
-    const a = d.areas[n];
+    const a = it;
     return `<p class="eyebrow">Front line · area</p><h2>${esc(AREA[a.kind])}</h2><p class="where">${esc(a.name)}</p>
       <p>Occupied: ${d.occupied_km2.toLocaleString('en-GB')} km² in total${wk != null ? `, ${wk >= 0 ? '+' : ''}${wk.toLocaleString('en-GB')} km² in the week to ${day(d.update.time)}` : ''}. ${d.changes.length} changes logged in the last 7 days.</p>
       ${d.update.text ? `<p class="soft">Latest update: ${esc(d.update.text)}</p>` : ''}${src}`;

@@ -44,6 +44,7 @@ export default {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => warns.filter(w => w.lon != null).length,
+  owns: id => warns.some(w => w.id === id),
   rows() {
     return warns.filter(w => w.lon != null && ['rocket', 'missile', 'weapons', 'security'].includes(w.kind)).map(w => ({
       id: w.id, time: info?.fetched || 0, badge: KIND[w.kind]?.[0] || '?',

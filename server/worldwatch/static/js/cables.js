@@ -31,7 +31,7 @@ export default {
   },
   count: () => Object.values(faults).filter(c => c.state === 'problem').length,   // the chip counts the red ones
   rows: () => Object.entries(faults).map(([id, c]) => ({id: 'cable:' + id, time: c.items[0].time, badge: c.state === 'restored' ? '✓' : '⚡',
-    title: `${c.name}: ${c.items[0].title}`, meta: `${c.state === 'restored' ? 'Restored' : 'Fault or repair'} · ${esc(c.items[0].source)}, ${day(c.items[0].time)}`})),
+    title: `${c.name}: ${c.items[0].title}`, meta: `${c.state === 'restored' ? 'Restored' : 'Fault or repair'} · ${c.items[0].source}, ${day(c.items[0].time)}`})),
   locate(id) {
     const f = data?.features.find(x => x.properties.id === id); if (!f) return null;
     const g = f.geometry, line = g.type === 'MultiLineString' ? g.coordinates[0] : g.coordinates;

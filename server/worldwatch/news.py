@@ -460,7 +460,8 @@ def spikes(min_heads=8, min_outlets=8, factor=3.0) -> dict:
             same, words, n_out = story
             ids = {id(a) for a in same}
             arts = sorted(c["now"].values(), key=lambda a: (id(a) not in ids, a["lang"] != "eng", -(a["image"] is not None), -a["time"]))
-            out.append({"place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
+            # id from the series and place, not the list index: an open card must not become another place on reload
+            out.append({"id": f"spike:{name}:{c['place']}", "place": c["place"], "lat": c["lat"], "lon": c["lon"], "headlines": n, "outlets": len(c["outlets"]),
                         "story_words": words, "story_headlines": len(same), "story_outlets": n_out,
                         "rate_before": round(rate, 1), "times": round(n / max(rate, 0.5), 1), "first": min(a["time"] for a in arts),
                         "articles": arts[:10]})

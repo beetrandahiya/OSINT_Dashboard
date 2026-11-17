@@ -33,6 +33,7 @@ export default {
     map.getSource(SRC).setData({type: 'FeatureCollection', features: feats});
   },
   count: () => events.length,
+  owns: id => events.some(e => e.id === id),
   rows() {
     return events.map(e => ({id: e.id, time: when(e), badge: LETTER[e.code] || '?', strong: e.level === 'Red' || e.level === 'Orange',
       title: e.name, meta: `${e.kind}${e.level ? ' · ' + e.level.toLowerCase() + ' alert' : ''} · updated ${ago(when(e))}`}));

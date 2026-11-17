@@ -23,6 +23,9 @@ async function load() {
   document.dispatchEvent(new Event('ww-chips'));
 }
 
+// ids come from the server (the oldest signal), so a 5-minute reload that reorders the list never swaps an open card
+const hid = (h, i) => h.id || 'hot:' + i, get = id => d.hotspots.find((h, i) => hid(h, i) === id);
+
 const hotspots = {
   id: 'hotspots', title: 'Hotspots', color: ['#ff2d55', '#ff375f'], feeds: {}, local: true,
   about: () => 'Places where three or more different kinds of security signal coincide within a day. Each signal is listed; no score.',
@@ -49,18 +52,18 @@ const hotspots = {
     if (!map?.getSource('ww-hot')) return;
     // r0: the 250 km radius in pixels at zoom 0 (512 px world), so the area ring is true to scale at any zoom
     map.getSource('ww-hot').setData({type: 'FeatureCollection', features: d.hotspots.map((h, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [h.lon, h.lat]},
-      properties: {id: 'hot:' + i, kinds: h.kinds, r0: d.radius_km / (40075 * Math.cos(h.lat * Math.PI / 180)) * 512}}))});
+      properties: {id: hid(h, i), kinds: h.kinds, r0: d.radius_km / (40075 * Math.cos(h.lat * Math.PI / 180)) * 512}}))});
     if (!raf && on) raf = requestAnimationFrame(pulse);
   },
   count: () => d.hotspots.length,
-  rows: () => d.hotspots.map((h, i) => ({id: 'hot:' + i, time: h.last, badge: String(h.kinds), strong: true,
+  rows: () => d.hotspots.map((h, i) => ({id: hid(h, i), time: h.last, badge: String(h.kinds), strong: true,
     title: `Hotspot: ${place(h)} · ${h.families.map(f => (d.families[f] || f).split(' (')[0].toLowerCase()).join(', ')}`,
     meta: `${h.signals.length} signals within ${d.radius_km} km · ${ago(h.last)}`})),
   owns: id => String(id).startsWith('hot:'),
-  locate(id) { const h = d.hotspots[+String(id).slice(4)]; return h && [h.lon, h.lat]; },
+  locate(id) { const h = get(id); return h && [h.lon, h.lat]; },
   ring: () => 16,
   detail(id) {
-    const h = d.hotspots[+String(id).slice(4)]; if (!h) return null;
+    const h = get(id); if (!h) return null;
     const by = {};
     for (const s of h.signals) (by[s.fam] ||= []).push(s);
     return `<p class="eyebrow">Hotspot · ${h.kinds} kinds of signal</p><h2>${esc(place(h))}</h2>

@@ -55,9 +55,9 @@ def signals(states: dict, spikes: list, orbits: list, now: float) -> list[dict]:
     for g in p("unrest").get("groups", []):
         if g.get("outlets", 0) >= 2 and now - (g.get("last") or 0) < WINDOW_S:
             add("unrest", f"{g['cat'].capitalize()} in {g['place'].split(',')[0]}, {g['outlets']} outlets", g["lon"], g["lat"], g["last"], "unrest", g["id"], cc=g.get("country"))
-    for i, s in enumerate(spikes):
+    for s in spikes:
         a = (s.get("articles") or [{}])[0]
-        add("spike", f"News jump in {s['place'].split(',')[0]}: {a.get('title', '')[:90]}", s.get("lon"), s.get("lat"), s.get("first") or s.get("last") or now, "spikes", "spike:" + str(i))
+        add("spike", f"News jump in {s['place'].split(',')[0]}: {a.get('title', '')[:90]}", s.get("lon"), s.get("lat"), s.get("first") or s.get("last") or now, "spikes", s.get("id"))
     for w in p("navwarn").get("warnings", []):
         add("navwarn", f"{w.get('kind', '').capitalize()} warning {w.get('ref', '')} ({w.get('area', '')})", w.get("lon"), w.get("lat"), now, "navwarn", w["id"])
     for t in p("airspace").get("tfrs", []):
@@ -89,9 +89,9 @@ def signals(states: dict, spikes: list, orbits: list, now: float) -> list[dict]:
     for e in p("gdacs").get("events", []):
         if e.get("level") in ("Orange", "Red") and e.get("code") != "DR":     # droughts span half a continent
             add("disaster", f"GDACS {e['level'].lower()} alert: {e.get('title') or e.get('name')}", e.get("lon"), e.get("lat"), e.get("modified") or now, "hazards", e["id"])
-    for i, c in enumerate(p("front_ukraine").get("changes", [])):
-        if now - c["time"] < 2 * WINDOW_S:
-            add("front", c["text"][:110], c.get("lon"), c.get("lat"), c["time"], "front", "front:c" + str(i))
+    for c in p("front_ukraine").get("changes", []):
+        if now - c["time"] < 2 * WINDOW_S:            # same id as frontline.js keyOf.c
+            add("front", c["text"][:110], c.get("lon"), c.get("lat"), c["time"], "front", f"front:c{c['id']}|{c.get('place')}")
     for e in p("outages").get("events", []):
         if e["start"] + e["duration_s"] > now - 900:
             add("outage", f"Internet outage signal, {e['where']} (IODA)", e.get("lon"), e.get("lat"), e["start"], "outages", e["id"], scope="country", cc=e.get("code"))
@@ -125,7 +125,10 @@ def find(sigs: list[dict]) -> list[dict]:
         if len(allfams) < 3:
             continue
         used.update(group)
-        spots.append({"lon": round(lon, 3), "lat": round(lat, 3), "country": iso, "families": sorted(allfams), "kinds": len(allfams),
+        # id from the oldest counted signal, not the list position: reloads every 5 minutes reorder the list, and an
+        # open card must not silently become another hotspot
+        seed = min(core, key=lambda m: (m["time"] or 0, m["fam"], str(m["id"] or m["title"])))
+        spots.append({"id": "hot:" + seed["fam"] + ":" + str(seed["id"] or f"{seed['lon']:.2f},{seed['lat']:.2f}"), "lon": round(lon, 3), "lat": round(lat, 3), "country": iso, "families": sorted(allfams), "kinds": len(allfams),
                       "context": sorted({m["fam"] for m in members} & CONTEXT),
                       "signals": sorted(members + extra, key=lambda m: (m["fam"], -(m["time"] or 0))),
                       "first": min(m["time"] or 0 for m in members), "last": max(m["time"] or 0 for m in members)})
