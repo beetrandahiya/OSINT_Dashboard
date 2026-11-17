@@ -188,7 +188,7 @@ class Window:
 
 english = Window("gkg", ".gkg.csv.zip", "https://data.gdeltproject.org/gdeltv2/lastupdate.txt", False, per_run=6)
 translated = Window("gkgtr", ".translation.gkg.csv.zip", "https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt", True, per_run=3)
-PER_PLACE = 8          # articles per place sent with the map data; a card asks for the rest
+PER_PLACE = 3          # articles per place sent with the map data (list row and first look); a card asks for the rest
 
 
 def places(win: Window) -> list[dict]:

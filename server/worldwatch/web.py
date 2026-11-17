@@ -75,6 +75,15 @@ async def data(request):
         return JSONResponse({"error": "no such feed"}, status_code=404)
     now = time.time()
     payload = st.payload
+    # ?since=<fetched from the last answer>: when the feed has not been fetched again since, answer without the payload
+    # (news is ~0.8 MB and changes every 15 minutes, but pages poll it every minute). Ships are merged live, never.
+    since = request.query_params.get("since")
+    if since and st.fetched and request.path_params["name"] != "ships":
+        try:
+            if abs(float(since) - st.fetched) < 1e-3:
+                return JSONResponse({**st.public(now), "now": now, "unchanged": True}, headers={"Cache-Control": "no-store"})
+        except ValueError:
+            pass
     if request.path_params["name"] == "ships":
         # Finland's feed (stored) plus the worldwide stream (in memory only, merged here); the newer report wins
         merged = {s["mmsi"]: {**s, "source": "Digitraffic"} for s in (payload or {}).get("ships", [])}
