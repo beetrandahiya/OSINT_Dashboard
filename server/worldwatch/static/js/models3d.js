@@ -13,7 +13,7 @@
 // three.js (~1.5 MB of script) and the models (~0.5 MB) are fetched only when first needed: the first time the map is
 // zoomed in to MODEL_ZOOM - 1. Until they are ready every aircraft stays a flat icon (isOn() is false and the icon
 // layers keep their full zoom range; aircraft.js narrows them in onReady). Loading them at start delayed the map.
-import {maxModels} from './prefs.js';
+import {maxModels, prefs} from './prefs.js';
 let THREE = null, loader = null, booting = null, glOf = null;
 
 export const MODEL_ZOOM = 7;
@@ -301,7 +301,9 @@ function render(gl, args) {
   }
   Object.assign(stats, {items: items.length, models: modelled.size, onScreen: nDrawn, trail: trail.visible ? trail.n : 0, route: route.visible ? route.n : 0,
     sel: sel ? [Math.round(sel.d.x), Math.round(sel.d.y)] : null, above: !!sel?.d.above, w, h, frame: (stats.frame || 0) + 1, ms: +(performance.now() - t0).toFixed(2), moving});
-  if (moving) map.triggerRepaint();       // they move (smooth playback between real reports): draw the next frame too
+  // they move (smooth playback between real reports): draw the next frame too; in low power (prefs.js) 4 times a second
+  if (moving && !prefs.lowPower) map.triggerRepaint();
+  else if (moving) { if (!wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = 0; map.triggerRepaint(); }, 250); }
   else if (waiting && !wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = 0; map.triggerRepaint(); }, 500);   // one just came into view and starts moving soon
 }
 
