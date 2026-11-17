@@ -118,7 +118,7 @@ def parse(raw_zip: bytes, translated: bool) -> list[tuple]:
         # V2EnhancedPersons ("name,offset;"): who is named and where in the text, so a person can be matched to the
         # city mentioned nearest to them rather than to the article's first city
         persons = r[12][:600] if len(r) > 12 else ""
-        if WATCH and persons and not any(_norm(p.rpartition(",")[0] or p) in WATCH for p in persons.split(";") if p):
+        if WATCH and persons and not any(n in WATCH for n, _ in person_mentions(persons)):
             persons = ""                    # nobody we follow is named: drop the names, which would cost ~40 MB over 6 hours
         near = tuple((c[0], c[1], c[2], c[3]) for c in sorted(set(cities))[:8]) if persons else ()
         rows.append((best[1], best[2], best[3], r[3], html.unescape(m.group(1)).strip()[:300], r[4], lang, img, persons, near, theme_flags(r[7])))
@@ -247,6 +247,21 @@ def _norm(name: str) -> str:
     return " ".join("".join(c for c in n if not unicodedata.combining(c)).replace("-", " ").split())
 
 
+def person_mentions(persons: str) -> list[tuple[str, int]]:
+    """A row's person field as (normalised name, character offset or -1). It holds V2EnhancedPersons ("name,offset;");
+    old cache files hold V1Persons (names without offsets). Every reader must strip the offset: comparing the raw entry
+    ("donald trump,1234") with a name never matches."""
+    out = []
+    for p in persons.split(";"):
+        if not p:
+            continue
+        name, _, off = p.rpartition(",")
+        if not name or not off.isdigit():
+            name, off = p, ""
+        out.append((_norm(name), int(off) if off else -1))
+    return out
+
+
 _ALIAS = {"people's republic of china": "china", "united states of america": "united states", "russian federation": "russia",
           "state of palestine": "palestine", "republic of the congo": "congo", "kingdom of the netherlands": "netherlands",
           "czech republic": "czechia", "ivory coast": "cote d'ivoire", "east timor": "timor-leste"}
@@ -304,13 +319,8 @@ def leaders_today(leaders: list[dict]) -> list[dict]:
             if len(row) < 9 or not row[8]:
                 continue
             mentions: dict[str, list[int]] = {}
-            for p in row[8].split(";"):
-                if not p:
-                    continue
-                name, _, off = p.rpartition(",")
-                if not name:                         # old cache files hold V1Persons: names without offsets
-                    name, off = p, ""
-                mentions.setdefault(_norm(name), []).append(int(off) if off.isdigit() else -1)
+            for name, off in person_mentions(row[8]):
+                mentions.setdefault(name, []).append(off)
             if len(mentions) > 12:                  # "today in history" and round-ups name dozens of people: no place to learn
                 continue
             cities = row[9] if len(row) > 9 else []

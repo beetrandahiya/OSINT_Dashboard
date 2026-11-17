@@ -448,7 +448,7 @@ def person(collector, qid: str, name_hint: str | None) -> dict:
     if len(key.split()) >= 2:
         for win in (news_window.english, news_window.translated):
             for published, row in win.articles():
-                if len(row) < 9 or not row[8] or key not in {news_window._norm(p) for p in row[8].split(";") if p}:
+                if len(row) < 9 or not row[8] or key not in {n for n, _ in news_window.person_mentions(row[8])}:
                     continue
                 outlets.add(row[3])
                 pl = places.setdefault(row[0], {"place": row[0], "outlets": set(), "lat": row[1], "lon": row[2]})
@@ -462,7 +462,10 @@ def person(collector, qid: str, name_hint: str | None) -> dict:
     out["news"] = {"outlets": len(outlets), "places": top_places,
                    "articles": _once(sorted((a for a in arts.values() if in_title(a)), key=lambda a: (a["lang"] != "eng", -(a["image"] is not None), -a["time"])))[:6],
                    "in_headline": sum(1 for a in arts.values() if in_title(a)),
-                   "window_h": news_window.WINDOW // 3600, "newest": news_window.english.newest(), "single_name": len(key.split()) < 2}
+                   "window_h": news_window.WINDOW // 3600, "newest": news_window.english.newest(), "single_name": len(key.split()) < 2,
+                   # names are kept only for articles naming someone on the leaders list (news.WATCH, memory): for anyone
+                   # else 0 would be a false negative
+                   "tracked": not news_window.WATCH or key in news_window.WATCH}
     feeds["news"] = _feed(collector, "news")[1]
 
     # where the news placed them (only heads of state and government are on that list)
