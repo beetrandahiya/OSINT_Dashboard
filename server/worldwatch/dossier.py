@@ -446,12 +446,13 @@ def _once(arts: list[dict]) -> list[dict]:
 
 def person(collector, qid: str, name_hint: str | None) -> dict:
     prof = (store.cache_get("profile4:" + qid, 7 * 86400) or {}).get("body") or {}
-    name = prof.get("name") or name_hint or ""
-    key = news_window._norm(name)
-    surname = key.split()[-1] if key else ""
     lh = store.cache_get("leaders", 30 * 86400)
     leaders = (lh or {}).get("body") or []
     mine = [l for l in leaders if l["qid"] == qid]
+    # without a cached profile or a name from the page, a leader's name comes from the leaders list (else news counts 0)
+    name = prof.get("name") or name_hint or (mine[0].get("name") if mine else "") or ""
+    key = news_window._norm(name)
+    surname = key.split()[-1] if key else ""
     isos = [geo.by_name(l["country"]) for l in mine] + [c.get("iso") for c in prof.get("citizenship", [])]
     isos = [i for i in dict.fromkeys(isos) if i]
     home = isos[0] if isos else None
