@@ -36,6 +36,22 @@ export function createMap(container, leftPadding) {
 let photoOn = false;
 export function setPhoto(on) { photoOn = on; }
 
+// ---- where our own pictures sit in the layer stack ----
+// Fixed slots, bottom first, all under the base map's place names: the photos (daily, sharp, live: a live photo the
+// owner switches on is not hidden by the sharp photo 3D turns on by itself), then the sky and
+// weather pictures (night, aurora, rain, lightning), then GPS hexagons, then other area layers (cables, fires). Each
+// slot is an invisible marker layer and a layer is always inserted just below its slot's marker, so the order no longer
+// depends on which chip was switched on first or when a picture was replaced (before, the photos landed on top of
+// night, rain and GPS, and 3D switches the sharp photo on by itself). Markers of ours are added above the place names.
+const SLOTS = ['photo', 'sharp', 'live', 'night', 'aurora', 'rain', 'lightning', 'gps', 'area'];
+export function slot(map, name) {
+  if (!map.getLayer('ww-z-area')) {
+    const labels = map.getStyle().layers.find(l => l.type === 'symbol' && !l.id.startsWith('ww-'))?.id;
+    for (const s of SLOTS) if (!map.getLayer('ww-z-' + s)) map.addLayer({id: 'ww-z-' + s, type: 'background', layout: {visibility: 'none'}, paint: {'background-opacity': 0}}, labels);
+  }
+  return 'ww-z-' + name;
+}
+
 export function paintBase(map, dark) {
   const c = PALETTE[dark ? 'dark' : 'light'], onPhoto = PALETTE.dark;   // over the satellite photo, place names use the dark-map colours so they stay readable
   const set = (id, prop, v) => { try { map.setPaintProperty(id, prop, v); } catch (e) { /* layer lacks that property */ } };

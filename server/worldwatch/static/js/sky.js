@@ -1,5 +1,16 @@
 // Three layers that colour the map rather than add markers: rain radar, night, and the aurora zone.
 import {$, ago, esc, local, now, utc} from './util.js';
+import {slot} from './map.js';
+
+// A tiled picture that is replaced from time to time (a new radar frame, a new satellite time): the source keeps its
+// id and only its tile address changes, so the old tiles stay on screen until the new ones arrive (removing and
+// re-adding the layer left the area blank for seconds) and the layer keeps its place in the stack.
+function tiles(map, id, url, source, layer, before) {
+  const src = map.getSource(id);
+  if (src) { if (src.tiles?.[0] !== url) src.setTiles([url]); return; }
+  map.addSource(id, {type: 'raster', tiles: [url], ...source});
+  map.addLayer({id, type: 'raster', source: id, ...layer}, before);
+}
 
 // ---- rain radar: pictures from RainViewer, drawn as they come ----
 let frame = null, radarInfo = null, radarMap = null, radarOn = true;
@@ -11,13 +22,8 @@ export const rain = {
   render(map) {
     if (!frame) return;
     const url = `${frame.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-    if (map.getSource('ww-rain')?.tiles?.[0] === url) return;
-    if (map.getLayer('ww-rain')) map.removeLayer('ww-rain');
-    if (map.getSource('ww-rain')) map.removeSource('ww-rain');
-    map.addSource('ww-rain', {type: 'raster', tiles: [url], tileSize: 256, maxzoom: 7, attribution: 'Rain radar: RainViewer'});
-    // under every marker layer of ours, over the base map
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && l.id !== 'ww-night')?.id;
-    map.addLayer({id: 'ww-rain', type: 'raster', source: 'ww-rain', paint: {'raster-opacity': 0.65, 'raster-fade-duration': 0}, layout: {visibility: radarOn ? 'visible' : 'none'}}, first);
+    tiles(map, 'ww-rain', url, {tileSize: 256, maxzoom: 7, attribution: 'Rain radar: RainViewer'},
+      {paint: {'raster-opacity': 0.65, 'raster-fade-duration': 0}, layout: {visibility: radarOn ? 'visible' : 'none'}}, slot(map, 'rain'));
   },
   visible(on) { radarOn = on; },
   count: () => 0,
@@ -69,12 +75,18 @@ function nightPicture(t) {
     return k * k * (3 - 2 * k);
   });
 }
+// The picture is only drawn while the layer is on (it was rebuilt every minute whether shown or not).
+const BLANK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+let nightMap = null, nightOn = false, nightAt = 0;
+const nightNow = () => { if (!nightMap) return; nightAt = now(); overlay(nightMap, 'ww-night', nightPicture(nightAt)); };
 export const night = {
   id: 'night', title: 'Night', color: ['#1c1c1e', '#8e8e93'], feeds: {}, layers: ['ww-night'],
   addTo(map) {
-    overlay(map, 'ww-night', nightPicture(now()), map.getStyle().layers.find(l => l.id.startsWith('ww-'))?.id);
-    setInterval(() => overlay(map, 'ww-night', nightPicture(now())), 60000);
+    nightMap = map;
+    overlay(map, 'ww-night', BLANK, slot(map, 'night'));
+    setInterval(() => { if (nightOn) nightNow(); }, 60000);
   },
+  visible(on) { nightOn = on; if (on && now() - nightAt > 50) nightNow(); },
   paint(map, dark) { map.setPaintProperty('ww-night', 'raster-opacity', dark ? 0.5 : 0.3); },
   onData() {}, render() {},
   count: () => 0, note: () => '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null, local: true,
@@ -82,14 +94,21 @@ export const night = {
 };
 
 // ---- aurora: NOAA's forecast of where aurora is likely, plus the K index in the bottom strip ----
-let sw = null, swInfo = null, auroraMap = null, auroraDark = false, auroraOn = true;
+let sw = null, swInfo = null, auroraMap = null, auroraDark = false, auroraOn = true, auroraBuilt = '';
 const G = kp => kp >= 9 ? 'G5, extreme storm' : kp >= 8 ? 'G4, severe storm' : kp >= 7 ? 'G3, strong storm' : kp >= 6 ? 'G2, moderate storm' : kp >= 5 ? 'G1, minor storm' : kp >= 4 ? 'active' : 'quiet';
 export const aurora = {
   id: 'aurora', title: 'Aurora', color: ['#00a878', '#63e6be'], feeds: {space_weather: 300}, layers: ['ww-aurora'],
   addTo(map) { auroraMap = map; },
-  paint(map, dark) { auroraDark = dark; if (sw) this.render(map); },
+  paint(map, dark) { auroraDark = dark; this.render(map); },
   onData(feed, d) { sw = d.payload; swInfo = d; },
   render(map) {
+    if (!sw) return;
+    const el = $('#spaceweather');
+    if (el) el.innerHTML = `<span class="quote" title="NOAA's planetary K index: how disturbed Earth's magnetic field is, from 0 to 9. From 5 up NOAA calls it a geomagnetic storm (G1 to G5), and aurora reaches lower latitudes."><b>Kp</b>${sw.kp.toFixed(1)} <span class="${sw.kp >= 5 ? 'down' : ''}">${G(sw.kp)}</span><i>${ago(sw.kp_time + 3 * 3600)}</i></span>`;
+    // the picture costs most of a second: built only while the layer is on, and only for a new observation or theme
+    const key = sw.aurora_observed + '|' + auroraDark;
+    if (!auroraOn || key === auroraBuilt) return;
+    auroraBuilt = key;
     // NOAA gives one number per degree of longitude and latitude. Neighbouring cells are averaged twice and the
     // picture is sampled smoothly between cells, so the glow has soft edges instead of grid lines.
     let g = new Float32Array(360 * 181);
@@ -108,13 +127,10 @@ export const aurora = {
       return (g[y0 * 360 + x0] * (1 - fx) + g[y0 * 360 + x1] * fx) * (1 - fy) + (g[(y0 + 1) * 360 + x0] * (1 - fx) + g[(y0 + 1) * 360 + x1] * fx) * fy;
     };
     const rgb = auroraDark ? [70, 235, 170] : [0, 168, 120];
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-rain', 'ww-aurora'].includes(l.id))?.id;
-    overlay(map, 'ww-aurora', picture(768, rgb, (lon, lat) => Math.min(0.85, Math.max(0, (at(lon, lat) - 3) / 45))), first);
+    overlay(map, 'ww-aurora', picture(768, rgb, (lon, lat) => Math.min(0.85, Math.max(0, (at(lon, lat) - 3) / 45))), slot(map, 'aurora'));
     map.setLayoutProperty('ww-aurora', 'visibility', auroraOn ? 'visible' : 'none');
-    const el = $('#spaceweather');
-    if (el) el.innerHTML = `<span class="quote" title="NOAA's planetary K index: how disturbed Earth's magnetic field is, from 0 to 9. From 5 up NOAA calls it a geomagnetic storm (G1 to G5), and aurora reaches lower latitudes."><b>Kp</b>${sw.kp.toFixed(1)} <span class="${sw.kp >= 5 ? 'down' : ''}">${G(sw.kp)}</span><i>${ago(sw.kp_time + 3 * 3600)}</i></span>`;
   },
-  visible(on) { auroraOn = on; },
+  visible(on) { auroraOn = on; if (on && auroraMap) this.render(auroraMap); },
   count: () => 0,
   note: () => sw ? 'Kp ' + sw.kp.toFixed(1) : '',
   rows() {   // only when NOAA's own scale calls it a storm
@@ -136,18 +152,20 @@ export const aurora = {
 // NASA's VIIRS instrument on the NOAA-20 satellite photographs the whole planet once a day. Yesterday is
 // the newest complete day. The strips where two passes meet, and the clouds, are part of the real picture.
 const photoDay = () => new Date((now() - 86400) * 1000).toISOString().slice(0, 10);
-let photoHook = () => {};
+// Place names turn white over a photo. Three layers are photos; the names follow whether ANY of them is on (each used
+// to report only its own state, so switching one off darkened the names over another that was still showing).
+let photoHook = () => {}, photoOn = false;
 export const onPhoto = fn => { photoHook = fn; };
+const photoState = () => photoHook(photoOn || liveOn || sharpOn);
 export const photo = {
   id: 'photo', title: 'Photo', color: ['#3a6b4a', '#6fae84'], feeds: {}, layers: ['ww-photo'], local: true, defaultOff: true,
   addTo(map) {
     map.addSource('ww-photo', {type: 'raster', tileSize: 256, maxzoom: 9, attribution: 'Imagery: NASA GIBS, VIIRS NOAA-20',
       tiles: [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/${photoDay()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`]});
-    const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;     // under the place names, over everything else of the base map
-    map.addLayer({id: 'ww-photo', type: 'raster', source: 'ww-photo', paint: {'raster-fade-duration': 150}}, labels);
+    map.addLayer({id: 'ww-photo', type: 'raster', source: 'ww-photo', paint: {'raster-fade-duration': 150}}, slot(map, 'photo'));   // over the base map, under everything of ours
   },
   paint() {}, onData() {}, render() {},
-  visible(on) { photoHook(on); },
+  visible(on) { photoOn = on; photoState(); },
   count: () => 0, note: () => photoDay().slice(8) + '.' + photoDay().slice(5, 7) + '.', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
   about: () => `The Earth as NASA's NOAA-20 satellite photographed it on ${photoDay()} (yesterday, the newest complete day). Clouds and the seams between passes are real. Sharp down to about regional zoom.`,
 };
@@ -155,7 +173,7 @@ export const photo = {
 // ---- lightning: EUMETSAT's MTG Lightning Imager, flashes seen from geostationary orbit over Europe, Africa and the
 // Atlantic. The picture is EUMETSAT's own (transparent where there was none), the newest they serve. ----
 const EUM = 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&styles=&crs=EPSG:3857&format=image/png&transparent=true';
-let lightMap = null, lightAt = 0, lightOn = true, lightTime = null;
+let lightMap = null, lightAt = 0, lightOn = true, lightTime = null, lightFail = false;
 export const lightning = {
   id: 'lightning', title: 'Lightning', color: ['#ff9f0a', '#ffb340'], feeds: {}, layers: ['ww-lightning'], local: true,
   addTo(map) {
@@ -163,23 +181,23 @@ export const lightning = {
     const add = async () => {
       let t = null;
       try { t = (await fetch('/api/eumetsat/time?layer=mtg_fd:li_afa').then(r => r.json())).time; } catch (e) { /* keep the last picture */ }
+      // no time from EUMETSAT: keep the last picture, but say so instead of looking like a quiet sky
+      const fail = !t && (!lightAt || now() - lightAt > 1800);
+      if (fail !== lightFail) { lightFail = fail; document.dispatchEvent(new Event('ww-chips')); }
       if (!t || t === lightTime) return;
       lightTime = t; lightAt = Date.parse(t) / 1000;
-      if (map.getLayer('ww-lightning')) map.removeLayer('ww-lightning');
-      if (map.getSource('ww-lightning')) map.removeSource('ww-lightning');
       // every tile asks for the same image time, so the picture holds still while zooming
-      map.addSource('ww-lightning', {type: 'raster', tileSize: 256, maxzoom: 8, attribution: 'Lightning: EUMETSAT MTG-LI',
-        tiles: [`${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&TIME=${encodeURIComponent(t)}`]});
-      const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !l.id.startsWith('ww-mx-') && !['ww-night', 'ww-photo', 'ww-sharp'].includes(l.id))?.id;
-      map.addLayer({id: 'ww-lightning', type: 'raster', source: 'ww-lightning', paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, first);
+      tiles(map, 'ww-lightning', `${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&TIME=${encodeURIComponent(t)}`,
+        {tileSize: 256, maxzoom: 8, attribution: 'Lightning: EUMETSAT MTG-LI'},
+        {paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, slot(map, 'lightning'));
       document.dispatchEvent(new Event('ww-chips'));
     };
     add(); setInterval(add, 60000);           // EUMETSAT adds a new picture every five minutes
   },
   paint() {}, onData() {}, render() {},
   visible(on) { lightOn = on; },
-  count: () => 0, note: () => lightAt ? local(lightAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
-  about: () => `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area) in the picture of ${lightAt ? utc(lightAt) + ' (' + ago(lightAt) + ')' : 'the newest time'}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
+  count: () => 0, note: () => lightFail ? 'no answer' : lightAt ? local(lightAt) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
+  about: () => (lightFail ? `EUMETSAT did not say which lightning picture is newest${lightAt ? '; the one shown is from ' + utc(lightAt) + ' (' + ago(lightAt) + ')' : ', so nothing is shown'}. ` : '') + `Lightning seen by EUMETSAT's MTG weather satellite (Lightning Imager, accumulated flash area) in the picture of ${lightAt ? utc(lightAt) + ' (' + ago(lightAt) + ')' : 'the newest time'}. Covers Europe, Africa, the Middle East, the Atlantic and eastern South America; elsewhere it is empty, not calm.`,
 };
 
 // ---- live photo: the newest whole-disk pictures from weather satellites in geostationary orbit, every 10-15
@@ -198,13 +216,11 @@ async function liveAdd(map) {
   try { t = (await fetch('/api/eumetsat/time?layer=mtg_fd:rgb_geocolour').then(r => r.json())).time; } catch (e) { /* keep */ }
   if (t && t === liveAt) return;
   liveAt = t;
-  const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
   for (const [id, src, maxzoom, credit] of LIVE) {
-    if (map.getLayer(id)) map.removeLayer(id);
-    if (map.getSource(id)) map.removeSource(id);
     const url = src.startsWith('http') ? src : `${EUM}&layers=${src}&width=256&height=256&bbox={bbox-epsg-3857}${t ? '&TIME=' + encodeURIComponent(t) : ''}`;
-    map.addSource(id, {type: 'raster', tiles: [url], tileSize: 256, maxzoom, attribution: 'Live photo: ' + credit});
-    map.addLayer({id, type: 'raster', source: id, paint: {'raster-fade-duration': 0}, layout: {visibility: liveOn ? 'visible' : 'none'}}, labels);
+    // GIBS's GOES addresses never change: those sources are left alone; EUMETSAT's carry the new time
+    tiles(map, id, url, {tileSize: 256, maxzoom, attribution: 'Live photo: ' + credit},
+      {paint: {'raster-fade-duration': 0}, layout: {visibility: liveOn ? 'visible' : 'none'}}, slot(map, 'live'));
   }
   document.dispatchEvent(new Event('ww-chips'));
 }
@@ -212,7 +228,7 @@ export const livephoto = {
   id: 'livephoto', title: 'Live photo', color: ['#3a6b4a', '#6fae84'], feeds: {}, layers: LIVE.map(l => l[0]), local: true, defaultOff: true,
   addTo(map) { liveMap = map; liveAdd(map); setInterval(() => liveOn && liveAdd(map), 120000); },
   paint() {}, onData() {}, render() {},
-  visible(on) { liveOn = on; photoHook(on); if (on && liveMap) liveAdd(liveMap); },
+  visible(on) { liveOn = on; photoState(); if (on && liveMap) liveAdd(liveMap); },
   count: () => 0, note: () => liveAt ? local(Date.parse(liveAt) / 1000) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
   about: () => `The newest pictures from weather satellites that stay over one spot (every 10-15 minutes, 1-3 km per pixel): Europe, Africa and the Middle East from MTG${liveAt ? ' (' + utc(Date.parse(liveAt) / 1000) + ')' : ''}, India from Meteosat's Indian Ocean satellite, the Americas from GOES-East and GOES-West. Coarser than the daily Photo but current. East Asia is not covered.`,
 };
@@ -232,12 +248,11 @@ export const sharp = {
     sharpMap = map;
     map.addSource('ww-sharp', {type: 'raster', tileSize: 256, maxzoom: 19, attribution: 'Imagery: Esri, Vantor, Earthstar Geographics',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']});
-    const labels = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
-    map.addLayer({id: 'ww-sharp', type: 'raster', source: 'ww-sharp', paint: {'raster-fade-duration': 150}}, labels);
+    map.addLayer({id: 'ww-sharp', type: 'raster', source: 'ww-sharp', paint: {'raster-fade-duration': 150}}, slot(map, 'sharp'));
     let t = null; map.on('moveend', () => { clearTimeout(t); t = setTimeout(sharpWhen, 700); });
   },
   paint() {}, onData() {}, render() {},
-  visible(on) { sharpOn = on; photoHook(on); if (on) sharpWhen(); },
+  visible(on) { sharpOn = on; photoState(); if (on) sharpWhen(); },
   count: () => 0, note: () => sharpDate?.date ? sharpDate.date.slice(0, 7) : '', rows: () => [], locate: () => null, ring: () => 0, detail: () => null,
   about: () => sharpDate?.date ? `Under the map's centre: a picture taken ${sharpDate.date}${sharpDate.res ? ', ' + sharpDate.res + ' m per pixel' : ''}${sharpDate.sensor ? ', ' + sharpDate.sensor : ''} (${sharpDate.source || 'Esri World Imagery'}). Sharp, but not current: each area has its own date, often months or years old.`
     : 'Esri World Imagery: sharp aerial and satellite pictures, each area from its own date (months or years old). Zoom in for the date of the picture under the map\'s centre.',

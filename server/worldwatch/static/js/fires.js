@@ -1,13 +1,14 @@
 // Fire detections from NASA FIRMS: every hot spot the MODIS satellite instruments saw in the last 24 hours.
 // A detection is a 1 km pixel that looked hot. It can be a wildfire, a farm burn, a gas flare or a volcano.
 import {ago, esc, local, utc} from './util.js';
+import {slot} from './map.js';
 
 let pts = [], info = null;
 export default {
   id: 'fires', title: 'Fires', color: ['#ff5e3a', '#ff6a4d'], feeds: {fires: 900}, layers: ['ww-fires'],
   addTo(map) {
     map.addSource('ww-fires', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-rain', 'ww-aurora', 'ww-gps', 'ww-cables', 'ww-cables-hit', 'ww-photo'].includes(l.id))?.id;
+    const first = slot(map, 'area');   // over the photos, sky pictures and GPS hexagons, under the place names
     map.addLayer({id: 'ww-fires', type: 'circle', source: 'ww-fires',
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 1.3, 5, 2.6, 9, 5], 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 1, 0.55, 6, 0.85]}}, first);
   },

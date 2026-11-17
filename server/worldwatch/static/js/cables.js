@@ -2,6 +2,7 @@
 // (SubTel Forum's fault category and our news window, matched to TeleGeography's cable names; see cablefaults.py).
 // Routes from TeleGeography's Submarine Cable Map (CC BY-NC-SA: private, non-commercial use), drawn schematically.
 import {ago, esc} from './util.js';
+import {slot} from './map.js';
 
 let data = null, info = null, faults = {}, faultInfo = null, names = new Map(), theMap = null;
 const day = t => new Date(t * 1000).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
@@ -12,7 +13,7 @@ export default {
   addTo(map) {
     theMap = map;
     map.addSource('ww-cables', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
-    const first = map.getStyle().layers.find(l => l.id.startsWith('ww-') && !['ww-night', 'ww-rain', 'ww-aurora'].includes(l.id))?.id;
+    const first = slot(map, 'area');   // over the photos, sky pictures and GPS hexagons, under the place names
     map.addLayer({id: 'ww-cables', type: 'line', source: 'ww-cables',
       layout: {'line-sort-key': ['match', ['get', 'state'], 'problem', 2, 'restored', 1, 0]},
       paint: {'line-width': ['interpolate', ['linear'], ['zoom'], 1, ['match', ['get', 'state'], 'problem', 1.8, 'restored', 1.2, 0.6], 6, ['match', ['get', 'state'], 'problem', 3.2, 'restored', 2.2, 1.6]],
