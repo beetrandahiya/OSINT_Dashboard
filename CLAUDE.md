@@ -1603,3 +1603,14 @@ the Blue Marble photo) before drawing the other screens or building anything.
     layers panel, E counters of items beyond each screen edge (by direction; far side counted separately), F ambient
     icons-only key.
 - Same day he added: **"keep the icons in general very low key"** and look online for spy-style icons (next round).
+- **Low key, after looking at spy / military symbology** (new canvas page "God's eye: low-key icons", 4 boards): three
+  quiet families in `docs/design-eye/icons_lk.py`: **frame and code** (the frame tells the domain, after NATO APP-6 /
+  MIL-STD-2525: arch air, bowl sea, arch with bar space, rectangle land and sites, circle event, hexagon network,
+  dashed rectangle notice; a three-letter mono code inside: MIL, TKR, ISR, CVN, CLH, ATK, NAV...), **reticle**
+  (corner brackets + dot, heading tick, code under it) and **scope and data block** (air-traffic-scope target with a
+  leader line to real values only: callsign, flight level from the reported height, ground speed; for events place
+  and outlets). Only three colours: neutral grey-white, rose for conflict/danger, yellow for notices; ice blue for the
+  selection. **The standards' friend/hostile colours and shapes are deliberately not used** (we do not judge sides; a
+  red diamond reads "enemy"). If he ever wants the real standard: milsymbol (MIT, JavaScript, APP-6 / 2525E).
+- Lesson: a marker layer must use the camera of the picture under it. I first laid theatre-camera marks over the
+  horizon picture on the low-key map board; caught in my own check and swapped to the outline ground (same camera).
