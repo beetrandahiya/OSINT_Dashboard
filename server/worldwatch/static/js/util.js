@@ -25,7 +25,8 @@ const pad = n => String(n).padStart(2, '0');
 export function local(t) {
   const d = new Date(t * 1000), today = new Date(now() * 1000);
   const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-  return d.toDateString() === today.toDateString() ? hm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) + ', ' + hm;
+  return d.toDateString() === today.toDateString() ? hm
+    : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? {year: 'numeric'} : {})}) + ', ' + hm;
 }
 export const utc = t => new Date(t * 1000).toISOString().slice(11, 16) + ' UTC';
 

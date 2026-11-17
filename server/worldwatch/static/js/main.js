@@ -130,17 +130,21 @@ for (const l of LAYERS) for (const [feed, secs] of Object.entries(l.feeds)) {
   const u = users[feed] ||= {layers: [], secs};
   u.layers.push(l); u.secs = Math.min(u.secs, secs);
 }
-const busy = new Set(), retry = {}, due = new Set(), changed = new Set();
+const busy = new Set(), retry = {}, due = new Set(), changed = new Set(), fetchedAt = {};
 async function load(feed) {
   if (document.hidden) { due.add(feed); return; }
   if (busy.has(feed)) return;
   busy.add(feed);
   try {
-    const d = await api('/api/data/' + feed);
+    // `since`: a server that has not fetched the feed again answers {unchanged: true} without the payload (older
+    // servers ignore it and send everything, which works too)
+    const d = await api('/api/data/' + feed + (fetchedAt[feed] ? '?since=' + fetchedAt[feed] : ''));
+    if (d.unchanged) return;
     if (!d.payload) {   // the server has not fetched this feed yet: ask again shortly (one pending retry per feed, never a pile)
       retry[feed] ||= setTimeout(() => { retry[feed] = 0; load(feed); }, 5000);
       return;
     }
+    if (d.fetched) fetchedAt[feed] = d.fetched;
     for (const l of users[feed].layers) {
       try { l.onData(feed, d); got.add(l.id); l.render(map); changed.add(l.id); }
       catch (e) { console.error(`layer ${l.id} could not take feed ${feed}:`, e); }   // one layer's fault must not stop the others
@@ -241,6 +245,7 @@ function ring() {
 }
 
 function pick(p, fly = false) {
+  if (p && !byId[p.layer]) return;   // a link to a layer that is not loaded (e.g. the disaster imagery, switched off)
   picked = p;
   selectAircraft(p && (p.layer === 'aircraft' || p.layer === 'military' || p.layer === 'vip' || p.layer === 'doomsday') ? p.id : null);
   for (const l of LAYERS) l.select?.(p && p.layer === l.id ? p.id : null);
@@ -542,7 +547,7 @@ $('#find-q')?.addEventListener('input', e => {
   clearTimeout(findTimer); const q = e.target.value.trim(); const list = $('#find-list');
   if (q.length < 2) { list.hidden = true; return; }
   const lands = () => countryMatches(q).map(c => `<li data-cc="${esc(c.iso)}"><b>${esc(c.name)}</b><span>Country dossier</span></li>`).join('');
-  list.innerHTML = lands() + '<li class="empty">Searching people…</li>'; list.hidden = false;   // countries answer at once, people need Wikidata
+  list.innerHTML = lands() + '<li class="empty" id="find-people">Searching people…</li>'; list.hidden = false;   // countries answer at once, people need Wikidata
   findTimer = setTimeout(async () => {
     let people = '';
     try {
@@ -551,7 +556,9 @@ $('#find-q')?.addEventListener('input', e => {
       people = d.error ? `<li class="empty">${esc(d.error)}</li>` : (d.results || []).map(p => `<li data-qid="${esc(p.qid)}"><b>${esc(p.name)}</b>${p.description ? `<span>${esc(p.description)}</span>` : ''}</li>`).join('');
     } catch (err) { people = '<li class="empty">People search did not answer.</li>'; }
     if ($('#find-q').value.trim() !== q) return;
-    list.innerHTML = lands() + people || '<li class="empty">No person or country found.</li>';
+    // replace only the people placeholder: the country rows stay the same nodes, so a click on one is never lost
+    const ph = $('#find-people');
+    if (ph) ph.outerHTML = people || (list.querySelector('li[data-cc]') ? '' : '<li class="empty">No person or country found.</li>');
     list.hidden = false;
   }, 300);
 });
