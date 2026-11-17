@@ -4,6 +4,9 @@ import {ago, esc, spyPass} from './util.js';
 import {flagImg} from './flags.js';
 
 let d = null, info = null, areas = [];
+// military areas are asked per viewport, so their ids come from the OSM object (a[3]), not the list position, and the
+// ones seen are remembered: a pan must neither turn an open card into another area nor lose it
+const areaSeen = new Map(), aid = a => 'marea:' + (a[3] ?? `${a[0]},${a[1]}`);
 const MIL = {air: ['A', 'Air base'], naval: ['N', 'Naval base'], base: ['B', 'Military base'], radar: ['R', 'Military radar'],
   sigint: ['S', 'Listening (signals intelligence) station'], missile: ['M', 'Missile base or launch facility'], space: ['L', 'Launch site'],
   ammo: ['D', 'Ammunition depot'], training: ['T', 'Training area']};
@@ -44,7 +47,9 @@ export const bases = {
       try {
         const r = await fetch(`/api/sites/areas?w=${b.getWest()}&s=${b.getSouth()}&e=${b.getEast()}&n=${b.getNorth()}`).then(x => x.json());
         areas = r.areas || [];
-        map.getSource('ww-milarea').setData({type: 'FeatureCollection', features: areas.map((a, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [a[0], a[1]]}, properties: {id: 'marea:' + i}}))});
+        if (areaSeen.size > 20000) areaSeen.clear();
+        for (const a of areas) areaSeen.set(aid(a), a);
+        map.getSource('ww-milarea').setData({type: 'FeatureCollection', features: areas.map(a => ({type: 'Feature', geometry: {type: 'Point', coordinates: [a[0], a[1]]}, properties: {id: aid(a)}}))});
       } catch (e) { /* the next move asks again */ }
       busy = false;
       if (again) { again = false; pull(); }
@@ -73,13 +78,13 @@ export const bases = {
   rows: () => [],
   owns: id => /^(base|marea):/.test(String(id)),
   locate(id) {
-    if (String(id).startsWith('marea:')) { const a = areas[+id.slice(6)]; return a && [a[0], a[1]]; }
+    if (String(id).startsWith('marea:')) { const a = areaSeen.get(id); return a && [a[0], a[1]]; }
     const s = d?.military[+id.slice(5)]; return s && [s[0], s[1]];
   },
   ring: () => 10,
   detail(id) {
     if (String(id).startsWith('marea:')) {
-      const a = areas[+id.slice(6)]; if (!a) return null;
+      const a = areaSeen.get(id); if (!a) return null;
       return `<p class="eyebrow">Military area</p><h2>${esc(a[2] || 'Unnamed military area')}</h2>
         <dl><dt>Where</dt><dd>${Math.abs(a[1]).toFixed(4)}° ${a[1] >= 0 ? 'N' : 'S'}, ${Math.abs(a[0]).toFixed(4)}° ${a[0] >= 0 ? 'E' : 'W'} <span class="soft">(centre of the mapped area)</span></dd>
           <dt>Source</dt><dd>${SRC.osm(a[3])}</dd></dl>

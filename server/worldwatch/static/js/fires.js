@@ -2,7 +2,9 @@
 // A detection is a 1 km pixel that looked hot. It can be a wildfire, a farm burn, a gas flare or a volcano.
 import {ago, esc, local, utc} from './util.js';
 
-let pts = [], info = null;
+let pts = [], info = null, byId = new Map();
+// ids from the detection itself (place and time), not its position in the list, which changes with every new file
+const fid = p => `fire:${p[0]},${p[1]},${p[4]}`;
 export default {
   id: 'fires', title: 'Fires', color: ['#ff5e3a', '#ff6a4d'], feeds: {fires: 900}, layers: ['ww-fires'],
   addTo(map) {
@@ -12,18 +14,18 @@ export default {
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 1.3, 5, 2.6, 9, 5], 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 1, 0.55, 6, 0.85]}}, first);
   },
   paint(map, dark) { map.setPaintProperty('ww-fires', 'circle-color', this.color[+dark]); },
-  onData(feed, d) { pts = d.payload.points; info = d; },
+  onData(feed, d) { pts = d.payload.points; info = d; byId = new Map(pts.map(p => [fid(p), p])); },
   render(map) {
-    map.getSource('ww-fires').setData({type: 'FeatureCollection', features: pts.map((p, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [p[0], p[1]]}, properties: {id: 'fire:' + i}}))});
+    map.getSource('ww-fires').setData({type: 'FeatureCollection', features: pts.map((p, i) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [p[0], p[1]]}, properties: {id: fid(p)}}))});
   },
   count: () => pts.length,
   rows: () => [],
-  locate(id) { const p = pts[+String(id).slice(5)]; return p && [p[0], p[1]]; },
+  locate(id) { const p = byId.get(id); return p && [p[0], p[1]]; },
   ring: () => 10,
   owns: id => String(id).startsWith('fire:'),
   about: () => 'Each dot is a hot spot a NASA satellite saw in the last 24 hours. Not every dot is a wildfire: farm burns, gas flares and volcanoes show up too.',
   detail(id) {
-    const p = pts[+String(id).slice(5)];
+    const p = byId.get(id);
     if (!p) return null;
     return `<p class="eyebrow">Fire detection</p><h2>Hot spot</h2>
       <p class="where">${Math.abs(p[1]).toFixed(3)}° ${p[1] >= 0 ? 'N' : 'S'}, ${Math.abs(p[0]).toFixed(3)}° ${p[0] >= 0 ? 'E' : 'W'}</p>
