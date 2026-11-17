@@ -1675,3 +1675,6 @@ the Blue Marble photo) before drawing the other screens or building anything.
   7-8. All 147 symbols in hologram, A and C.
 - Caught in my own check: a first callout used sample numbers (FL300, 420 kt) instead of RCH4992's real values.
   Every number on a board must come from the capture.
+- **Selection mark (owner, same day): "crosshair and hairline together look weird, keep only the hairline".** The
+  selection is now one thin ring around the item (rose when selected, ice blue on hover); the broken arcs, crosshair
+  ticks and corner brackets are gone (`lock()` in `scifi.py`). Do not bring the crosshair back.

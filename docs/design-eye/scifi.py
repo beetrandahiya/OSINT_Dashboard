@@ -51,16 +51,8 @@ def draw(i, style, x, y, px, rot=0, pal='A', colkey=None):
 ROSE = '#ff3b5c'; ICE = '#8fdcff'
 COND = "'Barlow Condensed', 'Arial Narrow', sans-serif"; MONO = "'IBM Plex Mono', ui-monospace, monospace"
 def lock(x, y, r=26, col=ROSE):
-    """selection: three broken arcs, inner hairline circle, quadrant ticks, square corner brackets. Static."""
-    def arc(a0, a1, rr):
-        p0 = (x + rr*math.cos(math.radians(a0)), y + rr*math.sin(math.radians(a0))); p1 = (x + rr*math.cos(math.radians(a1)), y + rr*math.sin(math.radians(a1)))
-        return f'M{p0[0]:.1f} {p0[1]:.1f}A{rr} {rr} 0 0 1 {p1[0]:.1f} {p1[1]:.1f}'
-    d = ' '.join(arc(a, a + 70, r) for a in (-80, 40, 160))
-    ticks = ''.join(f'M{x + (r - 5)*c:.1f} {y + (r - 5)*s:.1f}L{x + (r + 6)*c:.1f} {y + (r + 6)*s:.1f}' for c, s in ((1, 0), (-1, 0), (0, 1), (0, -1)))
-    b = r + 12; q = 7
-    br = f'M{x-b} {y-b+q}V{y-b}H{x-b+q}M{x+b-q} {y-b}H{x+b}V{y-b+q}M{x+b} {y+b-q}V{y+b}H{x+b-q}M{x-b+q} {y+b}H{x-b}V{y+b-q}'
-    return (f'<path d="{d}" fill="none" stroke="{col}" stroke-width="2"></path><circle cx="{x}" cy="{y}" r="{r*0.62:.1f}" fill="none" stroke="{col}" stroke-opacity="0.55" stroke-width="0.8"></circle>'
-            f'<path d="{ticks}" stroke="{col}" stroke-width="1"></path><path d="{br}" fill="none" stroke="{ICE}" stroke-opacity="0.8" stroke-width="1"></path>')
+    """selection: one thin hairline circle around the item (owner 2026-11-17: no arcs, ticks or brackets). Static."""
+    return f'<circle cx="{x}" cy="{y}" r="{r*0.8:.1f}" fill="none" stroke="{col}" stroke-opacity="0.95" stroke-width="1.2"></circle>'
 def callout(x, y, lines, dx=60, dy=-46, col=ICE, w=None):
     """leader line from the item to a caps label block; lines = [(text, size, colour, weight)]"""
     ex, ey = x + dx, y + dy; w = w or max(len(t) for t, *_ in lines)*7.4 + 20

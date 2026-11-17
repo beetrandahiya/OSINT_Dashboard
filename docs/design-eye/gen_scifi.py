@@ -20,7 +20,7 @@ obs = [
  ('Cold, graded picture', 'The camera picture is pushed to steel blue-grey, darker and low in colour, so the overlay reads on top.', 'grade'),
  ('Layered glass panels', 'Thin rectangles, partly see-through, stacked over each other; bright corner brackets mark the frame.', 'frame'),
  ('Small geometric markers', 'Points on the city map are tiny: plus signs, dots in rings, small triangles and pictograms, each with a caps label.', 'markers'),
- ('Red lock on the target', 'The tracked target gets thin red rings broken into arcs, with ticks and crosshair marks; everything else stays cool.', 'lock'),
+ ('Red lock on the target', 'The tracked target gets a thin red mark; everything else stays cool.', 'lock'),
  ('Condensed caps and micro text', 'Labels are condensed capitals with wide spacing; behind them, columns of tiny text add density.', 'type'),
  ('Segmented bars', 'Progress is a row of small blocks, not a smooth bar.', 'segments'),
  ('Leader lines', 'Thin lines run from a point on the picture to a label block off to the side.', 'callout'),
@@ -86,11 +86,11 @@ B.append(('SciTreat.dc.html', 'Less cartoon: four treatments of the same silhoue
 
 # ===== 3 components =====
 cp = HEAD('Building blocks', 'selection lock, callouts, segmented counts, panels, ground and type')
-cp += S.frame(28, 90, 600, 470, 'Selection', 'only the selected item turns rose')
+cp += S.frame(28, 90, 600, 470, 'Selection', 'one hairline ring: rose when selected')
 cp += S.draw('strategic', 'holo', 180, 260, 44, 35, 'A', colkey='mil') + S.lock(180, 260, 34)
 cp += S.draw('clash', 'holo', 440, 260, 34, 0, 'A') + S.lock(440, 260, 30)
 cp += S.draw('carrier', 'holo', 180, 450, 36, 20, 'A') + S.lock(180, 450, 30, S.ICE)
-cp += S.txt(110, 330, 'AIRCRAFT, SELECTED', 12, '#9fb3bf', ls='0.12em') + S.txt(380, 330, 'EVENT, SELECTED', 12, '#9fb3bf', ls='0.12em') + S.txt(110, 515, 'HOVER: SAME LOCK IN ICE BLUE', 12, '#9fb3bf', ls='0.12em')
+cp += S.txt(110, 330, 'AIRCRAFT, SELECTED', 12, '#9fb3bf', ls='0.12em') + S.txt(380, 330, 'EVENT, SELECTED', 12, '#9fb3bf', ls='0.12em') + S.txt(110, 515, 'HOVER: SAME RING IN ICE BLUE', 12, '#9fb3bf', ls='0.12em')
 cp += S.frame(660, 90, 600, 470, 'Callouts', 'real values only')
 cp += S.draw('strategic', 'holo', 720, 280, 30, 50, 'A', colkey='mil') + S.callout(720, 280, [('RCH4992', 20, '#ffffff', 600), ('C-17 · STRATEGIC AIRLIFTER', 13, '#9fb3bf', 500), ('FL306 · 535 KT · 063°', 13, S.ICE, 500)], dx=70, dy=-60)
 cp += S.draw('clash', 'holo', 740, 470, 26, 0, 'A') + S.callout(740, 470, [('KYIV · ARMED CLASH', 18, '#ffffff', 600), ('GDELT · NOT VERIFIED · 1 MIN', 12, '#9fb3bf', 500)], dx=70, dy=-40, col=S.ROSE) + S.segments(816, 448, 7, 12, S.ROSE)
