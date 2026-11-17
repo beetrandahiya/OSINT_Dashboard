@@ -38,6 +38,7 @@ class FeedState:
         self.enc: wire.Encoded | None = None   # the payload serialised and gzipped once (wire.py); None until built
         self.enc_of = None                     # the payload object `enc` was built from
         self.saved_at = 0.0                    # when the payload was last written to the database
+        self.saved_version: str | None = None  # and the version written
 
     def state(self, now: float) -> str:
         if self.feed.fetch is None and self.error is None:
@@ -85,7 +86,7 @@ class Collector:
             saved = db.load_latest(st.feed.name) if st.feed.fetch else None
             if saved:
                 st.payload, st.fetched, st.data_time, st.items, st.from_disk = saved["payload"], saved["fetched"], saved["data_time"], saved["items"], True
-                st.saved_at = time.time()
+                st.saved_at, st.saved_version = time.time(), saved["version"]
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10), follow_redirects=True,
                                          headers={"User-Agent": config.USER_AGENT, "Accept-Encoding": "gzip"})
         for i, st in enumerate(s for s in self.states.values() if s.feed.fetch):
@@ -144,8 +145,11 @@ class Collector:
         enc, raw = await self._encode(st)
         # the news windows and unrest are rebuilt from data/gdelt at start, so their multi-MB payloads (new at every
         # fetch) are written at most every 15 minutes; everything else when its bytes changed (db.save_latest)
-        if raw is not None and (feed.name not in self.SAVE_EVERY or time.time() - st.saved_at > self.SAVE_EVERY[feed.name]):
-            st.saved_at = time.time()
+        # (the same bytes again only move the small latest_seen row, so a restart shows the true age)
+        same = enc is not None and enc.version == st.saved_version
+        if raw is not None and (same or feed.name not in self.SAVE_EVERY or time.time() - st.saved_at > self.SAVE_EVERY[feed.name]):
+            if not same:
+                st.saved_at, st.saved_version = time.time(), enc.version
             await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, raw, enc.version)
         return feed.interval * random.uniform(0.97, 1.03)
 
