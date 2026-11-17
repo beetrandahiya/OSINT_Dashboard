@@ -783,7 +783,7 @@ async def area(request):
             async with httpx.AsyncClient(timeout=15, headers={"User-Agent": config.USER_AGENT}) as c:
                 d, nbytes = await adsbfi_area(c, lat, lon, radius)
             ac = _readsb_aircraft(d)
-            collector._remember(ac, d["now"] / 1000)
+            collector._remember(ac, d["now"] / 1000, area=True)
             _area.update(at=time.time(), key=key, body={"aircraft": ac, "data_time": d["now"] / 1000, "fetched": time.time(), "lat": lat, "lon": lon, "radius_nm": radius})
             st.tried = st.fetched = started; st.error = None; st.ok_count += 1; st.items = len(ac); st.data_time = d["now"] / 1000
             st.last_ms = int((time.perf_counter() - t0) * 1000); st.last_bytes = nbytes; st.total_bytes += nbytes

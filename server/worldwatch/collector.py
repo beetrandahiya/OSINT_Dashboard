@@ -66,7 +66,9 @@ class Collector:
         self._tasks: list[asyncio.Task] = []
         self._client: httpx.AsyncClient | None = None
         self.clock_diffs: list[float] = []
-        self.trails: dict[str, list] = {}     # aircraft hex -> [[time, lon, lat], ...] as we received them, last 3 hours
+        self.trails: dict[str, list] = {}     # aircraft hex -> [(time, lon, lat, alt m), ...] as we received them (see _remember)
+        self._full: dict[str, float] = {}     # hex -> when the military / Munich feed last had it (those trails are kept whole)
+        self._pruned = 0.0
 
     async def start(self):
         for st in self.states.values():      # show what an earlier run saved, clearly marked
@@ -126,19 +128,53 @@ class Collector:
         await asyncio.to_thread(db.save_latest, feed.name, started, res.data_time, res.items, res.payload)
         return feed.interval * random.uniform(0.97, 1.03)
 
-    def _remember(self, aircraft: list[dict], data_time: float):
+    # Trails are for two things: the selected aircraft's path when OpenSky has none (`/api/track`), and orbit / tanker
+    # detection (patterns.py), which reads the military and Munich feeds. Those two feeds keep every position (4 s
+    # apart at most) for 3 hours. The live area feed (whatever part of the map a page is zoomed in on, every ~5 s, often
+    # hundreds of aircraft) only adds one point per 30 s per aircraft, for an hour, so a page left open on a busy
+    # region cannot fill the memory: it had grown by ~100 MB per watched region.
+    FULL_KEEP, AREA_KEEP, AREA_STEP = 3 * 3600, 3600, 30
+    FULL_CAP, AREA_CAP, MAX_TRAILS = 2700, 120, 12000      # points per aircraft (3 h at 4 s; 1 h at 30 s), aircraft kept
+
+    def _remember(self, aircraft: list[dict], data_time: float, area: bool = False):
         """Keep the positions we were really given, so a selected aircraft can show where it has been."""
+        full = self._full
         for a in aircraft:
+            hex_, lon, lat = a.get("hex"), a.get("lon"), a.get("lat")
+            if not hex_ or lon is None or lat is None:
+                continue
             t = data_time - (a.get("seen_pos_s") or 0)
-            tr = self.trails.setdefault(a["hex"], [])
-            if not tr or (t > tr[-1][0] + 4 and (a["lon"], a["lat"]) != (tr[-1][1], tr[-1][2])):
+            if not area:
+                full[hex_] = data_time
+            thin = area and data_time - full.get(hex_, 0) > 600
+            tr = self.trails.get(hex_)
+            if tr is None:
+                tr = self.trails[hex_] = []
+            if not tr or (t > tr[-1][0] + (self.AREA_STEP if thin else 4) and (lon, lat) != (tr[-1][1], tr[-1][2])):
                 alt = a.get("alt_ft")
-                tr.append([round(t, 1), a["lon"], a["lat"], 0 if alt == "ground" else round(alt * 0.3048) if isinstance(alt, (int, float)) else None])
-        old = data_time - 3 * 3600
+                tr.append((round(t, 1), lon, lat, 0 if alt == "ground" else round(alt * 0.3048) if isinstance(alt, (int, float)) else None))
+                cap = self.FULL_CAP if hex_ in full else self.AREA_CAP
+                if len(tr) > cap + 50:                       # trimmed in steps, not one pop(0) per point
+                    del tr[:len(tr) - cap]
+        now = time.time()
+        if now - self._pruned > 60:          # once a minute, not on every answer
+            self._pruned = now
+            self._prune(now)
+
+    def _prune(self, now: float):
+        full = self._full
+        for hex_ in [h for h, t in full.items() if now - t > self.FULL_KEEP]:
+            del full[hex_]
         for hex_, tr in list(self.trails.items()):
-            while tr and tr[0][0] < old:
-                tr.pop(0)
+            old = now - (self.FULL_KEEP if hex_ in full else self.AREA_KEEP)
+            if tr and tr[0][0] < old:
+                i = next((i for i, p in enumerate(tr) if p[0] >= old), len(tr))
+                del tr[:i]
             if not tr:
+                del self.trails[hex_]
+        if len(self.trails) > self.MAX_TRAILS:              # hard cap: drop the aircraft heard from longest ago, area-only first
+            order = sorted(self.trails, key=lambda h: (h in full, self.trails[h][-1][0]))
+            for hex_ in order[:len(self.trails) - self.MAX_TRAILS]:
                 del self.trails[hex_]
 
     def status(self) -> dict:
