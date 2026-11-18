@@ -3,6 +3,8 @@ import {rate, statusEvery, listRows} from './prefs.js';
 import {loadFlags} from './flags.js';
 import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D, setGround} from './map.js';
 import {look, ground, openSettings, closeSettings} from './look.js';
+import * as dense from './dense.js';
+import {eyeOn, glyphSvg} from './eyeicons.js';
 import news from './news.js';
 import navwarn from './navwarn.js';
 // import maxarLayer from './maxar.js';   // disaster imagery: off for now, see CHIPS
@@ -91,15 +93,20 @@ function minimiser(btnId, panelId, key, then) {
   set(on); b.addEventListener('click', e => { e.stopPropagation(); set(!on); });
 }
 // the map centres on the part the sidebar leaves free; a minimised sidebar is only its header, so it leaves all of it
-const sidePad = () => innerWidth > 900 && !$('#sidebar').classList.contains('min') ? SIDEBAR_SPACE : 0;
+const sidePad = () => innerWidth > 900 && !$('#sidebar').classList.contains('min') && !eyeOn() ? SIDEBAR_SPACE : 0;
+// God's eye (Dense layout): the column is on the right; the map centres on what is left of it
+const DENSE_COL = 536;
+const rightPad = () => innerWidth > 900 && eyeOn() && !$('#sidebar').classList.contains('min') ? DENSE_COL : 0;
+const repad = () => { if (mapRef && !chase) mapRef.easeTo({padding: {...mapRef.getPadding(), left: sidePad(), right: rightPad()}, duration: calm.matches ? 0 : 250}); };
 let mapRef = null;
-minimiser('side-mini', 'sidebar', 'ww-min-side', () => { if (mapRef && !chase) mapRef.easeTo({padding: {...mapRef.getPadding(), left: sidePad()}, duration: calm.matches ? 0 : 250}); });
+minimiser('side-mini', 'sidebar', 'ww-min-side', () => repad());
 minimiser('markets-mini', 'marketsbar', 'ww-min-markets');
 minimiser('legend-mini', 'legend', 'ww-min-legend');
 let detailMin = false; try { detailMin = localStorage.getItem('ww-min-detail') === '1'; } catch (e) { /* ignore */ }
 
 const map = createMap('map', sidePad());
 mapRef = map;
+if (rightPad()) map.setPadding({left: sidePad(), top: 0, bottom: 0, right: rightPad()});
 window.wwMap = map;   // handy in the browser console
 window.wwWatchTiles?.(map);
 attachImaged(map);
@@ -125,7 +132,8 @@ function repaint() {
   paintSky(map, dark.matches);
   paint3D(map, dark.matches);
   for (const l of LAYERS) l.paint(map, dark.matches);
-  map.setPaintProperty('ww-pick', 'circle-stroke-color', dark.matches ? '#ffffff' : '#000000');
+  map.setPaintProperty('ww-pick', 'circle-stroke-color', eyeOn() ? '#ff3b5c' : dark.matches ? '#ffffff' : '#000000');
+  map.setPaintProperty('ww-pick', 'circle-stroke-width', eyeOn() ? 1.3 : 2.5);
 }
 
 function show(layer) {
@@ -227,32 +235,39 @@ map.on('load', () => {
   map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null || x.properties.cluster) ? 'pointer' : ''; });
   setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
+  dense.init({map, CHIPS, on, toggle: id => toggleLayer(id), ensureOn: id => toggleLayer(id, true), status: () => status, dark: () => dark.matches, shape: g => shape(g), repad});
+  renderChips();
   schedule();   // first downloads (status may not have answered yet: then every feed a switched-on layer uses)
 });
 dark.addEventListener('change', () => ready && repaint());
 // Settings sheet: theme, ground, palette, motion (look.js); a change of look repaints the map's ground and colours
 $('#settings-btn').onclick = () => openSettings();
-document.addEventListener('ww-look', () => { if (ready) repaint(); renderChips(); legend(); });
+document.addEventListener('ww-look', () => { dense.apply(); chipsHtml = null; if (ready) repaint(); renderChips(); legend(); });
 
 // ---- layer chips: each one shows and hides a layer, and says how many items it holds ----
 let chipsHtml = '';
+const chipCount = l => l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : '';
 function renderChips() {
-  const html = CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
+  const html = eyeOn() ? dense.tiles(chipCount) : CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
     <span class="swatch"></span>${l.title}<span class="n">${l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : ''}</span></button>`).join('');
   if (html !== chipsHtml) { $('#chips').innerHTML = html; chipsHtml = html; }
 }
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
-  const l = byId[b.dataset.id];
+  toggleLayer(b.dataset.id);
+});
+function toggleLayer(id, want) {
+  const l = byId[id]; if (!l) return;
+  if (want !== undefined && !!on[l.id] === want) return;
   on[l.id] = !on[l.id];
   try { localStorage.setItem('ww-layers', JSON.stringify(on)); } catch (err) { /* private window */ }
   show(l);
   if (on[l.id] && got.has(l.id)) try { l.render(map); } catch (err) { console.error(err); }
   if (on[l.id]) for (const feed of Object.keys(l.feeds)) if (!held[feed] || (status && status.feeds.find(f => f.name === (VIEW_OF[feed] || feed))?.version !== versionAt[feed])) { loadedAt[feed] = -Infinity; }
   if (on[l.id]) schedule();
-  renderChips(); renderList(); legend();
+  renderChips(); renderList(); legend(); dense.refreshSheet();
   if (picked?.layer === l.id && !on[l.id]) pick(null);
-});
+}
 dark.addEventListener('change', renderChips);
 const legend = () => renderLegend($('#legend'), CHIPS, on);
 legend(); dark.addEventListener('change', legend);
@@ -398,7 +413,7 @@ addEventListener('ww-fly', e => map.flyTo({...e.detail, duration: calm.matches ?
 // Escape closes the top-most thing only: the search list, else the dossier (profile.js closes it), else the card
 addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (closeSettings()) { e.stopImmediatePropagation(); return; }
+  if (closeSettings() || dense.closeSheet()) { e.stopImmediatePropagation(); return; }
   const fl = $('#find-list');
   if (fl && !fl.hidden) { fl.hidden = true; document.activeElement?.blur?.(); e.stopImmediatePropagation(); return; }
   if (document.querySelector('#profile:not([hidden])')) return;
@@ -461,8 +476,13 @@ const visibleEl = el => el && !el.hidden && el.getClientRects().length > 0;
 function freeArea() {
   const cv = map.getCanvas().getBoundingClientRect(), pad = {top: 0, bottom: 0, left: 0, right: 0};
   const side = $('#sidebar'), card = $('#detail');
-  if (visibleEl(side)) { const r = side.getBoundingClientRect(); if (r.height > 120) pad.left = Math.max(0, r.right - cv.left); }
-  if (visibleEl(card)) { const r = card.getBoundingClientRect(); if (r.height > 120) pad.right = Math.max(0, cv.right - r.left); }
+  // a panel on the left half takes the left side, one on the right half the right side (Apple Maps: sidebar left, card
+  // right; God's eye: both in the column on the right)
+  for (const el of [side, card]) {
+    if (!visibleEl(el)) continue;
+    const r = el.getBoundingClientRect(); if (r.height <= 120) continue;
+    if (r.left + r.width / 2 < cv.left + cv.width / 2) pad.left = Math.max(pad.left, r.right - cv.left); else pad.right = Math.max(pad.right, cv.right - r.left);
+  }
   if (pad.left + pad.right > cv.width - 160) { pad.left = 0; pad.right = 0; }   // too little room: use the whole map
   for (const el of document.querySelectorAll('#legend, #marketsbar, #chasebar, .maplibregl-ctrl-group')) {
     if (!visibleEl(el) || el === side || el === card) continue;
@@ -648,7 +668,11 @@ $('#find-q')?.addEventListener('input', e => {
   clearTimeout(findTimer); const q = e.target.value.trim(); const list = $('#find-list');
   if (q.length < 2) { list.hidden = true; return; }
   const lands = () => countryMatches(q).map(c => `<li data-cc="${esc(c.iso)}"><b>${esc(c.name)}</b><span>Country dossier</span></li>`).join('');
-  list.innerHTML = lands() + '<li class="empty" id="find-people">Searching people…</li>'; list.hidden = false;   // countries answer at once, people need Wikidata
+  // things on the map now: rows of the layers that are on whose title holds every word typed
+  const words = q.toLowerCase().split(/\s+/), items = [];
+  for (const l of CHIPS) { if (!on[l.id] || !got.has(l.id)) continue; for (const r of l.rows()) { const t = String(r.title).toLowerCase(); if (words.every(w => t.includes(w))) items.push({l, r}); } if (items.length > 40) break; }
+  const onMap = items.slice(0, 6).map(({l, r}) => `<li data-layer="${l.id}" data-id="${esc(r.id)}">${eyeOn() && dense.ICON[l.id] ? glyphSvg(dense.ICON[l.id], 20, dark.matches, l.id === 'military' ? 'mil' : null) : ''}<b>${esc(r.title)}</b><span>${esc(l.title)} · ${esc(r.meta || '')}</span></li>`).join('');
+  list.innerHTML = (lands() ? '<li class="group">Countries</li>' + lands() : '') + (onMap ? '<li class="group">On the map now</li>' + onMap : '') + '<li class="group">People</li><li class="empty" id="find-people">Searching people…</li>'; list.hidden = false;   // countries answer at once, people need Wikidata
   findTimer = setTimeout(async () => {
     let people = '';
     try {
@@ -659,14 +683,15 @@ $('#find-q')?.addEventListener('input', e => {
     if ($('#find-q').value.trim() !== q) return;
     // replace only the people placeholder: the country rows stay the same nodes, so a click on one is never lost
     const ph = $('#find-people');
-    if (ph) ph.outerHTML = people || (list.querySelector('li[data-cc]') ? '' : '<li class="empty">No person or country found.</li>');
+    if (ph) ph.outerHTML = people || '<li class="empty">No person found on Wikidata.</li>';
     list.hidden = false;
   }, 300);
 });
 $('#find-q')?.addEventListener('focus', loadCountries, {once: true});
 $('#find-list')?.addEventListener('click', e => {
-  const li = e.target.closest('li[data-qid], li[data-cc]'); if (!li) return;
-  if (li.dataset.cc) openCountry({cc: li.dataset.cc}); else openProfile(li.dataset.qid);
+  const li = e.target.closest('li[data-qid], li[data-cc], li[data-layer]'); if (!li) return;
+  if (li.dataset.layer) pick({layer: li.dataset.layer, id: li.dataset.id}, true);
+  else if (li.dataset.cc) openCountry({cc: li.dataset.cc}); else openProfile(li.dataset.qid);
   $('#find-list').hidden = true; $('#find-q').value = '';
 });
 addEventListener('click', e => { if (!e.target.closest('.find')) $('#find-list')?.setAttribute('hidden', ''); });

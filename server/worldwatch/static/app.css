@@ -450,79 +450,154 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
 .set-list button span { font-size: 11px; line-height: 13px; color: var(--text-2); }
 .set-list button[aria-pressed="true"] { background: var(--sel); box-shadow: inset 0 0 0 1.5px var(--accent); }
 
-/* ---- God's eye theme (Settings > Theme) ----
-   From the mock-ups on the design canvas, after studying the film's God's Eye screens: thin see-through panels with
-   bright corner brackets, square corners, condensed capitals for labels, monospaced numbers, ice-blue accent, rose for
-   danger, yellow for late feeds, no orange anywhere. Light and dark follow the system. Only panel text may move
-   (Settings > Panel motion); map symbols and their labels never move. */
+/* ---- God's eye theme: the Dense layout in glass (owner's picks, 2026-11-18; screens on the design canvas) ----
+   Frosted rounded glass panels, Space Grotesk for headings and numbers, Inter for text, sentence case, ice-blue accent,
+   no orange. One column on the right (card, layer tiles, list), a top bar, a strip of views along the bottom.
+   Light and dark follow the system. Only panel headings may flicker (Settings > Panel motion); the map never moves. */
+#topbar, #views { display: none; }
 :root[data-theme="eye"] {
-  --text: #0b141b; --text-2: rgba(20, 38, 50, 0.66); --text-3: rgba(20, 38, 50, 0.32);
-  --sep: rgba(10, 109, 153, 0.22); --hover: rgba(10, 109, 153, 0.08); --sel: rgba(10, 109, 153, 0.14);
-  --fill: rgba(10, 109, 153, 0.07); --fill-strong: rgba(10, 109, 153, 0.12); --knob: rgba(10, 109, 153, 0.16);
-  --accent: #0a6d99; --good: #0f9d63; --warn: #a07800; --bad: #d42a4a; --idle: #6b7c88;
-  --glass-bg: rgba(238, 243, 246, 0.84); --glass-solid: #eef3f6; --glass-filter: blur(8px);
-  --glass-stroke: rgba(10, 109, 153, 0.28); --glass-shadow: none;
-  --bracket: #0a6d99;
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  --radius: 0; --radius-ctl: 0;
+  --text: #f2f4f6; --text-2: rgba(201, 209, 214, 0.92); --text-3: rgba(201, 209, 214, 0.45);
+  --sep: rgba(255, 255, 255, 0.10); --hover: rgba(255, 255, 255, 0.07); --sel: rgba(143, 220, 255, 0.16);
+  --fill: rgba(255, 255, 255, 0.07); --fill-strong: rgba(255, 255, 255, 0.12); --knob: #f2f4f6;
+  --accent: #8fdcff; --good: #7be0a0; --warn: #ffe066; --bad: #ff6b6b; --idle: #9aa3a9;
+  --glass-bg: rgba(10, 14, 18, 0.66); --glass-solid: #0d1216; --glass-filter: blur(18px) saturate(140%);
+  --glass-stroke: rgba(255, 255, 255, 0.14); --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; --head: "Space Grotesk", "Inter", sans-serif;
+  --radius: 22px; --radius-ctl: 16px; color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root[data-theme="eye"] {
-    --text: #e8f1f6; --text-2: rgba(159, 179, 191, 0.92); --text-3: rgba(159, 179, 191, 0.45);
-    --sep: rgba(143, 220, 255, 0.16); --hover: rgba(143, 220, 255, 0.07); --sel: rgba(143, 220, 255, 0.14);
-    --fill: rgba(143, 220, 255, 0.06); --fill-strong: rgba(143, 220, 255, 0.12); --knob: rgba(143, 220, 255, 0.18);
-    --accent: #8fdcff; --good: #5fe39a; --warn: #ffe066; --bad: #ff6b6b; --idle: #6f8795;
-    --glass-bg: rgba(4, 9, 14, 0.74); --glass-solid: #060c12; --glass-stroke: rgba(143, 220, 255, 0.25);
-    --bracket: #8fdcff;
+    --text: #0b141b; --text-2: rgba(40, 56, 68, 0.85); --text-3: rgba(40, 56, 68, 0.4);
+    --sep: rgba(10, 30, 50, 0.10); --hover: rgba(10, 30, 50, 0.06); --sel: rgba(10, 109, 153, 0.12);
+    --fill: rgba(10, 30, 50, 0.06); --fill-strong: rgba(10, 30, 50, 0.10); --knob: #0b141b;
+    --accent: #0a6d99; --good: #138a5e; --warn: #8f7420; --bad: #c2334f; --idle: #6b7782;
+    --glass-bg: rgba(250, 252, 253, 0.80); --glass-solid: #f6f8fa; --glass-stroke: rgba(10, 30, 50, 0.12); --glass-shadow: 0 10px 40px rgba(10, 30, 50, 0.12);
+    color-scheme: light;
   }
 }
-[data-theme="eye"] .glass {
-  border-width: 1px;
-  /* bright corner brackets, 12 px long, as in the mock-ups' frames */
-  background:
-    linear-gradient(var(--bracket), var(--bracket)) top left / 12px 1.5px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) top left / 1.5px 12px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) top right / 12px 1.5px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) top right / 1.5px 12px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) bottom left / 12px 1.5px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) bottom left / 1.5px 12px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) bottom right / 12px 1.5px no-repeat,
-    linear-gradient(var(--bracket), var(--bracket)) bottom right / 1.5px 12px no-repeat,
-    var(--glass-bg);
-}
-[data-theme="eye"] h1, [data-theme="eye"] h2, [data-theme="eye"] h3, [data-theme="eye"] .lg-head h3, [data-theme="eye"] .detail .eyebrow,
-[data-theme="eye"] .list li.group, [data-theme="eye"] .seg button, [data-theme="eye"] .seg.wide a, [data-theme="eye"] .chip,
-[data-theme="eye"] .toggle3d, [data-theme="eye"] .feeds-head, [data-theme="eye"] .settings h4, [data-theme="eye"] .detail dt {
-  font-family: var(--font-label); text-transform: uppercase; letter-spacing: 0.1em;
-}
-[data-theme="eye"] h1 { font-size: 17px; letter-spacing: 0.14em; font-weight: 700; white-space: nowrap; }
-[data-theme="eye"] .side-head { gap: 8px; padding-right: 16px; }
-[data-theme="eye"] .side-head .seg button { padding: 4px 10px; }
-[data-theme="eye"] .detail h2 { font-size: 26px; letter-spacing: 0.06em; }
-[data-theme="eye"] .lg-head h3, [data-theme="eye"] .list li.group, [data-theme="eye"] .detail .eyebrow { color: var(--accent); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; }
-[data-theme="eye"] .chip .n, [data-theme="eye"] .age, [data-theme="eye"] .quote b, [data-theme="eye"] .m-now b, [data-theme="eye"] .detail dd,
-[data-theme="eye"] .row-meta, [data-theme="eye"] .m-air .r { font-family: var(--font-num); letter-spacing: 0; text-transform: none; }
-[data-theme="eye"] .seg, [data-theme="eye"] .seg button, [data-theme="eye"] .seg.wide a, [data-theme="eye"] .chip, [data-theme="eye"] .find input,
-[data-theme="eye"] .list li, [data-theme="eye"] .mini, [data-theme="eye"] .gear, [data-theme="eye"] .find-list, [data-theme="eye"] .find-list li,
-[data-theme="eye"] .set-list button, [data-theme="eye"] .row-thumb, [data-theme="eye"] .news-hero, [data-theme="eye"] .sky-img { border-radius: 0; }
-[data-theme="eye"] .seg { background: none; box-shadow: inset 0 0 0 1px var(--sep); }
-[data-theme="eye"] .seg button[aria-pressed="true"] { background: var(--sel); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
-[data-theme="eye"] .chip { font-size: 12px; font-weight: 600; background: var(--fill); box-shadow: inset 0 0 0 1px var(--sep); }
-[data-theme="eye"] .chip .swatch { border-radius: 1px; width: 8px; height: 8px; }
-[data-theme="eye"] .chip[aria-pressed="false"] { background: none; }
-[data-theme="eye"] .list li[aria-selected="true"] { box-shadow: inset 2px 0 0 var(--accent); }
-[data-theme="eye"] .set-list button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
-[data-theme="eye"] :focus-visible { outline-color: var(--accent); }
-[data-theme="eye"] .maplibregl-ctrl-group { border-radius: 0; background: var(--glass-bg); box-shadow: inset 0 0 0 1px var(--glass-stroke); }
+[data-theme="eye"] h1, [data-theme="eye"] h2, [data-theme="eye"] h3, [data-theme="eye"] .t-n, [data-theme="eye"] .tb-name, [data-theme="eye"] .detail dd,
+[data-theme="eye"] .seg button, [data-theme="eye"] .chip, [data-theme="eye"] .feeds-head, [data-theme="eye"] .view, [data-theme="eye"] .lg-head h3 { font-family: var(--head); }
+[data-theme="eye"] .detail dd, [data-theme="eye"] .t-n { font-variant-numeric: tabular-nums; }
 
-/* panel motion: a slight, rare flicker of panel headings (subtle) plus a faint colour fringe and scan lines (full).
-   Never on the map. Off with Reduce Motion and with the app's own animations switch (html.ww-still). */
+/* top bar */
+body.dense #topbar { display: flex; position: absolute; z-index: 4; left: 16px; right: 16px; top: 12px; height: 52px; align-items: center; gap: 16px; pointer-events: none; }
+body.dense #topbar > * { pointer-events: auto; }
+.tb-title { display: flex; align-items: baseline; gap: 12px; min-width: 260px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); }
+.tb-name { font-weight: 700; font-size: 22px; letter-spacing: -0.01em; }
+#view-name { font-family: var(--head); font-weight: 500; font-size: 15px; color: var(--accent); }
+.tb-search { flex: 1; display: flex; justify-content: center; }
+.tb-search .find { margin: 0; width: min(560px, 100%); }
+.tb-search .find input { height: 48px; border-radius: 999px; padding: 0 20px; font-size: 14px; background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--glass-stroke); box-shadow: var(--glass-shadow); }
+.tb-search .find-list { top: 54px; border-radius: 22px; padding: 8px; max-height: 70vh; }
+.tb-search .find-list li { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px; }
+.tb-search .find-list li > b, .tb-search .find-list li > span { grid-column: 2; }
+.tb-search .find-list li > svg { grid-row: span 2; }
+.tb-search .find-list li.group { display: block; padding: 8px 6px 2px; font-size: 12px; color: var(--text-2); cursor: default; }
+.tb-search .find-list li.group:hover { background: none; }
+.tb-right { display: flex; align-items: center; gap: 8px; }
+body.dense .tb-right .seg, body.dense .tb-right .toggle3d, body.dense .tb-right .gear { height: 48px; border-radius: 999px; background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border: 1px solid var(--glass-stroke); box-shadow: var(--glass-shadow); }
+body.dense .tb-right .seg { padding: 5px; align-items: center; }
+body.dense .tb-right .seg button { height: 36px; border-radius: 999px; padding: 0 14px; }
+body.dense .tb-right .seg button[aria-pressed="true"] { background: var(--knob); color: var(--glass-solid); }
+body.dense .tb-right .toggle3d { padding: 0 16px; }
+body.dense .tb-right .toggle3d[aria-pressed="true"] { background: var(--knob); color: var(--glass-solid); }
+body.dense .tb-right .gear { width: 48px; color: var(--text); }
+body.dense #feeds { position: relative; border-radius: 999px; min-height: 0; overflow: visible; }
+body.dense #feeds .feeds-head { height: 48px; min-height: 0; padding: 0 16px; font-size: 13px; border-radius: 999px; }
+body.dense #feeds .feeds-body { position: absolute; right: 0; top: 56px; width: 460px; max-height: 70vh; border: 1px solid var(--glass-stroke); border-radius: 22px; background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-shadow); }
+
+/* the column on the right: card, tiles, list */
+body.dense { --left: 16px; }
+body.dense .sidebar { left: auto; right: 16px; top: 76px; bottom: 16px; width: 504px; }
+body.dense .side-head { padding: 10px 14px 4px; justify-content: flex-end; }
+body.dense .side-head h1 { display: none; }
+body.dense .sidebar.min { bottom: auto; width: 60px; }
+body.dense .sidebar.min .side-head { justify-content: center; }
+body.dense #sidebar #detail { position: relative; z-index: 0; flex: 0 1 auto; max-height: 58%; margin: 0 12px 10px; border-radius: 18px; background: var(--fill); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.dense .seg.wide { margin: 0 14px 10px; }
+body.dense .right { display: none; }
+body.dense .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 14px 12px; max-height: 38%; }
+.tile { display: flex; align-items: center; gap: 10px; min-height: 60px; height: auto; padding: 8px 10px; border-radius: 14px; background: var(--fill); border: 1px solid var(--glass-stroke); text-align: left; cursor: default; font-weight: 500; }
+.tile .t-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tile .t-name { font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .t-n { font-size: 19px; font-weight: 600; line-height: 1.2; }
+.tile .t-src { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-family: var(--font); font-size: 11px; font-weight: 400; color: var(--text-2); white-space: nowrap; }
+.tile.t-late { border-color: color-mix(in srgb, var(--warn) 60%, transparent); } .tile.t-late .t-src { color: var(--warn); }
+.tile.t-fail { border-color: color-mix(in srgb, var(--bad) 60%, transparent); } .tile.t-fail .t-src { color: var(--bad); }
+.tile.t-off .t-src, .tile.t-wait .t-src { color: var(--idle); }
+.tile-all { grid-column: 1 / -1; min-height: 40px; justify-content: space-between; font-family: var(--head); font-size: 14px; }
+.tile-all span { font-family: var(--font); font-size: 12px; color: var(--text-2); }
+.tile-swatch { width: 22px; height: 22px; border-radius: 7px; background: var(--c); flex: none; opacity: 0.85; }
+.sdot { width: 8px; height: 8px; border-radius: 999px; background: var(--good); display: inline-block; flex: none; }
+.sdot.s-late { background: var(--warn); } .sdot.s-fail { background: var(--bad); } .sdot.s-off, .sdot.s-waiting, .sdot.s-wait { background: none; box-shadow: inset 0 0 0 1.5px var(--idle); }
+body.dense .list li { border-radius: 12px; }
+body.dense .list li.group { font-family: var(--head); color: var(--accent); }
+[data-theme="eye"] .list li[aria-selected="true"] { box-shadow: inset 0 0 0 1px #ff3b5c; background: var(--fill); }
+
+/* views along the bottom */
+body.dense #views { display: flex; left: 16px; right: 536px; bottom: 16px; height: 116px; padding: 12px 14px; gap: 12px; overflow-x: auto; scrollbar-width: none; align-items: flex-start; }
+.view { display: flex; flex-direction: column; gap: 4px; border: 0; background: none; color: var(--text-2); font-size: 12px; padding: 0; cursor: default; flex: none; }
+.view img { width: 132px; height: 70px; object-fit: cover; border-radius: 12px; border: 1px solid var(--glass-stroke); display: block; }
+.view[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.view[aria-pressed="true"] img { border: 2px solid var(--accent); }
+.views-note { align-self: center; max-width: 180px; font-size: 11px; color: var(--text-3); flex: none; }
+
+/* things that sit over the map keep clear of the strip and the column */
+body.dense .legend { left: 16px; bottom: 192px; width: 300px; }
+body.dense .markets { left: 16px; right: 536px; bottom: 140px; height: 40px; border-radius: 999px; }
+body.dense .maplibregl-ctrl-bottom-right { right: 536px; bottom: 196px; }
+body.dense .maplibregl-ctrl-bottom-left { left: 330px; bottom: 140px; }
+body.dense .chasebar { top: 76px; }
+body.dense .banner { top: 76px; }
+
+/* glass everywhere in this theme */
+[data-theme="eye"] .glass { border-width: 1px; }
+[data-theme="eye"] .seg { background: var(--fill); border-radius: 999px; }
+[data-theme="eye"] .seg button { border-radius: 999px; }
+[data-theme="eye"] .seg.wide a { border-radius: 999px; }
+[data-theme="eye"] .seg button[aria-pressed="true"] { background: var(--knob); color: var(--glass-solid); box-shadow: none; }
+[data-theme="eye"] .chip:not(.tile) { border-radius: 999px; }
+[data-theme="eye"] .detail h2 { font-size: 24px; line-height: 28px; }
+[data-theme="eye"] .detail .eyebrow { color: var(--accent); }
+[data-theme="eye"] .detail dl { border-radius: 14px; }
+[data-theme="eye"] .detail .btn { border-radius: 999px; padding: 7px 14px; }
+[data-theme="eye"] .maplibregl-ctrl-group { border-radius: 16px; }
+[data-theme="eye"] :focus-visible { outline-color: var(--accent); }
+
+/* the sheet with every layer and its key */
+#layers-sheet { z-index: 55; left: 50%; top: 76px; transform: translateX(-50%); width: min(1340px, calc(100vw - 32px)); max-height: calc(100vh - 100px); display: flex; flex-direction: column; overflow: hidden; padding: 18px 22px; }
+#layers-sheet[hidden] { display: none; }
+.ls-head { display: flex; align-items: baseline; gap: 14px; padding-bottom: 8px; }
+.ls-head h2 { margin: 0; font-size: 20px; }
+.ls-head .close { position: relative; top: auto; right: auto; margin-left: auto; }
+.ls-body { display: grid; grid-template-columns: 1fr 1fr 340px; gap: 24px; overflow-y: auto; min-height: 0; }
+.ls-col h4, .ls-key h3 { margin: 12px 0 4px; font-family: var(--head); font-size: 13px; font-weight: 600; color: var(--accent); }
+.ls-row { display: flex; align-items: center; gap: 10px; height: 38px; border-top: 1px solid var(--sep); opacity: 0.8; }
+.ls-row.on { opacity: 1; }
+.ls-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-src { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); white-space: nowrap; }
+.sw { width: 36px; height: 22px; flex: none; border-radius: 999px; border: 1px solid var(--glass-stroke); background: var(--fill); position: relative; cursor: default; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #fff; transition: left .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.sw[aria-checked="true"] { background: var(--good); }
+.sw[aria-checked="true"]::after { left: 16px; }
+.ls-key .legend-inner, .ls-legend { font-size: 12px; }
+.ls-legend section + section { border-top: 1px solid var(--sep); margin-top: 6px; padding-top: 6px; }
+.ls-legend h4 { margin: 4px 0; font-size: 11px; color: var(--text-2); }
+.ls-legend ul { list-style: none; margin: 0; padding: 0; }
+.ls-legend li { display: flex; gap: 6px; align-items: flex-start; margin: 2px 0; }
+.ls-legend li svg { flex: none; }
+.ls-legend .lg-note { display: block; font-size: 11px; color: var(--text-2); }
+
+/* settings in glass */
+[data-theme="eye"] .settings { border-radius: 26px; }
+[data-theme="eye"] .set-list button { border-radius: 14px; }
+
+/* panel motion: a slight, rare flicker of panel headings (subtle), plus a faint colour fringe (full). Never on the map.
+   Off with Reduce Motion and with the app's own animations switch (html.ww-still). */
 @keyframes ww-flick { 0%, 93%, 100% { opacity: 1; transform: none; } 94% { opacity: .82; transform: translateX(.3px); } 95% { opacity: 1; transform: none; } 97% { opacity: .9; } }
-[data-theme="eye"][data-motion="subtle"] .glass :is(h1, h2, h3, .eyebrow), [data-theme="eye"][data-motion="full"] .glass :is(h1, h2, h3, .eyebrow, .list li.group) { animation: ww-flick 6.5s steps(1, end) infinite; }
-[data-theme="eye"][data-motion="subtle"] .glass h2, [data-theme="eye"][data-motion="full"] .glass h2 { animation-duration: 7.7s; }
+[data-theme="eye"][data-motion="subtle"] .glass :is(h2, h3), [data-theme="eye"][data-motion="full"] .glass :is(h2, h3, .list li.group) { animation: ww-flick 6.5s steps(1, end) infinite; }
 [data-theme="eye"][data-motion="subtle"] .glass h3, [data-theme="eye"][data-motion="full"] .glass h3 { animation-duration: 5.3s; }
-[data-theme="eye"][data-motion="full"] .glass :is(h1, h2, h3) { text-shadow: 0.4px 0 rgba(255, 59, 92, 0.35), -0.4px 0 rgba(95, 227, 255, 0.35); }
-[data-theme="eye"][data-motion="full"] .glass::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(143, 220, 255, 0.035) 0 1px, transparent 1px 3px); }
+[data-theme="eye"][data-motion="full"] .glass :is(h2, h3) { text-shadow: 0.4px 0 rgba(255, 59, 92, 0.35), -0.4px 0 rgba(95, 227, 255, 0.35); }
 html.ww-still .glass *, html.ww-still .glass { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { [data-theme="eye"] .glass * { animation: none !important; } }
+@media (max-width: 900px) { body.dense #views { display: none; } body.dense .sidebar { width: auto; left: 16px; } }

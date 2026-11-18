@@ -1,5 +1,6 @@
 // The legend: what each symbol on the map means, for the layers that are switched on. Colours and letters are the
 // same ones the layers paint with (light, dark); keep them in step when a layer's look changes.
+import {eyeOn, glyphSvg} from './eyeicons.js';
 import {esc} from './util.js';
 
 const L = (light, dark) => d => d ? dark : light;
@@ -92,9 +93,34 @@ function swatch(shape, c, letter = '', alpha = 1) {
 const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 
 // layers: the chip modules in chip order; on: which are switched on
+// God's eye: the symbols that theme draws (eyeicons.js), with the same words; layers it does not redraw keep their key
+const EYE = {
+  aircraft: [['narrow', 'Airliner'], ['wide', 'Wide-body'], ['bizjet', 'Business jet'], ['turboprop', 'Turboprop'], ['light', 'Light aircraft'], ['heli_med', 'Helicopter'], ['note', 'Shape from the type code the aircraft broadcasts; small and simple when zoomed out']],
+  military: [['fighter', 'Fighter', 'mil'], ['tanker', 'Tanker', 'mil'], ['strategic', 'Strategic airlifter', 'mil'], ['tactical', 'Tactical airlifter', 'mil'], ['awacs', 'Early warning', 'mil'], ['mpa', 'Patrol / surveillance', 'mil'], ['heli_med', 'Helicopter', 'mil'], ['mil_generic', 'Other military type', 'mil']],
+  vip: [['vip', 'Government or VIP jet']], doomsday: [['doomsday', 'Command post (doomsday) plane']],
+  unrest: [['clash', 'Armed clash'], ['smallarms', 'Small arms'], ['artillery', 'Artillery'], ['aerial', 'Air strike, drone'], ['attack', 'Attack'], ['bombing', 'Bombing'], ['assassin', 'Assassination'], ['protest', 'Protest'], ['riot', 'Riot'], ['note', 'Size = number of different outlets. Machine-coded from news, not verified.']],
+  unrest1: [['protest', 'Reported by one outlet only (faded)']],
+  quakes: [['quake_s', 'Under M4.5'], ['quake_m', 'M4.5 to 6'], ['quake_l', 'M6 and above'], ['quake_test', 'Within 50 km of a nuclear test site'], ['explosion', 'Explosion (USGS type)']],
+  hazards: [['cyclone', 'Cyclone'], ['flood', 'Flood'], ['volcano', 'Volcano'], ['wildfire', 'Wildfire'], ['drought', 'Drought'], ['storm', 'Other (EONET)']],
+  outages: [['outage', 'Internet outage (IODA)'], ['out_power', 'Cloudflare: power'], ['out_cable', 'Cloudflare: cable cut'], ['out_gov', 'Cloudflare: government'], ['out_mil', 'Cloudflare: military action']],
+  ships: [['cargo', 'Cargo, or kind not given'], ['tanker_s', 'Tanker'], ['passenger', 'Passenger'], ['tug', 'Tug, port service'], ['sar', 'Pilot, search and rescue'], ['sailing', 'Sailing'], ['fishing', 'Fishing']],
+  warships: [['warship_s', 'Warship (AIS)'], ['carrier', 'US carrier (USNI)'], ['amphib', 'US amphib (USNI)']],
+  launches: [['launch', 'Launch pad, next days']], navwarn: [['nw_rocket', 'Rocket'], ['nw_missile', 'Missile firing'], ['nw_weapons', 'Weapons firing'], ['nw_exercise', 'Exercise'], ['nw_security', 'Security'], ['nw_gnss', 'GNSS interference']],
+  bases: [['airbase', 'Air base'], ['navalbase', 'Naval base'], ['armybase', 'Military base'], ['radar', 'Radar'], ['sigint_site', 'Signals station'], ['missile_site', 'Missile site'], ['launchsite', 'Launch site'], ['ammo', 'Ammunition depot'], ['range', 'Training area'], ['milarea', 'Military area (OSM)']],
+  nuclear: [['nuke', 'Power plant, operating'], ['nuke_build', 'Power plant, being built or planned'], ['nuke_off', 'Power plant, shut down'], ['reactor', 'Research reactor'], ['fuelcycle', 'Fuel cycle'], ['waste', 'Waste site'], ['uranium', 'Uranium mine'], ['testsite', 'Nuclear test site']],
+  cameras: [['camera', 'Public camera'], ['camlive', 'Windy, live stream']], sdr: [['sdr', 'KiwiSDR receiver (faded: full)']],
+  hotspots: [['hotspot', 'Hotspot: number = kinds of signal within 250 km in 24 h']], people: [['head', 'Head of state or government']],
+};
 export function renderLegend(el, layers, on) {
   const dk = isDark();
+  if (eyeOn()) {
+    const parts = layers.filter(l => on[l.id] && (EYE[l.id] || LEGENDS[l.id.toLowerCase()])).map(l => EYE[l.id]
+      ? `<section><h4>${esc(l.title)}</h4><ul>${EYE[l.id].map(([g, t, ck]) => g === 'note' ? `<li class="lg-note">${esc(t)}</li>` : `<li>${glyphSvg(g, 20, dk, ck)}<span>${esc(t)}</span></li>`).join('')}</ul></section>`
+      : `<section><h4>${esc(l.title)}</h4><ul>${LEGENDS[l.id.toLowerCase()].map(([shape, col, text, letter, alpha]) => shape === 'note' ? `<li class="lg-note">${esc(text)}</li>` : `<li>${swatch(shape, col ? col(dk) : '', letter || '', alpha ?? 1)}<span>${esc(text)}</span></li>`).join('')}</ul></section>`);
+    (el.querySelector('.lg-body') || el).innerHTML = parts.join('') || '<p class="lg-note">Switch a layer on to see what its symbols mean.</p>';
+    return;
+  }
   const parts = layers.filter(l => on[l.id] && LEGENDS[l.id.toLowerCase()]).map(l => `<section><h4>${esc(l.title)}</h4><ul>${LEGENDS[l.id.toLowerCase()].map(([shape, col, text, letter, alpha]) =>
     shape === 'note' ? `<li class="lg-note">${esc(text)}</li>` : `<li>${swatch(shape, col ? col(dk) : '', letter || '', alpha ?? 1)}<span>${esc(text)}</span></li>`).join('')}</ul></section>`);
-  el.querySelector('.lg-body').innerHTML = parts.join('') || '<p class="lg-note">Switch a layer on to see what its symbols mean.</p>';
+  (el.querySelector('.lg-body') || el).innerHTML = parts.join('') || '<p class="lg-note">Switch a layer on to see what its symbols mean.</p>';
 }

@@ -1747,3 +1747,32 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   the person board says which names did not load instead of guessing them. Lesson: a first draft of the search board
   had a second person I had not looked up, and the feeds board ages I had not measured; both removed before publishing.
   Next: his notes on these boards, then the build.
+
+### 2026-11-18, the Dense layout built into the app (owner: "just build the thing, into the final software")
+
+- **God's eye is now the default theme**; Apple Maps stays a choice in Settings (`look.js` DEFAULTS).
+- **`dense.js`** moves the existing page elements into the Dense places and back (so every listener keeps working in both
+  themes; `apply()` on every theme change): top bar `#topbar` (title, the view's name, search, feeds pill with its list
+  dropping down, Map/Globe, 3D, Settings), the column on the right (`#sidebar` moved right; the open card `#detail` goes
+  on top of it, then World/Munich/Lookup, the layer tiles, the list), the view strip `#views` along the bottom.
+- **Layer tiles** (`dense.tiles()` via `renderChips`): only the layers that are on, each with its symbol, count, source,
+  feed state dot and age from `/api/status`; the last tile opens **All layers** (`#layers-sheet`): groups (Conflict, Air,
+  Sea, Space, Networks, Earth, Sites, People, Pictures and sky), a switch, source and state per row, and the key beside.
+  `toggleLayer(id, want)` in `main.js` is the one switch for chips, tiles and the sheet.
+- **Views** are camera positions of the one map: Whole Earth, Theatre (tilted 55°), Day and night (globe centred on the
+  evening side, Night layer switched on), Look down, Over the pole, Low orbit (tilted 72°), Flat map, Chase (presses the open
+  card's follow button). Thumbnails `static/views/*.jpg` (42 KB, from the NASA renders). **Two sides and Wall of four are not
+  built**: they need several maps at once.
+- **Search** now groups Countries, **On the map now** (rows of the layers that are on whose title holds every typed word;
+  a click picks the item) and People (Wikidata).
+- **Key**: `legend.js` shows the God's eye symbols (`EYE` table, `glyphSvg()` in `eyeicons.js`) for the layers that theme
+  redraws; the others keep their Apple Maps key. Floating legend panel kept (minimisable) and the same key sits in the sheet.
+- **Look**: glass CSS at the end of `app.css` (rounded frosted panels, Space Grotesk headings and numbers, Inter text,
+  sentence case, ice accent, no orange, dark and light); the sci-fi frame CSS and the four font pairs are gone. Photo ground
+  in true colour (the cold grading of the sci-fi round removed). Military aircraft in their own ice tint (`glyphs.js` pal).
+  Selection ring: one rose hairline (1.3 px) in God's eye. Map padding: the column on the right (`rightPad()` 536 px);
+  `freeArea()` (chase camera) now handles panels on either side.
+- Tested headless (software GL, 1920x1080): overview, card picked, sheet, search, light mode with the Theatre view, whole
+  Earth on the globe, a military aircraft picked and followed, switching to Apple Maps and back: no page errors.
+  **Not tested:** Safari, a real GPU, 3D terrain with models in this layout, a window narrower than 1400 px (below 900 px the
+  column goes full width and the strip hides).

@@ -126,7 +126,9 @@ export function setGround(map, g, theme, dark) {
     const paint = {'raster-fade-duration': 150};
     if (g === 'mono') paint['raster-saturation'] = -1;
     // God's eye grades pictures cold and dark so the symbols read on top (the mock-ups' "graded photo")
-    if (eye && (g === 'photo' || g === 'mono')) Object.assign(paint, {'raster-saturation': -0.75, 'raster-brightness-max': dark ? 0.62 : 0.9, 'raster-contrast': 0.12});
+    // God's eye shows the picture as the first God's eye boards did: true colour, a little darker in dark mode
+    if (eye && g === 'photo') Object.assign(paint, {'raster-saturation': -0.1, 'raster-brightness-max': dark ? 0.8 : 1});
+    if (eye && g === 'mono') Object.assign(paint, {'raster-brightness-max': dark ? 0.75 : 1, 'raster-contrast': 0.1});
     if (eye && g === 'relief') Object.assign(paint, {'raster-brightness-max': dark ? 0.55 : 1, 'raster-contrast': 0.1});
     if (g === 'lights') Object.assign(paint, {'raster-saturation': eye ? -0.8 : -0.3, 'raster-hue-rotate': eye ? 180 : 0});
     const layer = {id: 'ww-ground-' + i, type: 'raster', source: 'ww-ground-' + i, paint};
@@ -135,7 +137,7 @@ export function setGround(map, g, theme, dark) {
     map.addLayer(layer, slot(map, 'ground'));
   });
   // the cold cast of the graded photo: a thin blue-grey wash over the picture, under everything of ours
-  if (eye && (g === 'photo' || g === 'relief' || g === 'mono')) map.addLayer({id: 'ww-ground-tint', type: 'background',
+  if (false) map.addLayer({id: 'ww-ground-tint', type: 'background',
     paint: {'background-color': dark ? '#0c2a40' : '#9fc3db', 'background-opacity': dark ? 0.28 : 0.16}}, slot(map, 'ground'));
   return true;
 }

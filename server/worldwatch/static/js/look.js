@@ -7,10 +7,9 @@
 //   ground   'auto'   the theme's own: the map for Apple Maps, the graded photo for God's eye
 //            'map' | 'photo' | 'mono' | 'lights' | 'relief' | 'outline'   (see GROUNDS in map.js)
 //   motion   'off' | 'subtle' | 'full'   only panel text ever moves; map markers and their labels never do
-//   font     God's eye type pair, until the owner picks one from the fonts board: 'barlow' | 'rajdhani' | 'saira' | 'chakra'
-const DEFAULTS = {theme: 'apple', palette: 'C', ground: 'auto', motion: 'subtle', font: 'barlow'};
+const DEFAULTS = {theme: 'eye', palette: 'C', ground: 'auto', motion: 'subtle'};   // God's eye is the app's look; Apple Maps stays a choice in Settings
 const ALLOWED = {theme: ['apple', 'eye'], palette: ['A', 'C'], ground: ['auto', 'map', 'photo', 'mono', 'lights', 'relief', 'outline'],
-  motion: ['off', 'subtle', 'full'], font: ['barlow', 'rajdhani', 'saira', 'chakra']};
+  motion: ['off', 'subtle', 'full']};
 
 function read() {
   try {
@@ -24,20 +23,11 @@ export const look = {...DEFAULTS, ...read()};
 // the ground actually drawn
 export const ground = () => look.ground !== 'auto' ? look.ground : look.theme === 'eye' ? 'photo' : 'map';
 
-// God's eye type: all free (Google Fonts, SIL Open Font License); loaded only while the theme is on
-const FONTS = {
-  barlow: ['Barlow Condensed', 'IBM Plex Mono', 'family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500'],
-  rajdhani: ['Rajdhani', 'Share Tech Mono', 'family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono'],
-  saira: ['Saira Semi Condensed', 'JetBrains Mono', 'family=Saira+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500'],
-  chakra: ['Chakra Petch', 'Space Mono', 'family=Chakra+Petch:wght@500;600;700&family=Space+Mono'],
-};
+// God's eye type: Space Grotesk for headings and numbers, Inter for text (both free, Google Fonts, SIL OFL); loaded only
+// while the theme is on (owner, 2026-11-18: "we had good fonts there")
 function fonts() {
-  const [label, num, q] = FONTS[look.font];
-  const root = document.documentElement.style;
-  root.setProperty('--font-label', `"${label}", "Arial Narrow", sans-serif`);
-  root.setProperty('--font-num', `"${num}", ui-monospace, monospace`);
   if (look.theme !== 'eye') return;
-  const href = `https://fonts.googleapis.com/css2?${q}&family=Inter:wght@400;500;600&display=swap`;
+  const href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap';
   let link = document.getElementById('ww-fonts');
   if (!link) { link = document.createElement('link'); link.id = 'ww-fonts'; link.rel = 'stylesheet'; document.head.appendChild(link); }
   if (link.href !== href) link.href = href;
@@ -61,7 +51,7 @@ export function setLook(p) {
 const GROUND_TEXT = {
   auto: ['Theme default', 'The map for Apple Maps, the graded photo for God\'s eye'],
   map: ['Map', 'OpenStreetMap drawing, recoloured for the theme'],
-  photo: ['Photo', 'NASA Blue Marble (cloud-free composite) when zoomed out, Esri World Imagery closer in; God\'s eye grades it cold'],
+  photo: ['Photo', 'NASA Blue Marble (cloud-free composite) when zoomed out, Esri World Imagery closer in (each area from its own date)'],
   mono: ['Mono', 'The same photo without colour'],
   lights: ['Night lights', 'NASA Black Marble city lights, a composite of 2016, not tonight'],
   relief: ['Relief', 'NASA/METI ASTER shaded relief, grey'],
@@ -80,11 +70,10 @@ function body() {
     `<li><button data-k="ground" data-v="${v}" aria-pressed="${look.ground === v}"><b>${esc(t)}</b><span>${esc(s)}</span></button></li>`).join('')}</ul></section>
   <section${look.theme === 'eye' ? '' : ' class="dim"'}><h3>God's eye</h3>
     <h4>Icon colours</h4>${seg('palette', [['A', 'A: colour per domain'], ['C', 'C: muted']])}
-    <p class="soft">For the new icon set, which comes in the next build step; today's map symbols keep their colours.</p>
+    <p class="soft">Colours of the God's eye symbols. Military aircraft keep their own ice tint in both.</p>
     <h4>Panel motion</h4>${seg('motion', [['off', 'Off'], ['subtle', 'Subtle'], ['full', 'Full']])}
     <p class="soft">Only panel text moves. Map symbols and their labels never move. Off as well when macOS Reduce Motion is on.</p>
-    <h4>Type</h4>${seg('font', [['barlow', 'Barlow'], ['rajdhani', 'Rajdhani'], ['saira', 'Saira'], ['chakra', 'Chakra']])}
-    <p class="soft">The four pairs from the fonts board, until you pick one.</p></section>`;
+</section>`;
 }
 export function openSettings() {
   let el = document.getElementById('settings');

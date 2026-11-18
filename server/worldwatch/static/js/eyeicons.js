@@ -88,3 +88,17 @@ export function eyeSwap(map, eyeIds, own) {
     }
   }
 }
+
+// The same symbol as inline SVG for panels (tiles, sheet, search): edges first, then fills, like the map images.
+export function glyphSvg(id, px = 24, dark = true, colkey = null) {
+  const s = G.lib[id]; if (!s) return '';
+  const mode = dark ? 'dark' : 'light', P = G.pal[look.palette][mode], ink = G.ink[mode], col = P[colkey || s.k], acc = P[G.acc[id] || 'warn'];
+  let edge = '', fill = '';
+  for (const [d, m] of s.g) {
+    if (m === 'f' || m === 'x') edge += `<path d="${d}" fill="none" stroke="${ink}" stroke-width="6" stroke-linejoin="round"/>`;
+    if (m === 's' || m === 'd') edge += `<path d="${d}" fill="none" stroke="${ink}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+    fill += m === 'f' ? `<path d="${d}" fill="${col}"/>` : m === 'k' ? `<path d="${d}" fill="${ink}"/>` : m === 's' ? `<path d="${d}" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`
+      : m === 'd' ? `<path d="${d}" fill="none" stroke="${col}" stroke-width="5" stroke-dasharray="7 6"/>` : m === 'a' ? `<path d="${d}" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="3"/>` : `<path d="${d}" fill="${acc}"/>`;
+  }
+  return `<svg class="glyph" width="${px}" height="${px}" viewBox="0 0 64 64" aria-hidden="true">${edge}${fill}</svg>`;
+}
