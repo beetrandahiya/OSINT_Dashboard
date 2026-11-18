@@ -301,19 +301,21 @@ function render(gl, args) {
   }
   Object.assign(stats, {items: items.length, models: modelled.size, onScreen: nDrawn, trail: trail.visible ? trail.n : 0, route: route.visible ? route.n : 0,
     sel: sel ? [Math.round(sel.d.x), Math.round(sel.d.y)] : null, above: !!sel?.d.above, w, h, frame: (stats.frame || 0) + 1, ms: +(performance.now() - t0).toFixed(2), moving});
-  // they move (smooth playback between real reports): draw the next frame too; in low power (prefs.js) 4 times a second
-  if (moving && !prefs.lowPower) map.triggerRepaint();
-  else if (moving) { if (!wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = 0; map.triggerRepaint(); }, 250); }
+  // they move (smooth playback between real reports): draw again soon, 30 times a second (every frame of the whole map
+  // at 60 was the biggest steady cost when zoomed in; at these zooms an airliner moves about a pixel per 30th of a
+  // second), in low power (prefs.js) 4 times a second
+  if (moving) { if (!wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = 0; map.triggerRepaint(); }, prefs.lowPower ? 250 : 33); }
   else if (waiting && !wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = 0; map.triggerRepaint(); }, 500);   // one just came into view and starts moving soon
 }
 
 // ---- labels and the selection ring, on a 2D canvas over the map ----
-function clearOverlay() { if (octx) octx.clearRect(0, 0, overlay.width, overlay.height); }
+function clearOverlay() { if (octx) octx.clearRect(0, 0, overlay.width, overlay.height); if (overlay) overlay.style.display = 'none'; }
 const order = [];
 function drawOverlay(w, h, dark, sel, z) {
   const dpr = devicePixelRatio || 1;
   if (overlay.width !== Math.round(w * dpr) || overlay.height !== Math.round(h * dpr)) { overlay.width = Math.round(w * dpr); overlay.height = Math.round(h * dpr); overlay.style.width = w + 'px'; overlay.style.height = h + 'px'; }
   const x = octx;
+  if (overlay.style.display) overlay.style.display = '';
   x.setTransform(dpr, 0, 0, dpr, 0, 0);
   x.clearRect(0, 0, w, h);
   // callsigns, nearest to the middle first, none overlapping (like the map's own labels)
@@ -350,7 +352,7 @@ export function attachModels(map) {
   theMap = map;
   overlay = document.createElement('canvas');
   overlay.className = 'ww-models-overlay';
-  overlay.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
+  overlay.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;display:none';
   map.getCanvasContainer().appendChild(overlay);
   octx = overlay.getContext('2d');
   const need = () => { if (map.getZoom() >= MODEL_ZOOM - 1) { boot(); map.off('zoom', need); } };

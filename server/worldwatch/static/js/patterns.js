@@ -16,13 +16,15 @@ async function load() {
   try { data = await fetch('/api/aircraft/patterns', {cache: 'no-store'}).then(r => r.json()); } catch (e) { return; }
   for (const [layer, map] of maps) layer.render(map);
 }
-let started = false;
+let started = false, tankerKey = '';
 function start(layer, map) {
   maps.push([layer, map]);
   if (!started) {
     started = true; load(); every(120, load);
     // the tanker markers follow the aircraft as the aircraft feeds move it (the list itself is a 2-minute snapshot)
-    setInterval(() => { for (const [l, m] of maps) if (l === tankers && data.tankers.length && !document.hidden && m.getLayoutProperty('ww-tanker', 'visibility') !== 'none') l.render(m); }, 2000);
+    // every 2 s zoomed in; zoomed out (below 5) every 10 s, where a tanker moves about a pixel in that time
+    let tick = 0;
+    setInterval(() => { tick++; for (const [l, m] of maps) if (l === tankers && (m.getZoom() >= 5 || tick % 5 === 0) && data.tankers.length && !document.hidden && ['ww-tanker', 'ww-tanker-eye'].some(id => m.getLayer(id) && m.getLayoutProperty(id, 'visibility') !== 'none')) l.render(m); }, 2000);
   }
 }
 
@@ -104,8 +106,10 @@ export const tankers = {
   },
   onData() {},
   render(map) {
-    map.getSource('ww-tankers')?.setData({type: 'FeatureCollection', features: data.tankers.map(t => ({type: 'Feature',
-      geometry: {type: 'Point', coordinates: liveAt(t.hex) || [t.lon, t.lat]}, properties: {id: 'tanker:' + t.hex}}))});
+    const features = data.tankers.map(t => ({type: 'Feature', geometry: {type: 'Point', coordinates: liveAt(t.hex) || [t.lon, t.lat]}, properties: {id: 'tanker:' + t.hex}}));
+    const key = features.map(f => f.properties.id + f.geometry.coordinates.map(v => v.toFixed(map.getZoom() < 5 ? 1 : 3))).join();   // re-sent only when one moved visibly (~11 km zoomed out, ~100 m in)
+    if (key === tankerKey) return; tankerKey = key;
+    map.getSource('ww-tankers')?.setData({type: 'FeatureCollection', features});
   },
   count: () => data.tankers.length,
   rows() {

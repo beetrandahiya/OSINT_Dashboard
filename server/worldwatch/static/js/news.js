@@ -41,8 +41,8 @@ function storyList(arts) {
     const a = g[0], pic = g.find(x => x.image)?.image;
     const lang = a.lang && a.lang !== 'eng' ? ' · ' + (a.translated ? 'machine-translated from ' : '') + (langs[a.lang] || a.lang) : '';
     return `<li>${pic ? `<img src="${esc(img(pic))}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span class="st">
-      <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>${a.translated ? `<span class="orig">${esc(a.title_original)}</span>` : ''}
-      <span class="by">${g.slice(0, 3).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.outlet)}</a>`).join(', ')}${g.length > 3 ? ` and ${g.length - 3} more` : ''} · ${ago(a.time)}${lang}</span></span></li>`;
+      ${a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>` : esc(a.title)}${a.translated && a.title_original ? `<span class="orig">${esc(a.title_original)}</span>` : ''}
+      <span class="by">${g.slice(0, 3).map(x => x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.outlet)}</a>` : esc(x.outlet)).join(', ')}${g.length > 3 ? ` and ${g.length - 3} more` : ''} · ${ago(a.time)}${lang}</span></span></li>`;
   }).join('')}</ol>`;
 }
 
@@ -56,12 +56,12 @@ export default {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}, cluster: true, clusterRadius: 34, clusterMaxZoom: 5,
       clusterProperties: {sum: ['+', ['get', 'n']], top: ['max', ['get', 'n']]}});
     const size = ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 2.5, 2, 3, 3, 6, 6, 11, 14, 24];
-    map.addLayer({id: 'ww-news-group', type: 'circle', source: SRC, filter: ['has', 'point_count'], layout: {'circle-sort-key': ['get', 'sum']},
+    map.addLayer({id: 'ww-news-group', type: 'circle', source: SRC, filter: ['has', 'point_count'], layout: {'circle-sort-key': ['step', ['get', 'sum'], 0, 10, 1, 50, 2, 200, 3]},   // a few steps: each distinct key is one draw call
       paint: {'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'sum']], 1, 7, 6, 11, 14, 18, 30, 28], 'circle-opacity': 0.28, 'circle-stroke-width': 1.5}});
     map.addLayer({id: 'ww-news-group-label', type: 'symbol', source: SRC, filter: ['has', 'point_count'],
       layout: {'text-field': ['to-string', ['get', 'point_count']], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}});
     // Single places: one or two outlets are small faint dots; three or more full circles; ten or more carry their number.
-    map.addLayer({id: 'ww-news', type: 'circle', source: SRC, filter: ['!', ['has', 'point_count']], layout: {'circle-sort-key': ['get', 'n']},
+    map.addLayer({id: 'ww-news', type: 'circle', source: SRC, filter: ['!', ['has', 'point_count']],
       paint: {'circle-radius': size, 'circle-opacity': ['case', ['<', ['get', 'n'], 3], 0.4, 0.88], 'circle-stroke-width': ['case', ['<', ['get', 'n'], 3], 0, 1.2]}});
     map.addLayer({id: 'ww-news-label', type: 'symbol', source: SRC, filter: ['all', ['!', ['has', 'point_count']], ['>=', ['get', 'n'], 10]],
       layout: {'text-field': ['to-string', ['get', 'n']], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true},
@@ -84,14 +84,15 @@ export default {
   },
   onData(feed, d) { sets[feed] = d.payload; if (d.payload?.languages) langs = {...langs, ...d.payload.languages}; merge(); },
   render(map) {
-    map.getSource(SRC).setData({type: 'FeatureCollection', features: places.map(p => (
+    // fewest outlets first, so the big places are drawn on top (without a sort key: one per distinct count was one draw call each)
+    map.getSource(SRC).setData({type: 'FeatureCollection', features: [...places].sort((a, b) => a.outlets - b.outlets).map(p => (
       {type: 'Feature', geometry: {type: 'Point', coordinates: [p.lon, p.lat]}, properties: {id: p.place, n: p.outlets}}))});
   },
   count: () => places.length,
   rows() {
     return places.filter(p => p.outlets >= LIST_MIN_OUTLETS).map(p => ({
       id: p.place, time: p.last, order: p.outlets, badge: String(p.outlets), strong: p.outlets >= 12,
-      title: p.articles[0].title, thumb: img(p.articles.find(a => a.image)?.image),
+      title: p.articles[0]?.title || '', thumb: img(p.articles.find(a => a.image)?.image),
       meta: `${short(p)} · ${p.outlets} outlets · ${local(p.last)}`}));
   },
   locate(id) { const p = places.find(x => x.place === id); return p && [p.lon, p.lat]; },

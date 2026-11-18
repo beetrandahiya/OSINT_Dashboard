@@ -1134,9 +1134,16 @@ async def space_weather(feed: Feed, f: Fetcher) -> Result:
                   data_time=obs, note="data time is the aurora observation; the K index is a 3-hour value")
 
 
+def _round(c, nd=4):
+    """GeoJSON coordinates (any nesting) rounded to nd decimals."""
+    return round(c, nd) if isinstance(c, float) else [_round(x, nd) for x in c] if isinstance(c, list) else c
+
+
 async def cables(feed: Feed, f: Fetcher) -> Result:
     d = (await f.get("https://www.submarinecablemap.com/api/v3/cable/cable-geo.json")).json()
-    feats = [{"type": "Feature", "geometry": x["geometry"], "properties": {"id": "cable:" + x["properties"]["id"], "name": x["properties"]["name"]}}
+    # 4 decimals (~11 m) is far finer than the drawing; the source gives 15 (cut the answer from ~230 to ~110 KB gzipped)
+    feats = [{"type": "Feature", "geometry": {**x["geometry"], "coordinates": _round(x["geometry"]["coordinates"])},
+              "properties": {"id": "cable:" + x["properties"]["id"], "name": x["properties"]["name"]}}
              for x in d["features"] if x.get("geometry")]
     return Result(len({x["properties"]["id"] for x in feats}), {"type": "FeatureCollection", "features": feats},
                   note="a map that changes rarely; the source gives no timestamp")
@@ -1160,7 +1167,7 @@ async def gps_interference(feed: Feed, f: Fetcher) -> Result:
                 total = good + bad
                 if total < 5 or bad / total <= 0.02:
                     continue
-                ring = [[lon, lat] for lat, lon in h3.cell_to_boundary(row["hex"])]
+                ring = [[round(lon, 4), round(lat, 4)] for lat, lon in h3.cell_to_boundary(row["hex"])]
                 lons = [p[0] for p in ring]
                 if max(lons) - min(lons) > 180:          # a hexagon across the date line: keep it on one side
                     ring = [[lon + 360 if lon < 0 else lon, lat] for lon, lat in ring]

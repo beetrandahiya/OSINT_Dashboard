@@ -88,7 +88,13 @@ export function eyeSwap(map, eyeIds, own) {
 }
 
 // The same symbol as inline SVG for panels (tiles, sheet, search): edges first, then fills, like the map images.
+const svgCache = new Map();
 export function glyphSvg(id, px = 24, dark = true, colkey = null) {
+  const key = [id, px, dark, colkey, look.palette].join();
+  let v = svgCache.get(key); if (v === undefined) { v = glyph(id, px, dark, colkey); svgCache.set(key, v); }
+  return v;
+}
+function glyph(id, px, dark, colkey) {
   const s = G.lib[id]; if (!s) return '';
   const mode = dark ? 'dark' : 'light', P = G.pal[look.palette][mode], ink = G.ink[mode], col = P[colkey || s.k], acc = P[G.acc[id] || 'warn'];
   let edge = '', fill = '';

@@ -15,6 +15,7 @@ async function load() {
   for (const [l, m] of maps) l.render(m);
 }
 
+let sentKey = '';
 export default {
   id: 'sanctioned', title: 'Sanctioned ships & aircraft', color: ['#d70015', '#ff453a'], feeds: {}, local: true,
   layers: ['ww-sanc-ring', 'ww-sanc-k', 'ww-sanc-eye'],
@@ -27,7 +28,8 @@ export default {
     maps.push([this, map]);
     if (maps.length === 1) {
       load(); every(60, load);
-      setInterval(() => { if (d.aircraft.length && !document.hidden && map.getLayoutProperty('ww-sanc-ring', 'visibility') !== 'none') this.render(map); }, 2000);
+      let tick = 0;   // every 2 s zoomed in, every 10 s zoomed out (below 5)
+      setInterval(() => { tick++; if ((map.getZoom() >= 5 || tick % 5 === 0) && d.aircraft.length && !document.hidden && ['ww-sanc-ring', 'ww-sanc-eye'].some(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')) this.render(map); }, 2000);
     }
   },
   paint(map, dark) {
@@ -38,8 +40,10 @@ export default {
   },
   onData() {},
   render(map) {
-    map.getSource('ww-sanc')?.setData({type: 'FeatureCollection', features: all().map(x => ({type: 'Feature', geometry: {type: 'Point', coordinates: at(x)},
-      properties: {id: x.id, k: x.kind === 'ship' ? 'S' : 'A'}}))});
+    const features = all().map(x => ({type: 'Feature', geometry: {type: 'Point', coordinates: at(x)}, properties: {id: x.id, k: x.kind === 'ship' ? 'S' : 'A'}}));
+    const key = features.map(f => f.properties.id + f.geometry.coordinates.map(v => v.toFixed(map.getZoom() < 5 ? 1 : 3))).join();   // re-sent only when one moved visibly (~11 km zoomed out, ~100 m in)
+    if (key === sentKey) return; sentKey = key;
+    map.getSource('ww-sanc')?.setData({type: 'FeatureCollection', features});
   },
   count: () => all().length,
   rows: () => all().map(x => ({id: x.id, time: x.time || 0, badge: x.kind === 'ship' ? 'S' : 'A', strong: true,

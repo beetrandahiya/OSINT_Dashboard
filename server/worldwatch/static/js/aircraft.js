@@ -227,17 +227,23 @@ const position = h => { const w = where(h); return [w.lon, w.lat]; };
 // layers are hidden by their zoom range, so nothing is sent to them at all until the map is zoomed out again.
 // (Re-sending everything five times a second kept the map's workers busy for good: 3D terrain tiles never got decoded.)
 const sent = {live: null, mil: null, world: '', extra: ''};
+let milKey = '';
 const sentKeys = {vip: '', doom: ''};
 // true when these features differ visibly from what was last sent to that source. "Visibly" = moved at least half a
 // pixel at the current zoom or turned a degree: sending every sub-pixel step re-tiled the source and redrew the whole
 // map five times a second while zoomed out (the main cause of the lag the owner reported, 2026-11-18).
+const sentAt = {};
 function changed(key, feats) {
   const prev = sent[key];
-  if (!prev || prev.length !== feats.length) { sent[key] = feats; return true; }
-  const eps = 0.5 * 360 / (512 * 2 ** (theMap ? theMap.getZoom() : 3));
+  // zoomed out, small moves of a few among hundreds of aircraft crossed the threshold about every second, and every
+  // re-send re-tiles the source and redraws the whole map: there, at most every 10 s (below zoom 3) or 3 s (below 5)
+  const zz = theMap ? theMap.getZoom() : 3, gap = zz < 3 ? 10000 : zz < 5 ? 3000 : 0, t = performance.now();
+  if (prev && gap && t - (sentAt[key] || 0) < gap) return false;
+  if (!prev || prev.length !== feats.length) { sent[key] = feats; sentAt[key] = t; return true; }
+  const z = theMap ? theMap.getZoom() : 3, eps = (z < 5 ? 1.5 : 0.75) * 360 / (512 * 2 ** z);   // pixels: zoomed out, 1.5 px is invisible
   for (let i = 0; i < feats.length; i++) {
     const a = prev[i], b = feats[i], pa = a.geometry.coordinates, pb = b.geometry.coordinates;
-    if (a.properties.id !== b.properties.id || Math.abs(pa[0] - pb[0]) > eps || Math.abs(pa[1] - pb[1]) > eps || Math.abs(a.properties.track - b.properties.track) > 1 || a.properties.icon !== b.properties.icon) { sent[key] = feats; return true; }
+    if (a.properties.id !== b.properties.id || Math.abs(pa[0] - pb[0]) > eps || Math.abs(pa[1] - pb[1]) > eps || Math.abs(a.properties.track - b.properties.track) > 1 || a.properties.icon !== b.properties.icon) { sent[key] = feats; sentAt[key] = t; return true; }
   }
   return false;   // keep the last sent positions as the reference, so slow drift still adds up to a resend
 }
@@ -249,7 +255,7 @@ function glide(full = false) {
   if (shown.aircraft) {
     const live = view.filter(a => !milHex.has(a.hex) && !a.military).map(a => feature(a, 'civil', shownAt(a)));
     if (changed('live', live)) map.getSource('ww-air-live').setData({type: 'FeatureCollection', features: live});
-    const s0 = sel && world.find(a => a.hex === sel), wk = worldVer + '|' + (view.length && viewInfo ? [viewInfo.lat, viewInfo.lon, viewInfo.radius_nm] : '') + '|' + (s0 ? sel + position({a: s0, from: 'world'}) : '') + '|' + view.length + '|' + mil.length;
+    const s0 = sel && world.find(a => a.hex === sel), wk = worldVer + '|' + (view.length && viewInfo ? [viewInfo.lat, viewInfo.lon, viewInfo.radius_nm] : '') + '|' + (s0 ? sel + position({a: s0, from: 'world'}) : '') + '|' + milKey;   // (live-area aircraft are kept out by inLive, so the live count need not be in the key: it changed on every poll)
     if (wk !== sent.world) {
       sent.world = wk;
       const feats = [];
@@ -518,7 +524,9 @@ export const civil = {
     // zoomed in, the 3D models take over: flat icons, ground ring and ground lines stop at MODEL_ZOOM (once the models are loaded)
     onReady(() => setTimeout(() => { for (const l of ['ww-air', 'ww-air-live', 'ww-air-mil', 'ww-air-route', 'ww-air-trail', 'ww-vip-halo', 'ww-vip-label', 'ww-doom-halo', 'ww-doom-label']) if (map.getLayer(l)) map.setLayerZoomRange(l, 0, MODEL_ZOOM); }, 0));   // after the military and VIP layers exist
     let glidAt = 0;   // low power (prefs.js): the flat icons step once a second instead of five times
-    setInterval(() => { if (!document.hidden && (shown.aircraft || shown.military) && (view.length || mil.length) && (!prefs.lowPower || performance.now() - glidAt > 950)) { glidAt = performance.now(); glide(); } }, 200);
+    // zoomed out (below 5) an aircraft moves less than a pixel in a second, so once a second is enough there
+    setInterval(() => { const gap = prefs.lowPower || map.getZoom() < 5 ? 950 : 0;
+      if (!document.hidden && (shown.aircraft || shown.military) && (view.length || mil.length) && performance.now() - glidAt > gap) { glidAt = performance.now(); glide(); } }, 200);
     setInterval(loadView, VIEW_POLL);
     let t = null;
     map.on('moveend', () => { clearTimeout(t); t = setTimeout(loadView, 600); });   // a moment after the map stops moving
@@ -552,7 +560,7 @@ export const military = {
   id: 'military', title: 'Military', color: ['#af52de', '#da8fff'], feeds: {aircraft_military: 30}, layers: ['ww-air-mil'],
   addTo(map) { map.addLayer(symbol('ww-air-mil', 'ww-air-mil')); },
   paint(map, dark) { civil.paint(map, dark); },
-  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; record(mil, d.data_time, false); liveCard(); },
+  onData(feed, d) { info[feed] = d; mil = d.payload.aircraft; milKey = mil.map(a => a.hex).sort().join(); record(mil, d.data_time, false); liveCard(); },
   render: () => glide(true),
   visible(on) { shown.military = on; if (on) loadView(); theMap?.triggerRepaint(); },
   count: () => mil.length,

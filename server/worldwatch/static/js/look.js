@@ -7,9 +7,12 @@
 //   ground   'auto'   the theme's own: the map for Apple Maps, the graded photo for God's eye
 //            'map' | 'photo' | 'mono' | 'lights' | 'relief' | 'outline'   (see GROUNDS in map.js)
 //   motion   'off' | 'subtle' | 'full'   only panel text ever moves; map markers and their labels never do
-const DEFAULTS = {theme: 'eye', palette: 'C', ground: 'auto', motion: 'subtle'};   // God's eye is the app's look; Apple Maps stays a choice in Settings
+const DEFAULTS = {theme: 'eye', palette: 'C', ground: 'auto', motion: 'subtle', sharp: 'balanced'};   // God's eye is the app's look; Apple Maps stays a choice in Settings
 const ALLOWED = {theme: ['apple', 'eye'], palette: ['A', 'C'], ground: ['auto', 'map', 'photo', 'mono', 'lights', 'relief', 'outline'],
-  motion: ['off', 'subtle', 'full']};
+  motion: ['off', 'subtle', 'full'], sharp: ['full', 'balanced']};
+//   sharp    'full'      the map drawn at the screen's full pixel density (2x on Retina: four times the pixels)
+//            'balanced'  the map drawn at 1.5x at most (44 % fewer pixels on Retina; panels and text stay sharp)
+export const mapPixelRatio = () => look.sharp === 'full' ? devicePixelRatio || 1 : Math.min(devicePixelRatio || 1, 1.5);
 
 function read() {
   try {
@@ -66,6 +69,8 @@ function body() {
   return `<header class="set-head"><h2>Settings</h2><button class="close" id="set-close" aria-label="Close"></button></header>
   <section><h3>Theme</h3>${seg('theme', [['apple', 'Apple Maps'], ['eye', 'God\'s eye']])}
     <p class="soft">Light and dark follow your Mac's setting in both themes.</p></section>
+  <section><h3>Map sharpness</h3>${seg('sharp', [['balanced', 'Balanced (smoother)'], ['full', 'Full']])}
+    <p class="soft">On a Retina screen Full draws the map with four times the pixels. Balanced draws it at 1.5x: a little softer, much less work for the graphics chip. Panels and their text are sharp either way.</p></section>
   <section><h3>Ground</h3><ul class="set-list">${Object.entries(GROUND_TEXT).map(([v, [t, s]]) =>
     `<li><button data-k="ground" data-v="${v}" aria-pressed="${look.ground === v}"><b>${esc(t)}</b><span>${esc(s)}</span></button></li>`).join('')}</ul></section>
   <section${look.theme === 'eye' ? '' : ' class="dim"'}><h3>God's eye</h3>

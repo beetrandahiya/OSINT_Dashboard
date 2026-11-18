@@ -8,17 +8,16 @@ let data = null, info = null, faults = {}, faultInfo = null, names = new Map(), 
 const day = t => new Date(t * 1000).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
 
 export default {
-  id: 'cables', title: 'Cables', color: ['#d70015', '#ff453a'], feeds: {cables: 21600, cable_faults: 1800}, layers: ['ww-cables', 'ww-cables-hit'],
+  id: 'cables', title: 'Cables', color: ['#d70015', '#ff453a'], feeds: {cables: 21600, cable_faults: 1800}, layers: ['ww-cables'],
   about: () => 'Undersea internet cables; red where fault or repair news named them in the last 60 days.',
   addTo(map) {
     theMap = map;
-    map.addSource('ww-cables', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource('ww-cables', {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 8, tolerance: 0.8});   // lines only: no need to tile them finer
     const first = slot(map, 'area');   // over the photos, sky pictures and GPS hexagons, under the place names
     map.addLayer({id: 'ww-cables', type: 'line', source: 'ww-cables',
       layout: {'line-sort-key': ['match', ['get', 'state'], 'problem', 2, 'restored', 1, 0]},
       paint: {'line-width': ['interpolate', ['linear'], ['zoom'], 1, ['match', ['get', 'state'], 'problem', 1.8, 'restored', 1.2, 0.6], 6, ['match', ['get', 'state'], 'problem', 3.2, 'restored', 2.2, 1.6]],
         'line-opacity': ['interpolate', ['linear'], ['zoom'], 1, ['match', ['get', 'state'], 'problem', 0.95, 'restored', 0.8, 0.4], 5, ['match', ['get', 'state'], 'problem', 0.95, 'restored', 0.8, 0.75]]}}, first);
-    map.addLayer({id: 'ww-cables-hit', type: 'line', source: 'ww-cables', paint: {'line-width': 12, 'line-opacity': 0}}, first);   // a wider invisible line, easier to click
   },
   paint(map, dark) { map.setPaintProperty('ww-cables', 'line-color', ['match', ['get', 'state'], 'problem', dark ? '#ff453a' : '#d70015', 'restored', dark ? '#30d158' : '#248a3d', dark ? '#7d8a99' : '#6b7a8c']); },
   onData(feed, d) {

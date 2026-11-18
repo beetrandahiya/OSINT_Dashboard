@@ -163,7 +163,7 @@ export const photo = {
   addTo(map) {
     map.addSource('ww-photo', {type: 'raster', tileSize: 256, maxzoom: 9, attribution: 'Imagery: NASA GIBS, VIIRS NOAA-20',
       tiles: [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/${photoDay()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`]});
-    map.addLayer({id: 'ww-photo', type: 'raster', source: 'ww-photo', paint: {'raster-fade-duration': 150}}, slot(map, 'photo'));   // over the base map, under everything of ours
+    map.addLayer({id: 'ww-photo', type: 'raster', source: 'ww-photo', paint: {'raster-fade-duration': 0}}, slot(map, 'photo'));   // over the base map, under everything of ours
   },
   paint() {}, onData() {}, render() {},
   visible(on) { photoOn = on; photoState(); },
@@ -244,8 +244,9 @@ let sharpOn = false, sharpDate = null, sharpMap = null;
 async function sharpWhen() {
   if (!sharpOn || !sharpMap) return;
   const c = sharpMap.getCenter();
+  const was = JSON.stringify(sharpDate);
   try { sharpDate = await fetch(`/api/imagery/date?lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}&z=${Math.round(sharpMap.getZoom())}`).then(r => r.json()); } catch (e) { sharpDate = null; }
-  document.dispatchEvent(new Event('ww-chips'));
+  if (JSON.stringify(sharpDate) !== was) document.dispatchEvent(new Event('ww-chips'));   // only when the date shown changes (asked after every move)
 }
 export const sharp = {
   id: 'sharp', title: 'Sharp photo', color: ['#5e5ce6', '#7d7aff'], feeds: {}, layers: ['ww-sharp'], local: true, defaultOff: true,
@@ -253,7 +254,7 @@ export const sharp = {
     sharpMap = map;
     map.addSource('ww-sharp', {type: 'raster', tileSize: 256, maxzoom: 19, attribution: 'Imagery: Esri, Vantor, Earthstar Geographics',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']});
-    map.addLayer({id: 'ww-sharp', type: 'raster', source: 'ww-sharp', paint: {'raster-fade-duration': 150}}, slot(map, 'sharp'));
+    map.addLayer({id: 'ww-sharp', type: 'raster', source: 'ww-sharp', paint: {'raster-fade-duration': 0}}, slot(map, 'sharp'));
     let t = null; map.on('moveend', () => { clearTimeout(t); t = setTimeout(sharpWhen, 700); });
   },
   paint() {}, onData() {}, render() {},

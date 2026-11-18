@@ -32,12 +32,12 @@ function make(single) {
     addTo(map) {
       map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
       const size = ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 7, 3, 9, 6, 13, 12, 20];
-      map.addLayer({id: SRC + '-dot', type: 'circle', source: SRC, layout: {'circle-sort-key': ['get', 'n']},
+      map.addLayer({id: SRC + '-dot', type: 'circle', source: SRC, layout: {},
         paint: {'circle-radius': size, 'circle-stroke-width': ['case', ['==', ['get', 'ring'], true], 2.5, 1.2], 'circle-opacity': single ? 0.55 : 0.92, 'circle-stroke-opacity': single ? 0.7 : 1}});
       map.addLayer({id: SRC + '-label', type: 'symbol', source: SRC,
         layout: {'text-field': ['get', 'k'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true}});
       // God's eye symbols, sized by the number of outlets like the dots (shown instead of dot and letter in that theme)
-      map.addLayer({id: SRC + '-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'], 'symbol-sort-key': ['get', 'n'],
+      map.addLayer({id: SRC + '-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'],
         'icon-size': ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 0.42, 3, 0.52, 6, 0.7, 12, 0.95], 'icon-allow-overlap': true, 'icon-ignore-placement': true},
         paint: {'icon-opacity': single ? 0.6 : 1}});
       setEyeOpacity(SRC + '-eye', single ? 0.6 : 1);
@@ -52,7 +52,7 @@ function make(single) {
     },
     onData(feed, d) { groups = d.payload.groups || []; info = d; },
     render(map) {
-      map.getSource(SRC).setData({type: 'FeatureCollection', features: mine().map(g => (
+      map.getSource(SRC).setData({type: 'FeatureCollection', features: [...mine()].sort((a, b) => (a.outlets ?? 0) - (b.outlets ?? 0)).map(g => (
         {type: 'Feature', geometry: {type: 'Point', coordinates: [g.lon, g.lat]},
          properties: {id: g.id, n: g.outlets, k: KIND[g.cat]?.[0] || '?', ring: g.cat === 'protest', eye: eyeOf(g)}}))});
     },

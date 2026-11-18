@@ -166,6 +166,8 @@ function drawHeights() {
   if (!live && cleared) return;                      // nothing drawn last frame either: no work while the layer is off
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, box.clientWidth, box.clientHeight);
   drawn = []; cleared = !live;
+  // an empty full-window canvas still has to be composited over the map on every frame: take it out of the page
+  const disp = live ? '' : 'none'; if (cv.style.display !== disp) cv.style.display = disp;
   if (!live) return;
   const dark = darkQ.matches, edge = dark ? '#1c1c1e' : '#ffffff', ink = dark ? '#f2f2f7' : '#1c1c1e', red = dark ? '#ff453a' : '#ff3b30', picked = sel && byId(sel), t = now();
   if (picked?.pos && !following) spotlight(x, picked, dark);

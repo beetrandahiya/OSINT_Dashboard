@@ -67,13 +67,47 @@ async def status(request):
             f.update(state="waiting", note="not set up" + f["error"].split("not set up", 1)[1], error=None)
     s["process"] = _process()
     s["home"] = {"lat": config.HOME_LAT, "lon": config.HOME_LON}
+    # ?lite=1: the page's 5-second poll leaves out what does not change (names, sources, intervals) and the byte
+    # counters; it asks for everything once at start and while the feeds list is open (about 8.7 KB -> 3-4 KB gzipped per poll)
+    if request.query_params.get("lite"):
+        s["feeds"] = [{k: v for k, v in f.items() if k not in _FIXED} for f in s["feeds"]]
+        s.pop("process", None)
     return JSONResponse(s, headers={"Cache-Control": "no-store"})
+
+
+_FIXED = ("layer", "source", "home", "interval", "limit_note", "total_bytes", "last_bytes", "last_ms")
 
 
 # Parts of a feed that a layer needs without the rest: the nuclear layer (on by default) and the earthquake card's
 # "near a test site" need ~0.4 MB of the 1.6 MB sites payload; the military bases (off by default) are the rest.
 VIEWS = {"sites_nuclear": ("sites", lambda p: {k: v for k, v in p.items() if k != "military"})}
 _view_enc: dict[str, tuple] = {}
+
+# What the map does not use, left out on the way to the browser (the server keeps the full payload for dossiers and
+# cards). News: places with one outlet are faint dots (no headline needed), the others carry their leading headline
+# only; a card asks /api/news/place for every article. Cut the two news payloads from ~1.8 MB to ~0.45 MB gzipped.
+def _slim_news(p):
+    keep = ("outlet", "title", "lang", "image", "time", "translated")
+    return {**p, "places": [{**c, "articles": [{k: a[k] for k in keep if k in a} for a in c["articles"][:1 if c["outlets"] >= 2 else 0]]}
+                            for c in p.get("places", [])]}
+SLIM = {"news": _slim_news, "news_translated": _slim_news}
+_slim_enc: dict[str, tuple] = {}
+
+
+async def _slim(name, st):
+    full = await collector.encode(st)            # for its version: the slim answer keeps the feed's own version
+    if full is None:
+        return None
+    hit = _slim_enc.get(name)
+    if hit and hit[0] is st.payload:
+        return hit[1]
+    payload = st.payload
+    def build():
+        e = wire.encode_payload(SLIM[name](payload))[0]
+        return wire.Encoded(full.version, e.make).prepare()
+    enc = await asyncio.to_thread(build)
+    _slim_enc[name] = (payload, enc)
+    return enc
 
 
 async def _view(name, st):
@@ -103,10 +137,15 @@ async def data(request):
             pass
     if name == "ships":
         enc = await _ships_merged(st)
+        # ?v=<version the page holds>: the merged ships are the same as last time, nothing to send
+        if enc is not None and request.query_params.get("v") == enc.version:
+            return JSONResponse({**st.public(now), "now": now, "unchanged": True}, headers={"Cache-Control": "no-store"})
     elif name in VIEWS:
         if st.payload is None:
             return JSONResponse({**st.public(now), "now": now, "payload": None}, headers={"Cache-Control": "no-store"})
         enc = await _view(name, st)
+    elif name in SLIM:
+        enc = await _slim(name, st)
     else:
         enc = await collector.encode(st)
     if enc is None:          # nothing yet, or a payload that is not plain JSON: the ordinary way
@@ -116,7 +155,10 @@ async def data(request):
     # (The page itself does not use that: a cached body would hand its clock an old `now`. It asks only when
     # /api/status shows a new version.)
     tag = f'"{enc.version}-{st.fetched or 0:.3f}"'
-    return wire.respond(request, enc, {**st.public(now), "now": now}, etag=None if name == "ships" else tag)
+    extra = {**st.public(now), "now": now}
+    if name == "ships":
+        extra["version"] = enc.version           # the merged answer's own version (the page sends it back as ?v=)
+    return wire.respond(request, enc, extra, etag=None if name == "ships" else tag)
 
 
 _SHIPS = {"at": 0.0, "of": None, "enc": None}
@@ -1122,7 +1164,9 @@ async def trail(request):
 # Browsers, Safari above all, keep script files and reuse them without asking, and then mix old and new
 # files after an update (which once left the map blank). So every start of the server gets its own address
 # for the files: the pages point at /s/<start time>/..., and an old copy can never be picked up again.
-VERSION = format(int(time.time()), "x")
+# the static files' version in their addresses (/s/<VERSION>/...): from the files themselves, so a restart without a
+# change keeps the browser's cached copies (1.5 MB of map library and scripts), and a pull with changes gets new ones
+VERSION = format(int(max(p.stat().st_mtime for p in STATIC.rglob("*") if p.is_file())), "x")
 
 
 class Forever(StaticFiles):

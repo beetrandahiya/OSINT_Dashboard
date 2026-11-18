@@ -25,7 +25,7 @@ export default {
   about: () => "DeepState's daily map of the war in Ukraine: occupied and contested areas, units, advances.",
 
   addTo(map) {
-    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 11});
     map.addLayer({id: 'ww-front-fill', type: 'fill', source: SRC, filter: ['==', ['geometry-type'], 'Polygon'],
       paint: {'fill-opacity': ['match', ['get', 'kind'], 'occupied', 0.22, 'contested', 0.18, 0.1]}});
     map.addLayer({id: 'ww-front-line', type: 'line', source: SRC, filter: ['==', ['geometry-type'], 'Polygon'],

@@ -96,6 +96,7 @@ function animate(t) {
   const box = theMap.getContainer(), w = box.clientWidth, h = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  const disp = go ? '' : 'none'; if (cv.style.display !== disp) cv.style.display = disp;   // an empty canvas still costs compositing
   if (!go) return;                                    // off, nothing to show, Reduce Motion, animations off or low power
   const c = theMap.getCenter(), key = [c.lng, c.lat, theMap.getZoom(), theMap.getBearing(), theMap.getPitch(), w, h, isGlobe()].join();
   if (key !== viewKey) { viewKey = key; viewVer++; globeView = isGlobe(); cu = unit([c.lng, c.lat]); }

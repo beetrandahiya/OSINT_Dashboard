@@ -9,7 +9,7 @@ const fid = p => `fire:${p[0]},${p[1]},${p[4]}`;
 export default {
   id: 'fires', title: 'Fires', color: ['#ff5e3a', '#ff6a4d'], feeds: {fires: 900}, layers: ['ww-fires'],
   addTo(map) {
-    map.addSource('ww-fires', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource('ww-fires', {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 9});
     const first = slot(map, 'area');   // over the photos, sky pictures and GPS hexagons, under the place names
     map.addLayer({id: 'ww-fires', type: 'circle', source: 'ww-fires',
       paint: {'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 1.3, 5, 2.6, 9, 5], 'circle-opacity': ['interpolate', ['linear'], ['zoom'], 1, 0.55, 6, 0.85]}}, first);

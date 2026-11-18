@@ -24,7 +24,7 @@ export default {
   about: () => 'Conflict-zone warnings (EASA, FAA) on flight regions, and US temporary flight restrictions.',
 
   addTo(map) {
-    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 8, tolerance: 0.6});
     map.addLayer({id: 'ww-airspace-fill', type: 'fill', source: SRC, paint: {'fill-opacity': ['case', ['==', ['get', 'strong'], true], 0.07, 0.03]}});
     map.addLayer({id: 'ww-airspace-line', type: 'line', source: SRC, paint: {'line-width': 1.2, 'line-opacity': 0.7}});
   },

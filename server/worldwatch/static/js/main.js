@@ -60,13 +60,15 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
   };
   let tiles = false;                          // picture layers (photo, live photo, sharp photo, rain, lightning) loading tiles
   // while it shows, it follows the panel (a card or dossier can open or close during a request)
-  let follow = 0;
+  // placed when it appears and when the page's panels change (resize, card opened or closed: 'ww-place'); a 200 ms
+  // timer that measured the panels forced a page layout five times a second while tiles loaded
   const show = () => {
     const vis = !!(open || tiles);
-    if (vis) place();
-    bar.hidden = !vis;
-    if (vis && !follow) follow = setInterval(place, 200); else if (!vis && follow) { clearInterval(follow); follow = 0; }
+    if (vis && bar.hidden) place();
+    if (bar.hidden === vis) bar.hidden = !vis;
   };
+  addEventListener('resize', () => { if (!bar.hidden) place(); });
+  document.addEventListener('ww-place', () => { if (!bar.hidden) requestAnimationFrame(place); });
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     if (!url.includes('/api/') || url.includes('/api/status')) return real(input, init);   // the status poll is constant; not "loading"
@@ -77,7 +79,7 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
   window.wwWatchTiles = map => {
     let tt = null;
     map.on('dataloading', e => {
-      if (e.dataType !== 'source' || !e.tile || !String(e.sourceId).startsWith('ww-')) return;
+      if (tiles || e.dataType !== 'source' || !e.tile || !String(e.sourceId).startsWith('ww-') || String(e.sourceId).startsWith('ww-ground')) return;   // the ground is not "loading": it is always there
       const src = map.getSource(e.sourceId);
       if (!src || (src.type !== 'raster' && src.type !== 'image')) return;
       if (!tiles) { clearTimeout(tt); tt = setTimeout(() => { tiles = !map.areTilesLoaded(); show(); }, 250); }
@@ -115,7 +117,7 @@ let on = Object.fromEntries(LAYERS.map(l => [l.id, !l.defaultOff]));
 try { Object.assign(on, JSON.parse(localStorage.getItem('ww-layers') || '{}')); } catch (e) { /* private window */ }
 let ready = false, picked = null, status = null, lastAnswer = 0, got = new Set(LAYERS.filter(l => l.local).map(l => l.id));
 
-const LOW = ['ww-fires', 'ww-cables-hit', 'ww-gps'];
+const LOW = ['ww-fires', 'ww-cables', 'ww-gps'];
 // The place names change colour over a photo. isStyleLoaded() is false while any tiles load (page start, 3D turning the
 // sharp photo on), so it is not the test: before, the recolour was skipped then and the names stayed dark over the photo
 // (setPaintProperty only needs the style itself; before that the load handler's repaint() paints with the new state)
@@ -164,13 +166,15 @@ async function load(feed) {
   busy.add(feed); loadedAt[feed] = performance.now();
   try {
     // `since`: a server that has not fetched the feed again answers {unchanged: true} without the payload
-    const d = await api('/api/data/' + feed + (fetchedAt[feed] ? '?since=' + fetchedAt[feed] : ''));
+    // live feeds (ships, merged per request) answer {unchanged} when the version `v` the page holds is still current
+    const q = LIVE.has(feed) ? (versionAt[feed] ? '?v=' + versionAt[feed] : '') : fetchedAt[feed] ? '?since=' + fetchedAt[feed] : '';
+    const d = await api('/api/data/' + feed + q);
     if (d.unchanged) return;
     if (!d.payload) return;   // the server has not fetched this feed yet: the status poll asks again once it has
     if (d.fetched) fetchedAt[feed] = d.fetched;
     versionAt[feed] = d.version; held[feed] = d;
     for (const l of users[feed].layers) {
-      try { l.onData(feed, d); got.add(l.id); l.render(map); changed.add(l.id); }
+      try { l.onData(feed, d); got.add(l.id); if (on[l.id]) l.render(map); changed.add(l.id); }   // a switched-off layer is drawn when switched on (toggleLayer), not re-tiled while hidden
       catch (e) { console.error(`layer ${l.id} could not take feed ${feed}:`, e); }   // one layer's fault must not stop the others
     }
     redraw();
@@ -232,7 +236,18 @@ map.on('load', () => {
     if (layer.pick && layer.pick(f.properties) === false) return;
     pick({layer: layer.id, id: f.properties.id});
   });
-  map.on('mousemove', e => { map.getCanvas().style.cursor = map.queryRenderedFeatures(e.point, {layers: hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')}).some(x => x.properties.id != null || x.properties.cluster) ? 'pointer' : ''; });
+  // the hand cursor over something clickable: at most once per frame, never while the map moves or a button is held
+  // (searching every visible layer on every mouse event was the largest steady cost while the mouse was on the map)
+  let hover = null, cursor = '';
+  map.on('mousemove', e => {
+    if (hover || e.originalEvent.buttons || map.isMoving()) return;
+    hover = requestAnimationFrame(() => {
+      hover = null;
+      const ids = hit.filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
+      const c = ids.length && map.queryRenderedFeatures([[e.point.x - 2, e.point.y - 2], [e.point.x + 2, e.point.y + 2]], {layers: ids}).some(x => x.properties.id != null || x.properties.cluster) ? 'pointer' : '';
+      if (c !== cursor) { cursor = c; map.getCanvas().style.cursor = c; }
+    });
+  });
   setInterval(() => { if (picked && byId[picked.layer].moving && !document.hidden) ring(); }, 200);
   ready = true;
   dense.init({map, CHIPS, on, toggle: id => toggleLayer(id), ensureOn: id => toggleLayer(id, true), status: () => status, dark: () => dark.matches, shape: g => shape(g), repad});
@@ -248,9 +263,10 @@ document.addEventListener('ww-look', () => { dense.apply(); chipsHtml = null; if
 let chipsHtml = '';
 const chipCount = l => l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : '';
 function renderChips() {
+  if (eyeOn() && chipsHtml != null && dense.patchTiles(chipCount, $('#chips'))) return;   // same tiles: counts and ages patched
   const html = eyeOn() ? dense.tiles(chipCount) : CHIPS.map(l => `<button class="chip" data-id="${l.id}" aria-pressed="${on[l.id]}" style="--c:${l.color[+dark.matches]}"${l.about ? ` title="${esc(l.about())}"` : ''}>
     <span class="swatch"></span>${l.title}<span class="n">${l.note ? l.note() : got.has(l.id) ? l.count().toLocaleString('en-GB') : ''}</span></button>`).join('');
-  if (html !== chipsHtml) { $('#chips').innerHTML = html; chipsHtml = html; }
+  if (html !== chipsHtml) { $('#chips').innerHTML = html; chipsHtml = html; $('#chips').dataset.look = dense.lookKey(); }
 }
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
@@ -288,19 +304,26 @@ function renderList() {
   // update, and nobody reads row 1,400. "Show all" draws the rest until the page is reloaded.
   const cap = listAll ? Infinity : listRows(), total = coming.length + past.length;
   const c1 = coming.slice(0, cap), p1 = past.slice(0, Math.max(0, cap - c1.length)), more = total - c1.length - p1.length;
-  const html = (c1.length ? `<li class="group">Coming up</li>${c1.map(li).join('')}<li class="group">Latest</li>` : '') + p1.map(li).join('')
-    + (more ? `<li class="more"><button class="btn" data-more>Show all ${total.toLocaleString('en-GB')} (${more.toLocaleString('en-GB')} more)</button></li>` : '');
+  const parts = [...(c1.length ? ['<li class="group">Coming up</li>', ...c1.map(li), '<li class="group">Latest</li>'] : []), ...p1.map(li),
+    ...(more ? [`<li class="more"><button class="btn" data-more>Show all ${total.toLocaleString('en-GB')} (${more.toLocaleString('en-GB')} more)</button></li>`] : [])];
+  const html = parts.join('');
   const list = $('#list');
   if (html === listHtml) return;
   if (list.contains(document.activeElement) && listHtml != null) return;   // don't pull the list from under the keyboard
-  list.innerHTML = html || '<li class="empty">Nothing to list for the layers that are switched on.</li>'; listHtml = html;
+  // the same rows with a few changed (a count, an age): only those rows are replaced, not the whole list (its pictures
+  // would load and decode again)
+  if (listParts && parts.length && parts.length === listParts.length && list.children.length === parts.length) {
+    for (let i = 0; i < parts.length; i++) if (parts[i] !== listParts[i]) { const t = document.createElement('template'); t.innerHTML = parts[i]; list.children[i].replaceWith(t.content); }
+  } else list.innerHTML = html || '<li class="empty">Nothing to list for the layers that are switched on.</li>';
+  listHtml = html; listParts = parts;
 }
-let listHtml = null, listAll = false;
+let listHtml = null, listParts = null, listAll = false;
 
 function ring() {
   const l = picked && byId[picked.layer], at = l?.locate(picked.id);
   const r = at ? l.ring(picked.id) : 0;   // a layer that draws its own selection returns 0 (it can still be flown to)
-  const key = at && r ? at[0] + ',' + at[1] + ',' + r : '';
+  const px = 360 / (512 * 2 ** map.getZoom());   // one screen pixel in degrees: a moving item's ring is re-sent only when it moved a pixel
+  const key = at && r ? Math.round(at[0] / px) + ',' + Math.round(at[1] / px) + ',' + r : '';
   if (key !== ringKey) { ringKey = key; map.getSource('ww-pick')?.setData({type: 'FeatureCollection', features: key ? [{type: 'Feature', geometry: {type: 'Point', coordinates: at}, properties: {r}}] : []}); }   // asked every 200 ms for moving items: sent only when it moved
   return at;
 }
@@ -313,6 +336,7 @@ function pick(p, fly = false) {
   for (const l of LAYERS) l.select?.(p && p.layer === l.id ? p.id : null);
   document.querySelectorAll('#list li[data-id]').forEach(li => li.setAttribute('aria-selected', !!p && li.dataset.layer === p.layer && li.dataset.id === String(p.id)));
   renderDetail();
+  document.dispatchEvent(new Event('ww-place'));
   const at = ring();
   if (at && fly) map.easeTo({center: at, zoom: Math.max(map.getZoom(), 3.2), offset: chase ? [0, 0] : freeOffset(), duration: calm.matches ? 0 : 900});   // into the part no panel covers
   if (p && !fly) document.querySelector(`#list li[data-layer="${p.layer}"][data-id="${CSS.escape(String(p.id))}"]`)?.scrollIntoView({block: 'nearest', behavior: calm.matches ? 'auto' : 'smooth'});
@@ -449,7 +473,9 @@ let sharpBy3D = false;      // the sharp satellite photo is the ground in 3D; sw
 function three(want) {
   set3D(map, want, dark.matches);
   const sharp = byId.sharp;
-  if (sharp && want && !on3(sharp)) { on[sharp.id] = true; sharpBy3D = true; show(sharp); renderChips(); legend(); }
+  // the sharp photo is the 3D ground, unless the ground already is that photo (Photo and Mono use the same Esri pictures
+  // when zoomed in: two identical picture layers draped on the terrain)
+  if (sharp && want && !on3(sharp) && !['photo', 'mono'].includes(ground())) { on[sharp.id] = true; sharpBy3D = true; show(sharp); renderChips(); legend(); }
   if (sharp && !want && sharpBy3D) { on[sharp.id] = false; sharpBy3D = false; show(sharp); renderChips(); legend(); }
   $('#three').setAttribute('aria-pressed', want);
   try { localStorage.setItem('ww-3d', want ? '1' : ''); } catch (e) { /* private window */ }
@@ -599,26 +625,36 @@ document.addEventListener('click', e => { if (e.target.closest('[data-chase]')) 
 document.addEventListener('click', e => { if (chase && e.target.closest('.maplibregl-ctrl-compass')) { e.stopPropagation(); chase.mode = 'free'; chase.free = 0; chase.turning = true; } }, true);
 
 // ---- the feeds card: one honest line when closed, every feed when open ----
+let fixed = null;
 async function loadStatus() {
   if (document.hidden) return;   // nothing is asked while the tab is hidden; it asks at once when it shows again
-  try { status = await api('/api/status'); lastAnswer = Date.now(); } catch (e) { /* shown by the banner */ }
+  try {
+    // the full answer once and while the feeds list is open; otherwise the light one, with the fixed fields kept from before
+    const full = !fixed || !$('#feeds-body').hidden;
+    const s = await api('/api/status' + (full ? '' : '?lite=1'));
+    if (full) fixed = Object.fromEntries(s.feeds.map(f => [f.name, f]));
+    else s.feeds = s.feeds.map(f => ({...fixed[f.name], ...f}));
+    status = s; lastAnswer = Date.now();
+  } catch (e) { /* shown by the banner */ }
   renderFeeds();
   schedule();
 }
 function renderFeeds() {
   const down = Date.now() - lastAnswer > 7000 + statusEvery() * 1.5;   // a missed poll or two is not "down"
-  $('#banner').hidden = !down;
+  if ($('#banner').hidden !== !down) $('#banner').hidden = !down;
   if (down) $('#banner').textContent = lastAnswer ? `The World Watch server stopped answering ${ago(lastAnswer / 1000, Date.now() / 1000)}. Everything on screen is from before that.` : 'The World Watch server is not answering.';
   if (!status) return;
   const f = status.feeds, bad = f.filter(x => x.state === 'failing'), late = f.filter(x => x.state === 'late'), wait = f.filter(x => x.state === 'waiting');
   const unset = wait.filter(x => /^not set up/.test(x.note || '')).length;   // optional keys the owner has not added: they will never "start"
   const ok = f.length - bad.length - late.length - wait.length;
-  $('#feeds-dot').className = 'dot ' + (down || bad.length ? 'bad' : late.length ? 'warn' : wait.length > unset ? 'idle' : 'good');
-  $('#feeds-sum').textContent = down ? 'Server not answering'
+  const dotCls = 'dot ' + (down || bad.length ? 'bad' : late.length ? 'warn' : wait.length > unset ? 'idle' : 'good');
+  if ($('#feeds-dot').className !== dotCls) $('#feeds-dot').className = dotCls;
+  const sum = down ? 'Server not answering'
     : bad.length ? `${bad.length} of ${f.length} feeds failing` + (late.length ? `, ${late.length} late` : '')
     : late.length ? `${late.length} of ${f.length} feeds late`
     : wait.length > unset ? `${ok} of ${f.length} feeds in, ${wait.length - unset} starting` + (unset ? `, ${unset} not set up` : '')
     : unset ? `${ok} of ${f.length} feeds current, ${unset} not set up` : `All ${f.length} feeds current`;
+  if ($('#feeds-sum').textContent !== sum) $('#feeds-sum').textContent = sum;
   if ($('#feeds-body').hidden) return;
   const n = now();
   $('#feeds-body').innerHTML = '<ul>' + f.map(x => {

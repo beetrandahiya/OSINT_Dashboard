@@ -85,7 +85,7 @@ export const leadersToday = {
     map.addLayer({id: 'ww-leaders', type: 'symbol', source: 'ww-leaders', filter: ['==', ['geometry-type'], 'Point'],
       layout: {'icon-image': 'ww-leader-l', 'icon-size': ['get', 's'], 'icon-offset': xOff('iox', 0), 'icon-allow-overlap': true, 'icon-ignore-placement': true,
         'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': xOff('tox', 1.1), 'text-anchor': 'top', 'text-optional': true,
-        'symbol-sort-key': ['-', 0, ['get', 'n']]}, paint: {'text-halo-width': 1.3}});
+        'symbol-sort-key': ['-', 0, ['step', ['get', 'n'], 0, 5, 1, 20, 2, 80, 3]]}, paint: {'text-halo-width': 1.3}});
     map.addLayer({id: 'ww-leaders-sel', type: 'symbol', source: 'ww-leaders', filter: ['==', ['get', 'sel'], true],
       layout: {'icon-image': 'ww-leader-ring-l', 'icon-size': ['get', 'rs'], 'icon-offset': xOff('rox', 0), 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
     this.map = map; this.load();
@@ -108,6 +108,11 @@ export const leadersToday = {
       });
     }
     map.getSource('ww-leaders')?.setData({type: 'FeatureCollection', features: feats});
+    // the ring layer only while one of them is selected and the layer is on (an empty symbol layer still costs a draw per tile)
+    if (map.getLayer('ww-leaders-sel')) {
+      const v = feats.some(f => f.properties.sel) && map.getLayoutProperty('ww-leaders', 'visibility') !== 'none' ? 'visible' : 'none';
+      if (map.getLayoutProperty('ww-leaders-sel', 'visibility') !== v) map.setLayoutProperty('ww-leaders-sel', 'visibility', v);
+    }
   },
   async load() {
     try {
@@ -133,7 +138,7 @@ export const leadersToday = {
   owns: id => String(id).startsWith('today:'),
   locate(id) { const t = today.find(x => 'today:' + x.qid === id); return t && [t.place.lon, t.place.lat]; },
   ring: () => 0,                       // the layer draws its own ring, shifted with its dot
-  visible(on) { if (this.map?.getLayer('ww-leaders-sel')) this.map.setLayoutProperty('ww-leaders-sel', 'visibility', on ? 'visible' : 'none'); },
+  visible(on) { if (!this.map?.getLayer('ww-leaders-sel')) return; if (!on) this.map.setLayoutProperty('ww-leaders-sel', 'visibility', 'none'); else setTimeout(() => this.draw(), 0); },
   act(name) { if (name.startsWith('profile:')) openProfile(name.slice(8)); },
   detail(id) {
     const t = today.find(x => 'today:' + x.qid === id);

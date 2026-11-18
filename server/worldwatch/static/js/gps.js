@@ -17,7 +17,7 @@ let data = null, info = null, cells = new Map();
 export default {
   id: 'gps', title: 'GPS', color: ['#d49a00', '#ffd60a'], feeds: {gps: 1800}, layers: ['ww-gps'],
   addTo(map) {
-    map.addSource('ww-gps', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource('ww-gps', {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 7});   // hexagons of ~1,700 km²: nothing to gain from finer tiles
     map.addLayer({id: 'ww-gps', type: 'fill', source: 'ww-gps', paint: {'fill-opacity': 0.3}}, slot(map, 'gps'));
   },
   paint(map, dark) {
@@ -56,7 +56,7 @@ export const gpsLive = {
   id: 'gpslive', title: 'GPS, last hour', color: ['#d70015', '#ff6961'], feeds: {gps_live: 300}, layers: ['ww-gpsl-area', 'ww-gpsl', 'ww-gpsl-line'],
   about: () => 'GPS interference in the last hour, worked out by World Watch from live aircraft in 15 sampled regions (faint circles). Derived, not a measurement of jammers.',
   addTo(map) {
-    map.addSource('ww-gpsl', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
+    map.addSource('ww-gpsl', {type: 'geojson', data: {type: 'FeatureCollection', features: []}, maxzoom: 7});
     const first = slot(map, 'gps');
     map.addLayer({id: 'ww-gpsl-area', type: 'line', source: 'ww-gpsl', filter: ['==', ['get', 'kind'], 'region'], paint: {'line-width': 1, 'line-dasharray': [2, 3], 'line-opacity': 0.45}}, first);
     map.addLayer({id: 'ww-gpsl', type: 'fill', source: 'ww-gpsl', filter: ['has', 'level'], paint: {'fill-opacity': 0.45}}, first);

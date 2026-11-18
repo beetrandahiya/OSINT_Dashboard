@@ -1805,3 +1805,40 @@ Lag (measured in the sandbox with software GL, so only relative; Safari and his 
   panels are 93 % opaque instead. Label fade-in off (`fadeDuration: 0`): each fade kept the map redrawing after every update.
   Panel flicker limited to the card title (subtle) / panel titles (full).
 - Idle map redraws with the default layers: 16 in 5 s before (continuous) -> about 6 in 8 s after, the rest being data updates.
+
+### 2026-11-18, performance pass: what made rendering heavy, measured, and stripped from the top
+
+Owner: "figure out exactly what is making the rendering heavy, and then strip down from top". Measured in headless
+Chromium (software GL, so timings are relative and noisy; draw calls, vertex counts and redraw triggers are exact).
+Scripts in the session scratchpad `perf/` (who.js: who asks the map to redraw; draws.js: draw calls per layer; ev.js).
+
+Found, in order of weight:
+1. **Draw calls from sort keys.** MapLibre issues one draw call per distinct `*-sort-key` value: quakes 519 a frame (one
+   per magnitude), news groups 220, leaders 190, protests 68. Frame went 1,355 -> 910 draw calls on the flat map. Fix:
+   no sort key; features are sent smallest first so big ones draw on top (quakes, news, unrest); where a key is needed
+   (news groups, outages, leaders' label priority) a few `step` buckets. **Never use a raw numeric sort key again.**
+2. **The map never went idle.** Military aircraft re-sent ~1/s at world zoom (any of ~150 moving half a pixel), tankers and
+   sanctioned every 2 s, each re-send = ~6 tile events + full redraws, each redraw re-placing ~5,700 aircraft symbols
+   (top CPU item). Now: below zoom 3 at most every 10 s, below 5 every 3 s, 1.5 px threshold zoomed out; tankers and
+   sanctioned every 10 s zoomed out with a position key; world aircraft no longer re-sent on every live poll (count was in
+   the key). Idle redraws 47 -> 19 per 20 s. 3D models redraw at 30 fps, not 60.
+3. **Empty full-window canvases** (satellite heights on the flat map, hijack streaks with no token, models overlay) were
+   composited over the map every frame: now `display:none` while empty.
+4. **Globe geometry:** the globe subdivides everything; 8.9 M vertex indices a frame vs 0.6 M flat. Cables 1.09 M, each
+   picture layer (ground, rain, lightning) ~355 k. Not cut (they are wanted layers); the lever left is pixels:
+   **Settings > Map sharpness**, default Balanced = map canvas at 1.5x on Retina (44 % fewer pixels; panels stay sharp),
+   Full = native.
+5. Page side: hover hit-test once per frame and never while moving (was every mousemove over all layers); loading bar
+   animates `transform` and is placed on events, no 200 ms layout timer, the ground's tiles do not count as loading;
+   layer tiles patched in place (counts/ages), glyph SVGs cached; list replaced row by row; feeds summary written only
+   on change; layers switched off are not re-tiled when their feed updates; selection ring re-sent only when it moves a
+   pixel; sharp-photo date redraws only on change; no blur behind the dossier; no raster fades; no hillshade under a
+   picture ground; 3D no longer adds the sharp photo on top of the Photo/Mono ground (same Esri pictures twice);
+   cable hit layer removed; big sources get `maxzoom`/`tolerance`.
+6. Payloads: news slimmed at the wire (`SLIM` in web.py: one headline per place with 2+ outlets, no links; cards fetch the
+   rest) 532 -> 144 KB and 1,094 -> 314 KB gzipped; cables and GPS hexagons rounded to 4 decimals (234 -> 112 KB);
+   status poll `?lite=1` without fixed fields (8.7 -> 4.1 KB every 5 s); ships answer `{unchanged}` for `?v=<version>`;
+   static `VERSION` from file times, so a restart without changes keeps the browser cache.
+
+Not done, said to him: news/unrest thumbnails are the outlets' full-size pictures (100-220 KB each); resizing needs an image
+library (Pillow), a new dependency: his call. Untested: Safari and a real GPU; all numbers are from software GL.

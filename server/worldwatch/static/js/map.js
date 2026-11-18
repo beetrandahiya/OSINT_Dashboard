@@ -1,3 +1,4 @@
+import {mapPixelRatio} from './look.js';
 // The map: one MapLibre instance that is both the flat map and the globe.
 // Base map data: OpenStreetMap via OpenFreeMap's free tiles. We recolour their "positron" style
 // for light and dark instead of loading two styles, so our own layers survive a theme change.
@@ -34,7 +35,9 @@ export function createMap(container, leftPadding) {
     container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.3, maxZoom: 16,
     attributionControl: false, dragRotate: true, pitchWithRotate: true, renderWorldCopies: true,
     fadeDuration: 0,   // no label fade-in: each fade kept the map redrawing for a while after every data update
+    pixelRatio: mapPixelRatio(),   // Settings > Map sharpness (look.js)
   });
+  document.addEventListener('ww-look', () => { const r = mapPixelRatio(); if (map.getPixelRatio() !== r) map.setPixelRatio(r); });
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
   // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many
   // layers, its tiles were requested but never finished loading
@@ -121,10 +124,11 @@ export function setGround(map, g, theme, dark) {
   if (map.getLayer('ww-ground-tint')) map.removeLayer('ww-ground-tint');
   const parts = GROUNDS[g] || [];
   groundPhoto = parts.length > 0;
+  if (map.getLayer('ww-relief')) map.setLayoutProperty('ww-relief', 'visibility', groundPhoto ? 'none' : 'visible');
   const eye = theme === 'eye';
   parts.forEach((p, i) => {
     map.addSource('ww-ground-' + i, {type: 'raster', tiles: [p.tiles], tileSize: 256, maxzoom: p.maxzoom, attribution: p.attribution});
-    const paint = {'raster-fade-duration': 150};
+    const paint = {'raster-fade-duration': 0};   // no fade: each fading tile kept the whole map redrawing
     if (g === 'mono') paint['raster-saturation'] = -1;
     // God's eye grades pictures cold and dark so the symbols read on top (the mock-ups' "graded photo")
     // God's eye shows the picture as the first God's eye boards did: true colour, a little darker in dark mode
@@ -178,7 +182,8 @@ export function set3D(map, on, dark) {
     if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
       attribution: 'Elevation: © Mapterhorn (CC BY 4.0)'});
     const firstOwn = map.getStyle().layers.find(l => l.id.startsWith('ww-'))?.id;
-    if (!map.getLayer('ww-relief')) map.addLayer({id: 'ww-relief', type: 'hillshade', source: 'ww-dem', paint: {'hillshade-exaggeration': 0.35}}, firstOwn);
+    // shading is drawn only over the drawn map: under a picture ground it cannot be seen and only costs
+    if (!map.getLayer('ww-relief')) map.addLayer({id: 'ww-relief', type: 'hillshade', source: 'ww-dem', layout: {visibility: groundPhoto ? 'none' : 'visible'}, paint: {'hillshade-exaggeration': 0.35}}, firstOwn);
     if (!map.getLayer('ww-buildings')) {
       const src = Object.entries(map.getStyle().sources).find(([, s]) => s.type === 'vector')?.[0];
       if (src) map.addLayer({id: 'ww-buildings', type: 'fill-extrusion', source: src, 'source-layer': 'building', minzoom: 13,

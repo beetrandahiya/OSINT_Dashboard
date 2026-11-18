@@ -50,6 +50,29 @@ export function tiles(counts) {
   }).join('') + `<button class="tile tile-all" data-all>All layers<span>${on.length} of ${ctx.CHIPS.length} on</span></button>`;
 }
 
+// The same tiles again with only counts, ages and states changed: patched in place, so the column is not rebuilt
+// (and its icons not parsed again) on every feed answer. False when the set of tiles differs: then main.js redraws.
+export function patchTiles(counts, box) {
+  if (!ctx || !box) return false;
+  const on = ctx.CHIPS.filter(l => ctx.on[l.id]), els = box.querySelectorAll('.tile[data-id]');
+  if (els.length !== on.length || box.dataset.look !== lookKey()) return false;
+  for (let i = 0; i < on.length; i++) if (els[i].dataset.id !== on[i].id) return false;
+  on.forEach((l, i) => {
+    const e = els[i], f = feedOf(l), cls = 'chip tile' + (f && f.state !== 'ok' ? ' t-' + f.state : '');
+    if (e.className !== cls) e.className = cls;
+    const n = e.querySelector('.t-n'), c = String(counts(l)); if (n && n.textContent !== c) n.textContent = c;
+    const src = e.querySelectorAll('.t-src span');
+    if (f && src.length === 3) {
+      const d = 'sdot s-' + (f.state || 'ok'); if (src[0].className !== d) src[0].className = d;
+      if (src[1].textContent !== f.source) src[1].textContent = f.source;
+      if (src[2].textContent !== f.age) src[2].textContent = f.age;
+    } else if (!!f !== (src.length === 3)) return false;
+  });
+  const all = box.querySelector('.tile-all span'), t = `${on.length} of ${ctx.CHIPS.length} on`; if (all && all.textContent !== t) all.textContent = t;
+  return true;
+}
+export const lookKey = () => (ctx?.dark() ? 'd' : 'l') + document.documentElement.dataset.palette;
+
 // ---- the sheet with every layer and the key ----
 function sheet() {
   let el = $('#layers-sheet');

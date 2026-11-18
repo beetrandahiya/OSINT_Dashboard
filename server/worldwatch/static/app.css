@@ -236,7 +236,7 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 /* ---- public-figure profile overlay ---- */
 #profile { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; }
 #profile[hidden] { display: none; }   /* the id rule above would otherwise beat the hidden attribute and leave an invisible layer over the page */
-.prof-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.prof-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.34); }   /* no blur: re-blurring a map that redraws costs every frame */
 .prof-card { position: relative; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 22px 24px 20px; }
 .prof-loading { padding: 40px 0; text-align: center; color: var(--text-2); }
 .prof-head { display: flex; gap: 16px; align-items: flex-start; }
@@ -288,9 +288,9 @@ h2 .flagimg { height: 0.62em; margin-left: 6px; }
 .markets.min > .quotes { display: none; }
 /* ---- a thin loading bar along the top while the app waits for an answer (Apple style: thin, quiet) ---- */
 .loadbar { position: fixed; top: 0; left: 0; width: 0; height: 2px; border-radius: 1px; z-index: 50; overflow: hidden; pointer-events: none; }
-.loadbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: -30%; border-radius: 1px; background: var(--accent, #007aff); animation: loadbar 1.1s ease-in-out infinite; }
-@keyframes loadbar { to { left: 100%; } }
-@media (prefers-reduced-motion: reduce) { .loadbar::after { animation: none; left: 0; width: 100%; opacity: .5; } }
+.loadbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: 0; border-radius: 1px; background: var(--accent, #007aff); transform: translateX(-100%); will-change: transform; animation: loadbar 1.1s ease-in-out infinite; }
+@keyframes loadbar { to { transform: translateX(334%); } }   /* transform only: moving `left` repainted the bar every frame */
+@media (prefers-reduced-motion: reduce) { .loadbar::after { animation: none; transform: none; width: 100%; opacity: .5; } }
 /* ---- dossiers (person and country): one overlay, a calm header, a grid of signal tiles, then compact blocks ---- */
 .prof-card.dos { width: min(920px, calc(100vw - 32px)); padding: 24px 28px 22px; }
 .dos-head { display: flex; gap: 18px; align-items: flex-start; padding-right: 36px; }

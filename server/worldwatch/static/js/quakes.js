@@ -16,7 +16,7 @@ export default {
     map.addSource(SRC, {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
     const size = ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 2.5, 3, 4, 4.5, 9, 6, 13, 7, 18, 8, 25];
     map.addLayer({id: 'ww-quakes', type: 'circle', source: SRC, paint: {'circle-radius': size, 'circle-opacity': 0.9, 'circle-stroke-width': 1.2}});
-    map.addLayer({id: 'ww-quakes-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'], 'symbol-sort-key': ['coalesce', ['get', 'mag'], 0],
+    map.addLayer({id: 'ww-quakes-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'],
       'icon-size': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 0.22, 3, 0.3, 4.5, 0.48, 6, 0.66, 7, 0.82, 8, 1], 'icon-allow-overlap': true, 'icon-ignore-placement': true}});
     // Apple's map guidance allows a short label inside a marker; the stronger quakes carry their magnitude.
     map.addLayer({id: 'ww-quakes-label', type: 'symbol', source: SRC, filter: ['>=', ['coalesce', ['get', 'mag'], 0], 4.5],
@@ -38,7 +38,9 @@ export default {
   },
   onData(feed, d) { quakes = d.payload.quakes; info = d; },
   render(map) {
-    map.getSource(SRC).setData({type: 'FeatureCollection', features: quakes.map(q => (
+    // smallest first, so the strong ones are drawn on top. (A sort key did the same but cost one draw call per distinct
+    // magnitude, ~250 a frame for this layer alone.)
+    map.getSource(SRC).setData({type: 'FeatureCollection', features: [...quakes].sort((a, b) => (a.mag ?? 0) - (b.mag ?? 0)).map(q => (
       {type: 'Feature', geometry: {type: 'Point', coordinates: [q.lon, q.lat]}, properties: {id: q.id, mag: q.mag, eye: quakeEye(q)}}))});
   },
   count: () => quakes.length,
