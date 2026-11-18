@@ -33,6 +33,7 @@ export function createMap(container, leftPadding) {
   const map = new maplibregl.Map({
     container, style: BASE_STYLE, center: [11.575, 28], zoom: 1.7, minZoom: 0.3, maxZoom: 16,
     attributionControl: false, dragRotate: true, pitchWithRotate: true, renderWorldCopies: true,
+    fadeDuration: 0,   // no label fade-in: each fade kept the map redrawing for a while after every data update
   });
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
   // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many

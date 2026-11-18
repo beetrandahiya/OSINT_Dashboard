@@ -4,7 +4,7 @@ import {loadFlags} from './flags.js';
 import {createMap, paintBase, paintSky, setGlobe, setPhoto, set3D, paint3D, is3D, setGround} from './map.js';
 import {look, ground, openSettings, closeSettings} from './look.js';
 import * as dense from './dense.js';
-import {eyeOn, glyphSvg} from './eyeicons.js';
+import {eyeOn, glyphSvg, themeHidden} from './eyeicons.js';
 import news from './news.js';
 import navwarn from './navwarn.js';
 // import maxarLayer from './maxar.js';   // disaster imagery: off for now, see CHIPS
@@ -137,7 +137,7 @@ function repaint() {
 }
 
 function show(layer) {
-  for (const id of layer.layers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on[layer.id] ? 'visible' : 'none');
+  for (const id of layer.layers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on[layer.id] && !themeHidden.has(id) ? 'visible' : 'none');
   layer.visible?.(on[layer.id]);
 }
 

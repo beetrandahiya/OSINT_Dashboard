@@ -242,7 +242,11 @@ function tick(map) {
   if (flat || flatSent) { src.setData({type: 'FeatureCollection', features: feats}); flatSent = flat; }
   const picked = sel && byId(sel);
   if (following && picked?.pos) sitAt(picked, false);
-  map.triggerRepaint();
+  // On the globe the satellites are our own canvas: redraw just it with the camera of the last map frame (the camera has
+  // not moved since, or the map would have drawn a frame and called drawHeights itself). Asking the whole map to redraw
+  // every tick only to move dots on our canvas kept the page busy all the time.
+  if (flat) return;
+  drawHeights();
 }
 
 export const satellites = {
@@ -263,7 +267,10 @@ export const satellites = {
     // the engine fires rotatestart / pitchstart for our own easeTo too, so only events from the mouse or touch count
     const takeOver = e => { if (following && e.originalEvent) { following = false; ride = null; refresh?.(); } };
     for (const ev of ['dragstart', 'rotatestart', 'pitchstart']) map.on(ev, takeOver);
-    setInterval(() => { if (!document.hidden) tick(map); }, 2000);   // not in a hidden tab
+    // every 2 s; on the zoomed-out flat map every 6 s (a satellite moves under half a pixel a second there, and each
+    // update redraws the whole map)
+    let lastTick = 0;
+    setInterval(() => { if (document.hidden) return; const t = performance.now(), slow = !isGlobe() && map.getZoom() < 4; if (t - lastTick < (slow ? 6000 : 2000) - 50) return; lastTick = t; tick(map); }, 1000);
   },
   paint(map, dark) {
     const edge = dark ? '#1c1c1e' : '#ffffff';

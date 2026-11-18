@@ -141,7 +141,15 @@ export function apply() {
     const tb = $('#topbar .tb-right');
     park($('#find'), $('#topbar .tb-search'));
     park($('#feeds'), tb);
-    park($('.side-head .seg'), tb); park($('#three'), tb); park($('#settings-btn'), tb);
+    park($('.side-head .seg'), tb); park($('#three'), tb);
+    let fold = $('#fold-btn');
+    if (!fold) {
+      fold = document.createElement('button'); fold.id = 'fold-btn'; fold.className = 'fold-btn'; fold.setAttribute('aria-label', 'Fold the column away'); fold.title = 'Fold the column away (more map)';
+      fold.onclick = () => { $('#side-mini')?.click(); fold.setAttribute('aria-pressed', $('#sidebar').classList.contains('min')); };
+      tb.appendChild(fold);
+    }
+    fold.setAttribute('aria-pressed', $('#sidebar').classList.contains('min'));
+    park($('#settings-btn'), tb);
     const side = $('#sidebar');
     park($('#detail'), side, side.querySelector('.seg.wide'));
     strip();

@@ -4,7 +4,7 @@
 // Groups seen by one outlet only live in a second chip, off by default: those are where false alarms gather.
 import {ago, esc, local, skyShot, utc, spyPass, countryBtn} from './util.js';
 import {img} from './news.js';
-import {eyeOn, eyeImages} from './eyeicons.js';
+import {eyeOn, eyeImages, eyeSwap, setEyeOpacity} from './eyeicons.js';
 
 // God's eye: one symbol per CAMEO action as GDELT words it (the icon set's conflict group); the category when the
 // action is not in the table
@@ -40,6 +40,7 @@ function make(single) {
       map.addLayer({id: SRC + '-eye', type: 'symbol', source: SRC, layout: {'icon-image': ['get', 'eye'], 'symbol-sort-key': ['get', 'n'],
         'icon-size': ['interpolate', ['linear'], ['sqrt', ['get', 'n']], 1, 0.42, 3, 0.52, 6, 0.7, 12, 0.95], 'icon-allow-overlap': true, 'icon-ignore-placement': true},
         paint: {'icon-opacity': single ? 0.6 : 1}});
+      setEyeOpacity(SRC + '-eye', single ? 0.6 : 1);
     },
     paint(map, dark) {
       const c = this.color[+dark], bg = dark ? '#1c1c1e' : '#ffffff';
@@ -47,11 +48,7 @@ function make(single) {
       map.setPaintProperty(SRC + '-dot', 'circle-stroke-color', ['case', ['==', ['get', 'ring'], true], c, bg]);
       map.setPaintProperty(SRC + '-label', 'text-color', ['case', ['==', ['get', 'ring'], true], c, '#ffffff']);
       eyeImages(map, dark);
-      const eye = eyeOn();
-      map.setPaintProperty(SRC + '-dot', 'circle-opacity', eye ? 0 : single ? 0.55 : 0.92);
-      map.setPaintProperty(SRC + '-dot', 'circle-stroke-opacity', eye ? 0 : single ? 0.7 : 1);
-      map.setPaintProperty(SRC + '-label', 'text-opacity', eye ? 0 : 1);
-      map.setPaintProperty(SRC + '-eye', 'icon-opacity', eye ? (single ? 0.6 : 1) : 0);
+      eyeSwap(map, [SRC + '-eye'], [SRC + '-dot', SRC + '-label']);
     },
     onData(feed, d) { groups = d.payload.groups || []; info = d; },
     render(map) {

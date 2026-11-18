@@ -460,7 +460,7 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
   --sep: rgba(255, 255, 255, 0.10); --hover: rgba(255, 255, 255, 0.07); --sel: rgba(143, 220, 255, 0.16);
   --fill: rgba(255, 255, 255, 0.07); --fill-strong: rgba(255, 255, 255, 0.12); --knob: #f2f4f6;
   --accent: #8fdcff; --good: #7be0a0; --warn: #ffe066; --bad: #ff6b6b; --idle: #9aa3a9;
-  --glass-bg: rgba(10, 14, 18, 0.66); --glass-solid: #0d1216; --glass-filter: blur(18px) saturate(140%);
+  --glass-bg: rgba(12, 16, 21, 0.93); --glass-solid: #0d1216; --glass-filter: none;   /* no backdrop blur: blurring over a map that redraws every frame cost the most in Safari */
   --glass-stroke: rgba(255, 255, 255, 0.14); --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; --head: "Space Grotesk", "Inter", sans-serif;
   --radius: 22px; --radius-ctl: 16px; color-scheme: dark;
@@ -471,7 +471,7 @@ table.units td { padding: 3px 6px 3px 0; border-bottom: .5px solid var(--sep); v
     --sep: rgba(10, 30, 50, 0.10); --hover: rgba(10, 30, 50, 0.06); --sel: rgba(10, 109, 153, 0.12);
     --fill: rgba(10, 30, 50, 0.06); --fill-strong: rgba(10, 30, 50, 0.10); --knob: #0b141b;
     --accent: #0a6d99; --good: #138a5e; --warn: #8f7420; --bad: #c2334f; --idle: #6b7782;
-    --glass-bg: rgba(250, 252, 253, 0.80); --glass-solid: #f6f8fa; --glass-stroke: rgba(10, 30, 50, 0.12); --glass-shadow: 0 10px 40px rgba(10, 30, 50, 0.12);
+    --glass-bg: rgba(250, 252, 253, 0.95); --glass-solid: #f6f8fa; --glass-stroke: rgba(10, 30, 50, 0.12); --glass-shadow: 0 10px 40px rgba(10, 30, 50, 0.12);
     color-scheme: light;
   }
 }
@@ -514,6 +514,7 @@ body.dense .side-head h1 { display: none; }
 body.dense .sidebar.min { bottom: auto; width: 60px; }
 body.dense .sidebar.min .side-head { justify-content: center; }
 body.dense #sidebar #detail { position: relative; z-index: 0; flex: 0 1 auto; max-height: 58%; margin: 0 12px 10px; border-radius: 18px; background: var(--fill); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-theme="eye"] .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.dense .seg.wide { margin: 0 14px 10px; }
 body.dense .right { display: none; }
 body.dense .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 14px 12px; max-height: 38%; }
@@ -595,9 +596,31 @@ body.dense .banner { top: 76px; }
 /* panel motion: a slight, rare flicker of panel headings (subtle), plus a faint colour fringe (full). Never on the map.
    Off with Reduce Motion and with the app's own animations switch (html.ww-still). */
 @keyframes ww-flick { 0%, 93%, 100% { opacity: 1; transform: none; } 94% { opacity: .82; transform: translateX(.3px); } 95% { opacity: 1; transform: none; } 97% { opacity: .9; } }
-[data-theme="eye"][data-motion="subtle"] .glass :is(h2, h3), [data-theme="eye"][data-motion="full"] .glass :is(h2, h3, .list li.group) { animation: ww-flick 6.5s steps(1, end) infinite; }
+[data-theme="eye"][data-motion="subtle"] .detail h2, [data-theme="eye"][data-motion="full"] .glass :is(h2, .lg-head h3) { animation: ww-flick 6.5s steps(1, end) infinite; }   /* few elements: every animated one is recomposited over the map */
 [data-theme="eye"][data-motion="subtle"] .glass h3, [data-theme="eye"][data-motion="full"] .glass h3 { animation-duration: 5.3s; }
 [data-theme="eye"][data-motion="full"] .glass :is(h2, h3) { text-shadow: 0.4px 0 rgba(255, 59, 92, 0.35), -0.4px 0 rgba(95, 227, 255, 0.35); }
 html.ww-still .glass *, html.ww-still .glass { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { [data-theme="eye"] .glass * { animation: none !important; } }
 @media (max-width: 900px) { body.dense #views { display: none; } body.dense .sidebar { width: auto; left: 16px; } }
+
+/* ---- UI icons (both themes): one stroke weight, drawn as masks so they take the text colour and stay crisp ---- */
+.mini::before, .close::before, .chev, .fold-btn::before { content: ""; position: absolute; inset: 0; margin: auto; width: 14px; height: 14px; border: 0; border-radius: 0;
+  background: var(--text-2); transform: none; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; transition: transform .25s ease-in-out; }
+.close::after { display: none; }
+.close::before { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7' stroke='black' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E"); top: 0; left: 0; right: 0; height: 14px; }
+.mini::before { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 8.75L7 5.25l3.5 3.5' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); top: 0; left: 0; }
+.min .mini::before, .mini.is-min::before { transform: rotate(180deg); top: 0; }
+.chev { position: relative; inset: auto; margin: 0 0 0 auto; flex: none; --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 5.25L7 8.75l3.5-3.5' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.feeds-head[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.mini, .close { width: 28px; height: 28px; border-radius: 50%; background: var(--fill-strong); border: 0; cursor: default; }
+.mini { position: relative; }
+.mini:hover::before, .close:hover::before { background: var(--text); }
+.detail .mini { top: 14px; right: 48px; }
+/* the Dense column folds from a button in the top bar; its own header row is not needed there */
+.fold-btn { display: none; }
+body.dense .fold-btn { display: grid; position: relative; width: 48px; height: 48px; border-radius: 999px; border: 1px solid var(--glass-stroke); background: var(--glass-bg); box-shadow: var(--glass-shadow); cursor: default; }
+.fold-btn::before { width: 18px; height: 18px; --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='2.25' y='3' width='13.5' height='12' rx='2.5' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M11 3.5v11' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E"); background: var(--text); }
+body.dense .fold-btn[aria-pressed="true"]::before { background: var(--text-2); }
+body.dense .side-head { display: none; }
+body.dense .sidebar.min { display: none; }
+body.dense .sidebar { padding-top: 12px; }

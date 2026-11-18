@@ -1781,3 +1781,27 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   **Still in their own drawing inside God's eye:** news clusters (circles), breaking, leaders today (own marker with
   screen-pixel offsets), satellites (canvas), airspace and GPS areas, fires, cables, hijack streaks. These are areas, lines
   or dots where a symbol would not help, except leaders today and news: ask him whether they should change.
+
+### 2026-11-18, his notes: "quite laggy" and "icons are off" (the settings icon, the open-panel icon "and stuff")
+
+UI icons:
+- One icon style for the whole page (`app.css`, end): minimise chevron, close cross and the feeds chevron are masks of
+  small stroked SVGs with one stroke weight, in the text colour, in matching 28 px circles (before: CSS-border chevrons
+  and two rotated bars, in different greys and sizes; the card's close sat on the left after a position rule clash).
+- Settings gear redrawn as a stroked gear (dashed ring for teeth) instead of the crude filled cog.
+- The Dense column's own header row (a lone chevron in an empty bar) is gone; a **fold button** (panel icon) in the top
+  bar folds the column away and the map takes the room (`#fold-btn`, made in `dense.js`, drives `#side-mini`).
+
+Lag (measured in the sandbox with software GL, so only relative; Safari and his GPU untested):
+- **Military aircraft were re-sent to the map 5 times a second** even when zoomed out and moving less than a pixel; every
+  re-send re-tiles the source and redraws the whole map. `changed()` in `aircraft.js` now resends only after a move of half
+  a pixel at the current zoom or a 1° turn. VIP and doomsday sources skip identical re-sends every 2 s.
+- **Satellites asked the whole map to redraw every 2 s** to move dots on their own canvas on the globe; now only the canvas
+  is redrawn (with the camera of the last frame). On the zoomed-out flat map they update every 6 s (under half a pixel a
+  second there).
+- **God's eye drew every converted layer twice** (the new symbol plus its old circle at opacity 0, still placed and drawn).
+  `eyeSwap()` now hides the replaced layers by visibility; `themeHidden` (eyeicons.js) is respected by `show()` in main.js.
+- **No backdrop blur in God's eye** (blur over a map that redraws every frame is the most expensive thing for Safari);
+  panels are 93 % opaque instead. Label fade-in off (`fadeDuration: 0`): each fade kept the map redrawing after every update.
+  Panel flicker limited to the card title (subtle) / panel titles (full).
+- Idle map redraws with the default layers: 16 in 5 s before (continuous) -> about 6 in 8 s after, the rest being data updates.

@@ -1,7 +1,7 @@
 // Earthquakes, exactly as the USGS feed lists them. Circle size follows magnitude; nothing else is implied.
 import {ago, esc, local, utc} from './util.js';
 import {nearTestSite} from './sites.js';
-import {eyeOn, eyeImages} from './eyeicons.js';
+import {eyeOn, eyeImages, eyeSwap} from './eyeicons.js';
 // God's eye: three sizes, a quake within 50 km of a nuclear test site, and USGS's own explosion types
 const quakeEye = q => 'eye-' + (/explosion/.test(q.type || '') ? 'explosion' : nearTestSite(q.lon, q.lat) ? 'quake_test' : (q.mag ?? 0) >= 6 ? 'quake_l' : (q.mag ?? 0) >= 4.5 ? 'quake_m' : 'quake_s');
 
@@ -30,8 +30,7 @@ export default {
     map.setPaintProperty('ww-quakes', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     eyeImages(map, dark);
     const eye = eyeOn();     // God's eye: the symbol instead of the circle; the magnitude moves below it
-    map.setPaintProperty('ww-quakes', 'circle-opacity', eye ? 0 : 0.9); map.setPaintProperty('ww-quakes', 'circle-stroke-opacity', eye ? 0 : 1);
-    map.setPaintProperty('ww-quakes-eye', 'icon-opacity', eye ? 1 : 0);
+    eyeSwap(map, ['ww-quakes-eye'], ['ww-quakes']);
     map.setLayoutProperty('ww-quakes-label', 'text-offset', eye ? [0, 1.5] : [0, 0]);
     map.setPaintProperty('ww-quakes-label', 'text-color', eye ? (dark ? '#e8f1f6' : '#0b141b') : '#ffffff');
     map.setPaintProperty('ww-quakes-label', 'text-halo-color', eye ? (dark ? '#05080c' : '#ffffff') : 'rgba(0,0,0,0)'); map.setPaintProperty('ww-quakes-label', 'text-halo-width', eye ? 1.2 : 0);

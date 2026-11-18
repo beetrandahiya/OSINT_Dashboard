@@ -69,24 +69,22 @@ export function eyeImages(map, dark) {
 export function addEye(map, id, source, image, size, {filter, minzoom, opacity = 1, sort} = {}) {
   map.addLayer({id, type: 'symbol', source, ...(filter ? {filter} : {}), ...(minzoom ? {minzoom} : {}),
     layout: {'icon-image': image, 'icon-size': size, 'icon-allow-overlap': true, 'icon-ignore-placement': true, ...(sort ? {'symbol-sort-key': sort} : {})},
-    paint: {'icon-opacity': 0}});
+    paint: {'icon-opacity': opacity}});
   eyeOpacity.set(id, opacity);
 }
-const eyeOpacity = new Map(), original = new Map();
-// Show the God's eye symbols (theme on) or the layer's own drawing (theme off). own: the circle and text layers that
-// the symbols replace; their own opacities are read once and put back when the theme is switched off.
+const eyeOpacity = new Map();
+// Layers the current theme does not draw. main.js show() keeps these hidden when it switches a layer on, so each
+// item is drawn once: as its God's eye symbol or as its own circle / letter, never both (hidden by opacity, both were
+// placed and drawn every frame).
+export const themeHidden = new Set();
+export const setEyeOpacity = (id, o) => eyeOpacity.set(id, o);
 export function eyeSwap(map, eyeIds, own) {
   const e = eyeOn();
-  for (const id of eyeIds) if (map.getLayer(id)) map.setPaintProperty(id, 'icon-opacity', e ? eyeOpacity.get(id) ?? 1 : 0);
-  for (const id of own) {
-    const l = map.getLayer(id); if (!l) continue;
-    const props = l.type === 'circle' ? ['circle-opacity', 'circle-stroke-opacity'] : l.type === 'symbol' ? ['text-opacity', 'icon-opacity'] : [];
-    for (const p of props) {
-      const k = id + '|' + p;
-      if (!original.has(k)) original.set(k, map.getPaintProperty(id, p) ?? 1);
-      map.setPaintProperty(id, p, e ? 0 : original.get(k));
-    }
-  }
+  const vis = id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none';
+  const on = [...eyeIds, ...own].some(vis);              // the layer itself is switched on
+  for (const id of eyeIds) { if (!map.getLayer(id)) continue; map.setPaintProperty(id, 'icon-opacity', eyeOpacity.get(id) ?? 1); if (e) themeHidden.delete(id); else themeHidden.add(id); }
+  for (const id of own) { if (e) themeHidden.add(id); else themeHidden.delete(id); }
+  for (const id of [...eyeIds, ...own]) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on && !themeHidden.has(id) ? 'visible' : 'none');
 }
 
 // The same symbol as inline SVG for panels (tiles, sheet, search): edges first, then fills, like the map images.

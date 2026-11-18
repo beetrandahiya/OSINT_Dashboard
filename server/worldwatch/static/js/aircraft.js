@@ -227,15 +227,19 @@ const position = h => { const w = where(h); return [w.lon, w.lat]; };
 // layers are hidden by their zoom range, so nothing is sent to them at all until the map is zoomed out again.
 // (Re-sending everything five times a second kept the map's workers busy for good: 3D terrain tiles never got decoded.)
 const sent = {live: null, mil: null, world: '', extra: ''};
-function changed(key, feats) {   // true when these features differ from what was last sent to that source
+const sentKeys = {vip: '', doom: ''};
+// true when these features differ visibly from what was last sent to that source. "Visibly" = moved at least half a
+// pixel at the current zoom or turned a degree: sending every sub-pixel step re-tiled the source and redrew the whole
+// map five times a second while zoomed out (the main cause of the lag the owner reported, 2026-11-18).
+function changed(key, feats) {
   const prev = sent[key];
-  sent[key] = feats;
-  if (!prev || prev.length !== feats.length) return true;
+  if (!prev || prev.length !== feats.length) { sent[key] = feats; return true; }
+  const eps = 0.5 * 360 / (512 * 2 ** (theMap ? theMap.getZoom() : 3));
   for (let i = 0; i < feats.length; i++) {
     const a = prev[i], b = feats[i], pa = a.geometry.coordinates, pb = b.geometry.coordinates;
-    if (a.properties.id !== b.properties.id || Math.abs(pa[0] - pb[0]) > 1e-7 || Math.abs(pa[1] - pb[1]) > 1e-7 || Math.abs(a.properties.track - b.properties.track) > 0.05 || a.properties.icon !== b.properties.icon) return true;
+    if (a.properties.id !== b.properties.id || Math.abs(pa[0] - pb[0]) > eps || Math.abs(pa[1] - pb[1]) > eps || Math.abs(a.properties.track - b.properties.track) > 1 || a.properties.icon !== b.properties.icon) { sent[key] = feats; return true; }
   }
-  return false;
+  return false;   // keep the last sent positions as the reference, so slow drift still adds up to a resend
 }
 function glide(full = false) {
   const map = theMap; if (!map || !map.getSource('ww-air')) return;
@@ -592,8 +596,11 @@ export const vip = {
   onData(feed, d) { vipInfo = d; vipList = d.payload.aircraft || {}; },
   visible(on) { shown.vip = on; theMap?.triggerRepaint(); },
   render(map) {
-    map.getSource('ww-air-vip').setData({type: 'FeatureCollection', features: vipNow().map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
-      properties: {id: h.a.hex, cc: planeFlag(h.a.hex)?.cc || '', label: vipLabel(h) + (h.ground ? ' (on the ground)' : '')}}))});
+    const feats = vipNow().map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
+      properties: {id: h.a.hex, cc: planeFlag(h.a.hex)?.cc || '', label: vipLabel(h) + (h.ground ? ' (on the ground)' : '')}}));
+    const k = feats.map(f => f.properties.id + ':' + f.geometry.coordinates[0].toFixed(3) + ',' + f.geometry.coordinates[1].toFixed(3) + f.properties.label).join('|');
+    if (k === sentKeys.vip) return;   // unchanged at map scale: no re-send, no redraw
+    sentKeys.vip = k; map.getSource('ww-air-vip').setData({type: 'FeatureCollection', features: feats});
   },
   count: () => vipNow().length,
   rows: () => vipNow().filter(h => !h.ground && vipList[h.a.hex].category !== "Don't you know who I am?").map(h => ({id: h.a.hex, time: vipInfo?.fetched || 0, badge: '◆',
@@ -632,8 +639,11 @@ export const doomsday = {
   onData(feed, d) { vipInfo = d; vipList = d.payload.aircraft || {}; },
   visible(on) { shown.doomsday = on; theMap?.triggerRepaint(); },
   render(map) {
-    map.getSource('ww-air-doom').setData({type: 'FeatureCollection', features: vipNow(true).map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
-      properties: {id: h.a.hex, label: (vipList[h.a.hex].type || 'Doomsday plane').replace(/^Boeing |^Ilyushin |^Tupolev /, '') + (h.ground ? ' (on the ground)' : '')}}))});
+    const feats = vipNow(true).map(h => ({type: 'Feature', geometry: {type: 'Point', coordinates: h.at},
+      properties: {id: h.a.hex, label: (vipList[h.a.hex].type || 'Doomsday plane').replace(/^Boeing |^Ilyushin |^Tupolev /, '') + (h.ground ? ' (on the ground)' : '')}}));
+    const k = feats.map(f => f.properties.id + ':' + f.geometry.coordinates[0].toFixed(3) + ',' + f.geometry.coordinates[1].toFixed(3) + f.properties.label).join('|');
+    if (k === sentKeys.doom) return;   // unchanged at map scale: no re-send, no redraw
+    sentKeys.doom = k; map.getSource('ww-air-doom').setData({type: 'FeatureCollection', features: feats});
   },
   count: () => vipNow(true).length,
   rows: () => vipNow(true).filter(h => !h.ground).map(h => ({id: h.a.hex, time: now(), badge: '!', strong: true,
