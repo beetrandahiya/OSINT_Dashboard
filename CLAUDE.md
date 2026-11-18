@@ -1735,3 +1735,15 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   The four-font-pair choice is withdrawn.
 - **Military aircraft get their own tint** (pale ice blue in both palettes) instead of near-white like civil traffic.
 - **Horizon glow: removed only on the Scope board**; keep it on the other boards and on the live globe.
+- **Every screen of the Dense layout drawn** (canvas page "God's eye: Dense, every screen", same link; generator
+  `docs/design-eye/gen_dense.py`, rendered and overflow-checked locally): 1 overview, 2 event selected (card on top of
+  the column, signals below), 3 aircraft selected in a close view (photo slot, numbers, Follow, "in view" list), 4 carrier
+  selected on the whole Earth (quoted USNI sentence, late-feed warning, fleet list), 5 all layers in groups with switch,
+  source and state per row plus the key, 6 search (countries, items on the map now, people), 7 Settings (theme, ground
+  pictures, symbol colours, motion, keys), 8 country dossier and 9 person dossier from **live server data of 18 Nov**
+  (the rest is the frozen capture), 10 follow with its control bar, 11 look down on the front line with the change list,
+  12 feeds with a late feed, an empty layer and a layer without its key, 13 light mode, 14 column folded to a rail.
+  Photos that load only in the app are marked empty slots. Wikidata refused label requests from the sandbox (429), so
+  the person board says which names did not load instead of guessing them. Lesson: a first draft of the search board
+  had a second person I had not looked up, and the feeds board ages I had not measured; both removed before publishing.
+  Next: his notes on these boards, then the build.
