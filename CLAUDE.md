@@ -1776,3 +1776,8 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   Earth on the globe, a military aircraft picked and followed, switching to Apple Maps and back: no page errors.
   **Not tested:** Safari, a real GPU, 3D terrain with models in this layout, a window narrower than 1400 px (below 900 px the
   column goes full width and the strip hides).
+- Also converted to the God's eye symbols the same day: sanctioned ships/aircraft, military orbits (ISR as patrol shape),
+  tankers, front-line points (units, attack directions, airfields, HQs; occupied area and change rings in rose, no amber).
+  **Still in their own drawing inside God's eye:** news clusters (circles), breaking, leaders today (own marker with
+  screen-pixel offsets), satellites (canvas), airspace and GPS areas, fires, cables, hijack streaks. These are areas, lines
+  or dots where a symbol would not help, except leaders today and news: ask him whether they should change.

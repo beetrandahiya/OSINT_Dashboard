@@ -1,5 +1,6 @@
 // Military aircraft flying orbits (surveillance, airborne warning, drones, tankers on their tracks) and tankers in
 // the air. Worked out on our server from the positions it received (patterns.py); derived, and said so.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {every} from './prefs.js';
 import {ago, esc, spyPass} from './util.js';
 import {planeFlag, flagImg} from './flags.js';
@@ -29,7 +30,7 @@ const SOURCE = `Worked out by this server from military positions published by a
 
 export const orbits = {
   id: 'orbits', title: 'Orbits (military)', color: ['#8944ab', '#da8fff'], feeds: {}, local: true,
-  layers: ['ww-orbit-path', 'ww-orbit-ring', 'ww-orbit-label'],
+  layers: ['ww-orbit-path', 'ww-orbit-ring', 'ww-orbit-label', 'ww-orbit-eye'],
   about: () => 'Military aircraft circling or flying racetracks: surveillance, airborne warning, drones, tankers.',
   addTo(map) {
     map.addSource('ww-orbits', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -47,6 +48,8 @@ export const orbits = {
     map.setPaintProperty('ww-orbit-path', 'line-color', ['match', ['get', 'kind'], 'isr', dark ? '#ff6961' : '#d70015', c]);
     map.setPaintProperty('ww-orbit-label', 'text-color', dark ? '#e5e5ea' : '#3a3a3c');
     map.setPaintProperty('ww-orbit-label', 'text-halo-color', dark ? '#1c1c1e' : '#ffffff');
+    if (!map.getLayer('ww-orbit-eye')) addEye(map, 'ww-orbit-eye', 'ww-orbits', ['match', ['get', 'kind'], 'isr', 'eye-mpa-mil', 'eye-mil_generic-mil'], 0.6, {filter: ['==', ['geometry-type'], 'Point']});
+    eyeImages(map, dark); eyeSwap(map, ['ww-orbit-eye'], ['ww-orbit-ring']);
   },
   onData() {},
   render(map) {
@@ -84,7 +87,7 @@ export const orbits = {
 
 export const tankers = {
   id: 'tankers', title: 'Tankers up', color: ['#248a3d', '#30d158'], feeds: {}, local: true,
-  layers: ['ww-tanker', 'ww-tanker-label'],
+  layers: ['ww-tanker', 'ww-tanker-label', 'ww-tanker-eye'],
   about: () => 'Military air-to-air refuelling aircraft in the air now.',
   addTo(map) {
     map.addSource('ww-tankers', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -96,6 +99,8 @@ export const tankers = {
   paint(map, dark) {
     map.setPaintProperty('ww-tanker', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-tanker', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    if (!map.getLayer('ww-tanker-eye')) addEye(map, 'ww-tanker-eye', 'ww-tankers', 'eye-tanker-mil', 0.6);
+    eyeImages(map, dark); eyeSwap(map, ['ww-tanker-eye'], ['ww-tanker', 'ww-tanker-label']);
   },
   onData() {},
   render(map) {

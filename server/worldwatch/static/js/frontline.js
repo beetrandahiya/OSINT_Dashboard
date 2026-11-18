@@ -1,5 +1,6 @@
 // The front line in Ukraine from DeepState: occupied and contested areas, Russian unit positions, attack
 // directions, airfields and headquarters as they mark them, and the advances logged in the last 7 days.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {ago, esc, spyPass} from './util.js';
 
 const SRC = 'ww-front';
@@ -20,7 +21,7 @@ const day = t => new Date(t * 1000).toLocaleDateString('en-GB', {day: 'numeric',
 
 export default {
   id: 'front', title: 'Front line, Ukraine', color: ['#d70015', '#ff6961'], feeds: {front_ukraine: 1800},
-  layers: ['ww-front-fill', 'ww-front-line', 'ww-front-dot', 'ww-front-label', 'ww-front-change'],
+  layers: ['ww-front-fill', 'ww-front-line', 'ww-front-dot', 'ww-front-label', 'ww-front-change', 'ww-front-eye'],
   about: () => "DeepState's daily map of the war in Ukraine: occupied and contested areas, units, advances.",
 
   addTo(map) {
@@ -45,6 +46,11 @@ export default {
     map.setPaintProperty('ww-front-dot', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
     map.setPaintProperty('ww-front-label', 'text-color', '#ffffff');
     map.setPaintProperty('ww-front-change', 'circle-stroke-color', dark ? '#ffd60a' : '#b25000');
+    if (!map.getLayer('ww-front-eye')) addEye(map, 'ww-front-eye', SRC, ['match', ['get', 'kind'], 'unit', 'eye-unit', 'attack', 'eye-direction', 'airfield', 'eye-airbase', 'eye-armybase'],
+      ['interpolate', ['linear'], ['zoom'], 6, 0.36, 9, 0.5, 13, 0.7], {filter: ['all', ['==', ['geometry-type'], 'Point'], ['has', 'k']], minzoom: 6});
+    eyeImages(map, dark); eyeSwap(map, ['ww-front-eye'], ['ww-front-dot', 'ww-front-label']);
+    // God's eye: no orange or amber; the occupied area and the change rings in rose
+    if (document.documentElement.dataset.theme === 'eye') { map.setPaintProperty('ww-front-change', 'circle-stroke-color', '#ff8fa3'); map.setPaintProperty('ww-front-fill', 'fill-color', ['match', ['get', 'kind'], 'occupied', '#ff3b5c', dark ? '#aeaeb2' : '#8e8e93']); map.setPaintProperty('ww-front-line', 'line-color', ['match', ['get', 'kind'], 'occupied', '#ff3b5c', dark ? '#aeaeb2' : '#8e8e93']); }
   },
   onData(feed, x) {
     d = x.payload; info = x; byKey = new Map();

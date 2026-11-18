@@ -1,5 +1,6 @@
 // Sanctioned and shadow-fleet ships, and sanctioned aircraft, that our feeds see right now: OpenSanctions' lists
 // matched by IMO number / MMSI (ships) and registration / transponder address (aircraft). See sanctions.py.
+import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {every} from './prefs.js';
 import {ago, esc, spyPass} from './util.js';
 import {flagImg, shipFlag, planeFlag} from './flags.js';
@@ -16,7 +17,7 @@ async function load() {
 
 export default {
   id: 'sanctioned', title: 'Sanctioned ships & aircraft', color: ['#d70015', '#ff453a'], feeds: {}, local: true,
-  layers: ['ww-sanc-ring', 'ww-sanc-k'],
+  layers: ['ww-sanc-ring', 'ww-sanc-k', 'ww-sanc-eye'],
   about: () => 'Ships and aircraft on sanctions or shadow-fleet lists (OpenSanctions) that our feeds see right now.',
   addTo(map) {
     map.addSource('ww-sanc', {type: 'geojson', data: {type: 'FeatureCollection', features: []}});
@@ -32,6 +33,8 @@ export default {
   paint(map, dark) {
     map.setPaintProperty('ww-sanc-ring', 'circle-color', this.color[+dark]);
     map.setPaintProperty('ww-sanc-ring', 'circle-stroke-color', dark ? '#1c1c1e' : '#ffffff');
+    if (!map.getLayer('ww-sanc-eye')) addEye(map, 'ww-sanc-eye', 'ww-sanc', ['match', ['get', 'k'], 'S', 'eye-sanctioned', 'eye-mil_generic'], 0.6);
+    eyeImages(map, dark); eyeSwap(map, ['ww-sanc-eye'], ['ww-sanc-ring', 'ww-sanc-k']);
   },
   onData() {},
   render(map) {
