@@ -1723,3 +1723,15 @@ Built (layout-independent, so nothing has to be redone whichever layout he picks
   (canvas), airspace, front line points, sanctioned, orbits and tankers, VIP/doomsday halos, fires, GPS, cables, hijacks.
   **The legend panel still shows the Apple Maps symbols** (its colours are duplicated from each layer's paint). Also: in palettes A and C civil (grey-white) and military (white) aircraft are nearly the same colour,
   as on the boards; military reads by silhouette only. Ask him whether that is right on the real map.
+
+### 2026-11-18, his picks for the build
+
+- **Layout: 1 Dense column** (signals and layer tiles on the right, view pictures along the bottom). Every screen of it is
+  drawn before it is built.
+- **Look: back to the first God's eye board's glass**: frosted rounded panels (22 px corners, blur), Space Grotesk for
+  headings and numbers, Inter for text, sentence case ("why don't we have the glass thingy from the initial god's eye
+  thing, we had good fonts there"). The sci-fi frames, corner brackets and condensed capitals are dropped. What stays
+  from the sci-fi round: the solid 147-symbol set, palettes A and C, the single hairline selection ring, no orange.
+  The four-font-pair choice is withdrawn.
+- **Military aircraft get their own tint** (pale ice blue in both palettes) instead of near-white like civil traffic.
+- **Horizon glow: removed only on the Scope board**; keep it on the other boards and on the live globe.
