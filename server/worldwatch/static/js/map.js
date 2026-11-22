@@ -1,4 +1,4 @@
-import {mapPixelRatio} from './look.js';
+import {look, mapPixelRatio} from './look.js';
 // The map: one MapLibre instance that is both the flat map and the globe.
 // Base map data: OpenStreetMap via OpenFreeMap's free tiles. We recolour their "positron" style
 // for light and dark instead of loading two styles, so our own layers survive a theme change.
@@ -38,10 +38,11 @@ export function createMap(container, leftPadding) {
     pixelRatio: mapPixelRatio(),   // Settings > Map sharpness (look.js)
   });
   document.addEventListener('ww-look', () => { const r = mapPixelRatio(); if (map.getPixelRatio() !== r) map.setPixelRatio(r); });
+  dynamicResolution(map);
   map.addControl(new maplibregl.AttributionControl({compact: true}), 'bottom-left');
   // the elevation source exists from the start (terrain is switched on only in 3D): added later, after our many
   // layers, its tiles were requested but never finished loading
-  map.once('style.load', () => { if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
+  map.once('style.load', () => { globeLod(map); if (!map.getSource('ww-dem')) map.addSource('ww-dem', {type: 'raster-dem', tiles: [DEM], tileSize: 512, encoding: 'terrarium', maxzoom: 12,
     attribution: 'Elevation: © Mapterhorn (CC BY 4.0)'}); });
   // turning and tilting everywhere: right-drag or Ctrl-drag, two-finger twist, or the compass (click: north up again;
   // drag it: turn and tilt)
@@ -150,9 +151,68 @@ export const groundIsPicture = () => groundPhoto;
 
 // On the globe you can zoom out until the geostationary ring (6.6 Earth radii) fits; the flat map stops earlier,
 // where the world would otherwise repeat in tiny copies.
+// ---- dynamic resolution (as games do): while the map is being moved by hand and frames are slow, draw it with fewer
+// pixels; sharp again a moment after it stops. Only in Map sharpness "Balanced" (look.js), only when the last frames
+// really took longer than SLOW ms (a fast machine never drops), never while nothing moves, and never for the chase
+// camera (it moves the map every frame by itself). Blur in motion is not seen; a stutter is.
+const SLOW = 22;
+// MapLibre's setPixelRatio() runs resize(), which calls stop() when it thinks the map is not moving: mid-drag that
+// ended the drag (measured: a 300 px drag turned the globe 4 degrees instead of 57). The inner step only resizes the
+// canvas and drawing buffers (vendored MapLibre 5.24.1; the public call stays as the fallback).
+function setRatio(map, r) {
+  if (typeof map._resizeInternal !== 'function') return map.setPixelRatio(r);
+  map._overridePixelRatio = r; map._resizeInternal(); map.triggerRepaint();
+}
+function dynamicResolution(map) {
+  let gaps = [], last = 0, low = false, back = 0, moving = false;
+  const lowRatio = () => Math.max(0.75, mapPixelRatio() * 0.67);   // Retina, Balanced: 1.5 -> 1.0; ordinary screen: 1 -> 0.75
+  map.on('movestart', e => { if (!e.originalEvent) return; moving = true; gaps = []; last = 0; clearTimeout(back); });
+  map.on('render', () => {
+    if (!moving) return;
+    const t = performance.now();
+    if (last) { gaps.push(t - last); if (gaps.length > 8) gaps.shift(); }
+    last = t;
+    if (!low && gaps.length >= 6 && look.sharp !== 'full') {
+      const sorted = [...gaps].sort((a, b) => a - b);
+      if (sorted[3] > SLOW && lowRatio() < map.getPixelRatio()) { low = true; setRatio(map, lowRatio()); }
+    }
+  });
+  map.on('moveend', () => {
+    moving = false; last = 0;
+    if (low) { clearTimeout(back); back = setTimeout(() => { if (moving) return; low = false; setRatio(map, mapPixelRatio()); }, 250); }
+  });
+}
+
+// ---- globe level of detail (the trick games use: only as much geometry as the eye can see) ----
+// To bend flat tiles round the Earth, MapLibre cuts every line, area, circle and picture tile into small pieces. Its
+// defaults are finer than a screen shows: lines in 512 pieces round the world at zoom 0, picture tiles never under
+// 32 x 32 cells, each circle 3 x 3. Measured on our default layers: 8.9 million vertex indices a frame on the globe
+// against 0.6 million on the flat map. A straight piece covering angle a sags R(1 - cos(a/2)) below the curve; worked
+// out per zoom (1-10) the largest sag with these numbers is 0.39 px for lines and pictures (MapLibre's own lines reach
+// the same at zoom 8) and 0.78 px for area edges at zoom 3. (base, minimum) = pieces per tile side at zoom 0, halved per
+// zoom level, never under the minimum. Set once, before any tile is built.
+// The largest part was not the layers at all: on the globe every tile of every source first draws a curved clipping
+// mask (stencil) mesh, 6 of the 7 million indices a frame. Mask (64, 8): largest gap at a tile seam 0.78 px at zoom 3
+// and under 0.4 px from zoom 4 in; MapLibre's (128, 1) reaches 1.57 px at zoom 6 and 3 px at 7, so closer in this is
+// also more exact. Measured on our default layers: 8.9 -> 2.7 million indices a frame.
+const GLOBE_LOD = {fill: [64, 8], line: [128, 8], tile: [64, 16], stencil: [64, 8], circle: 1};
+let lodDone = false;
+export function globeLod(map) {
+  if (lodDone) return;
+  const g = map.style?.projection?._verticalPerspectiveProjection?.subdivisionGranularity;
+  if (!g || !g.fill?.constructor) return;            // another engine version: keep its defaults
+  const lod = {...GLOBE_LOD, ...(window.WW_LOD || {})};  // WW_LOD: for measuring other levels from the console
+  const Gran = g.fill.constructor;
+  for (const k of ['fill', 'line', 'tile', 'stencil']) g[k] = new Gran(lod[k][0], lod[k][1]);
+  g.circle = lod.circle;
+  lodDone = true;
+}
+
 export function setGlobe(map, on) {
+  globeLod(map);
   map.setMinZoom(on ? -2 : 0.3);
   map.setProjection({type: on ? 'globe' : 'mercator'});
+  globeLod(map);          // the projection object exists only once a projection has been set
   if (on && map.getZoom() < 1.9) map.easeTo({zoom: 1.9, duration: 250});
 }
 

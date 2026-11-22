@@ -47,11 +47,14 @@ function sun(t) {   // the point on Earth directly under the sun
 // A picture laid over the whole map (Web Mercator, reaching to 89 degrees so the globe's poles are covered too).
 // fn(lon, lat) gives the opacity 0..1.
 const TOP = 89, YMAX = Math.asinh(Math.tan(TOP * Math.PI / 180)), EDGE = [[-180, TOP], [180, TOP], [180, -TOP], [-180, -TOP]];
-function picture(size, rgb, fn) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  const x = c.getContext('2d'), img = x.createImageData(size, size), d = img.data;
-  for (let j = 0; j < size; j++) {
-    const lat = Math.atan(Math.sinh(YMAX * (1 - 2 * (j + 0.5) / size))) * 180 / Math.PI;
+// `top`/`bot`: the latitudes the picture spans (a band covers fewer pixels on screen than the whole Earth: every
+// pixel of a picture layer is drawn each frame, even where it is transparent).
+const merc = lat => Math.asinh(Math.tan(lat * Math.PI / 180));
+function picture(size, rgb, fn, top = TOP, bot = -TOP, rows = size) {
+  const c = document.createElement('canvas'); c.width = size; c.height = rows;
+  const x = c.getContext('2d'), img = x.createImageData(size, rows), d = img.data, y0 = merc(top), y1 = merc(bot);
+  for (let j = 0; j < rows; j++) {
+    const lat = Math.atan(Math.sinh(y0 + (y1 - y0) * (j + 0.5) / rows)) * 180 / Math.PI;
     for (let i = 0; i < size; i++) {
       const o = (j * size + i) * 4;
       d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255 * fn((i + 0.5) / size * 360 - 180, lat);
@@ -60,9 +63,9 @@ function picture(size, rgb, fn) {
   x.putImageData(img, 0, 0);
   return c.toDataURL();
 }
-function overlay(map, id, url, before) {
-  if (map.getSource(id)) { map.getSource(id).updateImage({url, coordinates: EDGE}); return; }
-  map.addSource(id, {type: 'image', url, coordinates: EDGE});
+function overlay(map, id, url, before, coordinates = EDGE) {
+  if (map.getSource(id)) { map.getSource(id).updateImage({url, coordinates}); return; }
+  map.addSource(id, {type: 'image', url, coordinates});
   map.addLayer({id, type: 'raster', source: id, paint: {'raster-fade-duration': 0, 'raster-resampling': 'linear'}}, before);
 }
 
@@ -98,7 +101,7 @@ export const night = {
 let sw = null, swInfo = null, auroraMap = null, auroraDark = false, auroraOn = true, auroraBuilt = '';
 const G = kp => kp >= 9 ? 'G5, extreme storm' : kp >= 8 ? 'G4, severe storm' : kp >= 7 ? 'G3, strong storm' : kp >= 6 ? 'G2, moderate storm' : kp >= 5 ? 'G1, minor storm' : kp >= 4 ? 'active' : 'quiet';
 export const aurora = {
-  id: 'aurora', title: 'Aurora', color: ['#00a878', '#63e6be'], feeds: {space_weather: 300}, layers: ['ww-aurora'],
+  id: 'aurora', title: 'Aurora', color: ['#00a878', '#63e6be'], feeds: {space_weather: 300}, layers: ['ww-aurora', 'ww-aurora-s'],
   addTo(map) { auroraMap = map; },
   paint(map, dark) { auroraDark = dark; this.render(map); },
   onData(feed, d) { sw = d.payload; swInfo = d; },
@@ -127,9 +130,17 @@ export const aurora = {
       const x = ((lon % 360) + 360) % 360, y = lat + 90, x0 = Math.floor(x), y0 = Math.min(179, Math.floor(y)), fx = x - x0, fy = y - y0, x1 = (x0 + 1) % 360;
       return (g[y0 * 360 + x0] * (1 - fx) + g[y0 * 360 + x1] * fx) * (1 - fy) + (g[(y0 + 1) * 360 + x0] * (1 - fx) + g[(y0 + 1) * 360 + x1] * fx) * fy;
     };
-    const rgb = auroraDark ? [70, 235, 170] : [0, 168, 120];
-    overlay(map, 'ww-aurora', picture(768, rgb, (lon, lat) => Math.min(0.85, Math.max(0, (at(lon, lat) - 3) / 45))), slot(map, 'aurora'));
-    map.setLayoutProperty('ww-aurora', 'visibility', auroraOn ? 'visible' : 'none');
+    const rgb = auroraDark ? [70, 235, 170] : [0, 168, 120], op = (lon, lat) => Math.min(0.85, Math.max(0, (at(lon, lat) - 3) / 45));
+    // two polar bands instead of one picture of the whole Earth (most of which is empty): each reaches 6 degrees past
+    // the lowest cell NOAA gives a chance there, so the soft edge is kept; at least 30 degrees from the pole
+    let lowN = 60, lowS = -60;
+    for (const [, lat, p] of sw.aurora) if (p >= 3) { if (lat > 0) lowN = Math.min(lowN, lat); else if (lat < 0) lowS = Math.max(lowS, lat); }
+    const bandN = [TOP, Math.max(0, lowN - 6)], bandS = [Math.min(0, lowS + 6), -TOP];
+    for (const [id, [t, b]] of [['ww-aurora', bandN], ['ww-aurora-s', bandS]]) {
+      const rows = Math.max(16, Math.round(768 * (merc(t) - merc(b)) / (2 * YMAX)));
+      overlay(map, id, picture(768, rgb, op, t, b, rows), id === 'ww-aurora' ? slot(map, 'aurora') : 'ww-aurora', [[-180, t], [180, t], [180, b], [-180, b]]);
+      map.setLayoutProperty(id, 'visibility', auroraOn ? 'visible' : 'none');
+    }
   },
   visible(on) { auroraOn = on; if (on && auroraMap) this.render(auroraMap); },
   count: () => 0,
@@ -189,7 +200,8 @@ export const lightning = {
       lightTime = t; lightAt = Date.parse(t) / 1000;
       // every tile asks for the same image time, so the picture holds still while zooming
       tiles(map, 'ww-lightning', `${EUM}&layers=mtg_fd:li_afa&width=256&height=256&bbox={bbox-epsg-3857}&TIME=${encodeURIComponent(t)}`,
-        {tileSize: 256, maxzoom: 8, attribution: 'Lightning: EUMETSAT MTG-LI'},
+        // bounds: the part of the Earth MTG sees (it hangs over 0 degrees); no tiles are asked or drawn outside it
+        {tileSize: 256, maxzoom: 8, bounds: [-81, -81, 81, 81], attribution: 'Lightning: EUMETSAT MTG-LI'},
         {paint: {'raster-opacity': 0.95, 'raster-fade-duration': 0}, layout: {visibility: lightOn ? 'visible' : 'none'}}, slot(map, 'lightning'));
       document.dispatchEvent(new Event('ww-chips'));
     };

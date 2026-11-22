@@ -225,7 +225,7 @@ map.on('load', () => {
   repaint();
   loadFlags();
   for (const l of LAYERS) show(l);
-  const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-cables', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
+  const NO_CLICK = ['ww-ship-trail', 'ww-photo', 'ww-live-goesw', 'ww-live-goese', 'ww-live-iodc', 'ww-live-mtg', 'ww-sharp', 'ww-lightning', 'ww-night', 'ww-rain', 'ww-aurora', 'ww-aurora-s', 'ww-iss-track', 'ww-air-route', 'ww-air-trail', 'ww-hazards-track', 'ww-people-label'];
   const hit = LAYERS.flatMap(l => l.layers).filter(id => !NO_CLICK.includes(id));
   map.on('click', e => {
     if (chase && orbitMoved > 4) { orbitMoved = 0; return; }   // the end of a drag around the followed target, not a click

@@ -1842,3 +1842,36 @@ Found, in order of weight:
 
 Not done, said to him: news/unrest thumbnails are the outlets' full-size pictures (100-220 KB each); resizing needs an image
 library (Pillow), a new dependency: his call. Untested: Safari and a real GPU; all numbers are from software GL.
+
+### 2026-11-22, a lighter globe: level of detail, dynamic resolution, smaller pictures (built, waiting for his feel test)
+
+Owner: "can we make the whole globe system lighter? ... rendering tricks ... that games use ... try try try".
+Measured with draw-call/vertex counting per layer (exact) in headless Chromium; timings in software GL swing 300-1,600 ms
+between identical runs here, so only counts are trusted. Scripts in the session scratchpad `perf/` (attr.js: work per
+layer via a wrapped `painter.renderLayer`; stencil.js; lod.js; seam.js + diff.js; dyn.js).
+
+- **Where the globe's work went:** of 8.9 million vertex indices a frame, layers drew only 1.1 million. ~6 million were
+  the **clipping masks**: on the globe every tile of every source first draws a curved stencil mesh, at MapLibre's
+  default detail (128 pieces per tile side at zoom 0). The rest: lines cut into 512 pieces round the world, picture
+  tiles never under 32 x 32 cells, circles 3 x 3.
+- **Level of detail** (`GLOBE_LOD` / `globeLod()` in `map.js`): MapLibre's globe granularity object is reachable at
+  `map.style.projection._verticalPerspectiveProjection.subdivisionGranularity` and is replaced after the first
+  `setProjection` (fill 64/8, line 128/8, picture tiles 64/16, stencil 64/8, circle 1). Chosen by computing, per zoom 1-10,
+  the sag of a straight piece below the curve in pixels: worst 0.39 px for lines and pictures, 0.78 px for area edges and
+  tile seams at zoom 3 (MapLibre's own masks reach 1.57 px at zoom 6). Result: **8.9 -> 2.7 million indices a frame**
+  (-70 %), same draw calls. Pixel diff default vs tuned at zoom 3.3: only moving items and sub-pixel picture resampling
+  differ; no gaps at tile seams. `window.WW_LOD` overrides the numbers for measuring. Depends on the vendored MapLibre
+  5.24.1 internals; on another version it silently keeps the defaults.
+- **Dynamic resolution** (`dynamicResolution()` in `map.js`): while the map is moved by hand and the middle of the last 6-8
+  frame gaps is over 22 ms, the map draws at 2/3 of its pixel ratio (Retina Balanced 1.5 -> 1.0; ordinary screen 1 ->
+  0.75) and returns 250 ms after it stops. Only in Map sharpness "Balanced"; never for the chase camera (no
+  originalEvent). **Lesson:** `map.setPixelRatio()` runs `resize()`, which calls `stop()` and killed the drag (a 300 px drag
+  turned the globe 4 degrees instead of 57); `setRatio()` uses `_resizeInternal()` instead. Tested: drag completes, ratio
+  drops and recovers, also in 3D.
+- **Fewer picture pixels:** the aurora was one picture of the whole Earth (every pixel drawn each frame, mostly empty); now
+  two polar bands reaching 6 degrees past NOAA's lowest cell (`ww-aurora`, `ww-aurora-s`; NOAA's 3 % cells at the equator
+  were already invisible, opacity starts above 3 %). Lightning tiles get `bounds` [-81,-81,81,81] (what MTG sees).
+- **Bug fixed from the previous round:** removing the cable hit layer had left `ww-cables` in `NO_CLICK`, so cables could
+  not be clicked; removed from that list.
+- Main thread while spinning the globe: ~87 % idle; the globe is GPU-bound, which is what the above cuts. **Untested on his
+  Mac/Safari GPU**; the feel there is the real test.
