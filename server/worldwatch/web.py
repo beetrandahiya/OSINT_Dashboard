@@ -3,8 +3,8 @@ the browser only ever talks to this process."""
 import asyncio
 import contextlib
 import math
+import os
 import re
-import resource
 import sys
 import time
 from pathlib import Path
@@ -29,10 +29,34 @@ STATIC = Path(__file__).parent / "static"
 collector = Collector()
 
 
-def _process() -> dict:
+def _peak_memory_mb() -> float:
+    """`resource` is Unix-only; on Windows the peak working set comes from psapi."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+                        ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                        ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
+
+        c = Counters(cb=ctypes.sizeof(Counters))
+        kernel32 = ctypes.WinDLL("kernel32")
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi = ctypes.WinDLL("psapi")
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        psapi.GetProcessMemoryInfo(kernel32.GetCurrentProcess(), ctypes.byref(c), c.cb)
+        return c.PeakWorkingSetSize / (1024 * 1024)
+    import resource
     ru = resource.getrusage(resource.RUSAGE_SELF)
-    peak = ru.ru_maxrss / (1024 * 1024 if sys.platform == "darwin" else 1024)   # macOS reports bytes, Linux kilobytes
-    return {"peak_memory_mb": round(peak, 1), "cpu_seconds": round(ru.ru_utime + ru.ru_stime, 2)}
+    return ru.ru_maxrss / (1024 * 1024 if sys.platform == "darwin" else 1024)   # macOS reports bytes, Linux kilobytes
+
+
+def _process() -> dict:
+    t = os.times()
+    return {"peak_memory_mb": round(_peak_memory_mb(), 1), "cpu_seconds": round(t.user + t.system, 2)}
 
 
 def _ships_world_state(f):
