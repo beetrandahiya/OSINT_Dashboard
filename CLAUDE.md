@@ -1875,3 +1875,38 @@ layer via a wrapped `painter.renderLayer`; stencil.js; lod.js; seam.js + diff.js
   not be clicked; removed from that list.
 - Main thread while spinning the globe: ~87 % idle; the globe is GPU-bound, which is what the above cuts. **Untested on his
   Mac/Safari GPU**; the feel there is the real test.
+
+### 2026-11-25, installed on the M1; server memory measured and step 1 of a fix (Claude Code on his Windows PC)
+
+Owner asked to run it on the M1 over the network ("would it be too much work ... 8 GB ... runs a bunch of things").
+
+- **The M1** (user `hello`, Tailscale `100.80.141.27`, SSH by key from the PC): 8 GB, already ~4 GB in swap and
+  2 GB compressed, pressure "normal", 75 % CPU idle. Services there are small (Jellyfin ~470-610 MB, Homebridge +
+  Zigbee2MQTT ~130 MB, music server, Mosquitto). The big users were **Safari (~1.1 GB) and the "Music" Safari web app
+  (~2 GB, open 12 days)**: told the owner; closing those frees ~10x what World Watch takes. Never open the globe in
+  Safari on the M1 itself: the map is viewed from the PC or the M5 Air.
+- **Installed** with `deploy/install-m1.sh` (the music server's pattern): code in `~/WorldWatch`, launchd
+  `local.worldwatch.server`, data and keys in `~/worldwatch-data` (`WW_DATA`), port 8710 on all interfaces,
+  `WW_LOOKUP_REMOTE=1`. Deployed by `git archive HEAD | ssh ... tar -x` then `launchctl kickstart -k`. The aisstream /
+  OpenSanctions keys he set up earlier are on another Mac (the M5 Air?), not on the M1 yet. A desktop link on his PC
+  opens `http://100.80.141.27:8710/` (MagicDNS fails on that PC).
+- **Windows:** `web.py` imported `resource` (Unix only) and would not start; peak memory now comes from psapi there.
+- **Memory, measured** (tracemalloc with full tracebacks on Windows; `top` footprint on the M1 every 5 min):
+  **no leak.** Python's live data was ~160 MB and grew only with the windows filling (news, trails). The process is
+  bigger because Python keeps memory a parse touched. Live data by holder: news 6 h window ~42 MB (rows from
+  `data/gdelt`), feed payloads ~50 MB (largest: translated news, sites, aircraft_world, news ~6 MB each), the sites
+  feed's **raw answers kept all week, ~30 MB** (`feed.memo["parts"]`), results from child processes ~23 MB, code ~9 MB.
+  Earlier "408 MB at 50 min" was the sandbox under Linux; on the M1 it did not climb, it swung with each download.
+- **Step 1 built** (owner picked step 1 only of a two-step plan): `helper.py`, one spawn helper process for heavy parses,
+  closed after 20 s idle or 25 jobs (`_in_child` uses it). In the helper now: GDELT news files (`news.parse_following`
+  carries WATCH along: the helper has its own empty WATCH), protest events and mentions, OpenSky's world snapshot
+  (`opensky.py`). The sites feed writes each source's answer to `data/sites-sources/*.json.gz` and reads it back only
+  when that source fails (also across restarts now).
+- **Result on the M1, one hour each, footprint every 5 min:** before 244-377 MB (mean 291); after **233-295 MB (mean
+  264)**. Peaks down ~80 MB, average ~10 %. The floor (~230-260 MB) is the live data plus the interpreter.
+- **Step 2, not built (owner: step 1 only for now):** for big feeds the server rarely reads itself (news, sites,
+  cameras, fires, cables), keep only the gzipped answer in RAM and read the full payload from SQLite when a card or
+  dossier asks; and keep the news window in SQLite instead of ~42 MB of rows. That is what would lower the floor.
+- **CelesTrak blocked the home address** after repeated restarts on 2026-11-25 (satellites feed failing, "HTTPStatusError"
+  for every family): the PC and the M1 share one public address, so testing on the PC counts against the M1. Don't restart
+  in loops; the feed backs off by itself.
