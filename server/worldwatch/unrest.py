@@ -21,7 +21,7 @@ import time
 import zipfile
 from urllib.parse import urlparse
 
-from . import config
+from . import config, helper
 from . import news as news_window
 
 WINDOW = 24 * 3600
@@ -189,7 +189,7 @@ class Unrest:
             raw = await grab("export", stamp)
             budget -= 1
             if raw is not None:
-                self.events[stamp] = await asyncio.to_thread(parse_events, raw)
+                self.events[stamp] = await helper.run(parse_events, raw)      # in the helper process (helper.py)
                 await asyncio.to_thread(news_window.cache_save, "events", stamp, self.events[stamp])
         events_done = all(s in self.events or ("export", s) in self.missing for s in slots)
         if events_done:
@@ -206,7 +206,7 @@ class Unrest:
                 raw = await grab("mentions", stamp)
                 budget -= 1
                 if raw is not None:
-                    self.mentions[stamp] = await asyncio.to_thread(parse_mentions, raw, wanted)
+                    self.mentions[stamp] = await helper.run(parse_mentions, raw, wanted)
                     await asyncio.to_thread(news_window.cache_save, "mentions", stamp, self.mentions[stamp])
         oldest = slots[-1]
         for d in (self.events, self.mentions):

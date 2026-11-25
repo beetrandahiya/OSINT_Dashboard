@@ -8,6 +8,7 @@ Rules every feed follows:
 """
 import asyncio
 import calendar
+import gzip
 import html
 import io
 import json
@@ -21,7 +22,7 @@ from typing import Any, Awaitable, Callable
 
 import httpx
 
-from . import config, db, translate
+from . import config, db, helper, opensky, translate
 from . import news as news_window
 from . import unrest as unrest_window
 from . import navwarn
@@ -160,11 +161,9 @@ async def aircraft_military(feed: Feed, f: Fetcher) -> Result:
 
 
 async def aircraft_world(feed: Feed, f: Fetcher) -> Result:
-    d = (await f.get("https://opensky-network.org/api/states/all")).json()
-    ac = [{"hex": s[0], "flight": (s[1] or "").strip() or None, "lon": s[5], "lat": s[6],
-           "alt_m": s[7], "on_ground": s[8], "gs_ms": s[9], "track": s[10], "last_contact": s[4]}
-          for s in d.get("states") or [] if s[5] is not None and s[6] is not None]
-    return Result(len(ac), {"aircraft": ac}, data_time=float(d["time"]))
+    raw = (await f.get("https://opensky-network.org/api/states/all")).content
+    ac, data_time = await helper.run(opensky.opensky_aircraft, raw)       # decoded in the helper process
+    return Result(len(ac), {"aircraft": ac}, data_time=data_time)
 
 
 SAT_GROUPS = {"visual": "the brightest", "stations": "space stations", "gps-ops": "GPS", "galileo": "Galileo", "geo": "geostationary"}
@@ -391,12 +390,9 @@ async def vip_aircraft(feed: Feed, f: Fetcher) -> Result:
 
 
 def _in_child(fn, *args):
-    """Run a heavy one-off parse in a short-lived child process: Python keeps memory it has used, so a 25 MB parse
-    in the server would stay in the server for good. In a child, the memory goes back when it exits."""
-    import concurrent.futures
-    import multiprocessing
-    with concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
-        return pool.submit(fn, *args).result(timeout=300)
+    """Run a heavy one-off parse in the short-lived helper process (helper.py): Python keeps memory it has used, so a
+    25 MB parse in the server would stay in the server for good. In the helper, the memory goes back when it exits."""
+    return helper.run_sync(fn, *args)
 
 
 async def sat_catalog(feed: Feed, f: Fetcher) -> Result:
@@ -855,16 +851,38 @@ async def cable_faults(feed: Feed, f: Fetcher) -> Result:
                        f"from {len(items)} headlines of the last 60 days" + ("; " + "; ".join(problems) if problems else ""))
 
 
+SITES_KEPT = config.DATA / "sites-sources"
+
+
+def _keep_part(key: str, value) -> None:
+    SITES_KEPT.mkdir(parents=True, exist_ok=True)
+    tmp = SITES_KEPT / f".{key}.tmp"
+    tmp.write_bytes(gzip.compress(json.dumps(value, ensure_ascii=False).encode(), 6))
+    tmp.replace(SITES_KEPT / f"{key}.json.gz")
+
+
+def _kept_part(key: str):
+    try:
+        return json.loads(gzip.decompress((SITES_KEPT / f"{key}.json.gz").read_bytes()))
+    except (OSError, ValueError, EOFError):
+        return None
+
+
 async def sites_feed(feed: Feed, f: Fetcher) -> Result:
     """Military bases and nuclear sites from Wikidata, OpenStreetMap (QLever), US DoD MIRTA and Global Energy
-    Monitor (see sites.py). Weekly. A source that fails keeps its last good answer from this run."""
-    parts, problems = feed.memo.setdefault("parts", {}), []
+    Monitor (see sites.py). Weekly. A source that fails keeps its last good answer, read back from disk
+    (data/sites-sources): held in memory all week, the raw answers were ~30 MB of the server's RAM (measured 2026-11-25)."""
+    parts, problems = {}, []
     ua = {"User-Agent": config.USER_AGENT}
     async def get(key, label, coro):
         try:
             parts[key] = await coro
+            await asyncio.to_thread(_keep_part, key, parts[key])
         except Exception as e:
-            problems.append(f"{label} ({type(e).__name__}{', kept the last answer' if key in parts else ''})")
+            old = await asyncio.to_thread(_kept_part, key)
+            if old is not None:
+                parts[key] = old
+            problems.append(f"{label} ({type(e).__name__}{', kept the last answer' if old is not None else ''})")
     async def sparql(q):
         r = await f.get(sites.WDQS, params={"query": q}, headers={**ua, "Accept": "text/csv"}, timeout=120)
         return r.text
@@ -877,7 +895,7 @@ async def sites_feed(feed: Feed, f: Fetcher) -> Result:
         url = sites.gem_url((await f.get(sites.GEM_CONFIG, headers=ua)).text)
         if not url:
             raise RuntimeError("map file not named in GEM's config")
-        parts["gem_url"] = url
+        feed.memo["gem_url"] = url
         return (await f.get(url, headers=ua, timeout=60)).json()
     await get("wd_bases", "Wikidata bases", sparql(sites.WD_BASES))
     await get("wd_nuclear", "Wikidata nuclear", sparql(sites.WD_NUCLEAR))
@@ -887,8 +905,8 @@ async def sites_feed(feed: Feed, f: Fetcher) -> Result:
     await get("gem", "Global Energy Monitor", gem())
     if not parts.get("wd_bases") and not parts.get("osm"):
         raise RuntimeError("; ".join(problems) or "no source answered")
-    d = await asyncio.to_thread(_in_child, sites.build, {k: v for k, v in parts.items() if k != "gem_url"})
-    d["gem_url"] = parts.get("gem_url")
+    d = await asyncio.to_thread(_in_child, sites.build, parts)
+    d["gem_url"] = feed.memo.get("gem_url")
     sites.reload_areas()
     c = d["military_counts"]
     return Result(len(d["military"]) + len(d["plants"]) + len(d["facilities"]), d, data_time=time.time(), data_label="read",

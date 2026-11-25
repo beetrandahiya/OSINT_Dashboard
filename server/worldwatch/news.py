@@ -19,7 +19,7 @@ import zipfile
 from urllib.parse import urlparse
 from email.utils import parsedate_to_datetime
 
-from . import config, wire
+from . import config, helper, wire
 
 CACHE = config.DATA / "gdelt"     # each slot's reduced rows, written once, so a restart does not refill six hours
 
@@ -159,7 +159,12 @@ class Window:
                 continue
             r.raise_for_status()
             published = parsedate_to_datetime(r.headers["last-modified"]).timestamp()
-            self.files[stamp] = (published, await asyncio.to_thread(parse, r.content, self.translated))
+            raw = r.content
+            del r
+            # parsed in the helper process (helper.py): a translated file is ~30 MB of text, and what parsing it
+            # touches would otherwise stay in the server
+            self.files[stamp] = (published, await helper.run(parse_following, raw, self.translated, frozenset(WATCH)))
+            del raw
             await asyncio.to_thread(cache_save, self.name, stamp, self.files[stamp])
             self.missing.pop(stamp, None)
             got += 1
@@ -239,6 +244,13 @@ def set_watch(names) -> None:
     """Which people's names to keep in the news rows (see parse); called when the leaders list is loaded."""
     WATCH.clear()
     WATCH.update(_norm(n) for n in names if n)
+
+
+def parse_following(raw_zip: bytes, translated: bool, watch: frozenset) -> list[tuple]:
+    """`parse` for the helper process, which has its own (empty) WATCH: the server's list comes along."""
+    WATCH.clear()
+    WATCH.update(watch)
+    return parse(raw_zip, translated)
 
 
 def _norm(name: str) -> str:

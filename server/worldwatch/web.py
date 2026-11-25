@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import cams, config, db, hotspots, imaged, maxar, patterns, sanctions, satinfo, sites, translate, wire
+from . import cams, config, db, helper, hotspots, imaged, maxar, patterns, sanctions, satinfo, sites, translate, wire
 from . import dossier
 from . import news as news_window
 from .collector import Collector
@@ -1218,6 +1218,7 @@ async def lifespan(app):
     yield
     await ais_stream.stop()
     await collector.stop()
+    helper.shutdown()
 
 
 app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimum_size=2000, compresslevel=6)], routes=[
