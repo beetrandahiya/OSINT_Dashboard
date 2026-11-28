@@ -2027,3 +2027,16 @@ capitals or sentence case wordmark.
   CSS (not brand guides).
 - Questions put to him: which one or two to develop (real .ico / Icon Composer files, top bar in the app); is the Soviet
   programme fine as Oko's story; should the God's eye look take the brand palette.
+
+### 2026-11-28, Footprint chosen; colours sampled from real pictures (waiting for his palette pick)
+
+- Owner: **"footprint is perfect, but the colors look too AI, we need better colors."** The shape is fixed (do not change
+  the geometry). The blue looked generated because it is Blueprint's interface blue on a white eyeball.
+- Page: https://claude.ai/artifact/JcsfETY79JCEQjwg1Bn7Jd (sources `docs/brand/globe/footprint-colour/`). Every colour is
+  sampled (k-means in CIELAB, swatch = median pixel of its group) from: NASA DSCOVR EPIC natural colour 25 Nov 2026 11:01 UTC
+  (public domain), Copernicus Sentinel-2A over Munich 26 Sep 2026, 0 % cloud (tile 32UPU), a declassified CORONA KH-4B frame
+  (Baikonur 1969, public domain), or FED-STD-595C paint chips (XYZ illuminant C from A. Jaffer's MIT table, Bradford to D65).
+- Options: **1 Two satellites** (EPIC ocean globe #2F3C4D, Sentinel-2 field footprint #837F5E, Munich forest pupil #101A06,
+  space plate #000000; my pick), 2 Whole Earth (EPIC only, cloud footprint #B9BCBB), 3 Compass Ghost (F-15 greys: 36118
+  plate, 36495 globe, 36176 footprint, 37038 pupil), Munich from orbit (olive), CORONA film (greys).
+- Questions put to him: which palette (mixing allowed); should the God's eye look take the palette or keep ice blue.
