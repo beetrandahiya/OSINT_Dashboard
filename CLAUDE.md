@@ -2123,3 +2123,9 @@ capitals or sentence case wordmark.
   selected, keys).
 - Asked him: is this the density he meant (or add a 24 h timeline), should a side column fold away, then draw the remaining
   screens in this look before building.
+- **Round two, his notes (same link, version 2):** World panel lacked right padding (fixed columns now); light theme shows the
+  light logo; **both side panels fully retractable** (fold buttons in the top bar, edge tabs when folded); **views behind a
+  "Views" button** that opens the strip; **globe only where something is placed on it**: Connections graph, Investigate and
+  Sources on a plain background, plus a new **Connections "On the map"** view placing companies at their registered place
+  (Wikidata P159 / P131 / own P625, GLEIF address city; 22 of 25 placed for Rosneft, 3 listed as not placed). Asked him: edge
+  tab or nothing when a panel is folded; should the Connections map also mark ships/aircraft owned by these companies.

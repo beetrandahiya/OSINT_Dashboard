@@ -51,19 +51,22 @@ def pick_wm():
     return mock.WMVB_PATH, mock.WMW
 
 
-def topbar(t, active, context, search, extra=""):
-    icon = P.flat_svg("light" if t == "l" else "dark", "tb" + active + t).replace("<svg ", '<svg width="28" height="28" ', 1)
+def topbar(t, active, context, search, extra="", left=True, right=True, folded=False):
+    il = P.flat_svg("light", "tbl" + active).replace("<svg ", '<svg class="ic-l" width="28" height="28" ', 1)
+    idk = P.flat_svg("dark", "tbd" + active).replace("<svg ", '<svg class="ic-d" width="28" height="28" ', 1)
     tabs = "".join(f'<span class="tab{" on" if n == active else ""}">{n}</span>' for n in ["Map", "Connections", "Investigate", "Sources"])
     d, w = pick_wm()
-    return (f'<header class="tb"><span class="brand">{icon}<svg class="wm" viewBox="{mock.WMVB}" width="{w:.0f}" height="{mock.WMH:.1f}" aria-label="World Watch">'
-            f'<path d="{d}" fill="currentColor"/></svg></span><nav class="tabs">{tabs}</nav><span class="view">{context}</span>'
+    lb = f'<span class="fold l{" off" if folded else ""}" title="{"Show" if folded else "Hide"} the left panel" aria-label="{"Show" if folded else "Hide"} the left panel"><i></i></span>' if left else ""
+    rb = f'<span class="fold r{" off" if folded else ""}" title="{"Show" if folded else "Hide"} the right panel" aria-label="{"Show" if folded else "Hide"} the right panel"><i></i></span>' if right else ""
+    return (f'<header class="tb"><span class="brand">{il}{idk}<svg class="wm" viewBox="{mock.WMVB}" width="{w:.0f}" height="{mock.WMH:.1f}" aria-label="World Watch">'
+            f'<path d="{d}" fill="currentColor"/></svg></span>{lb}<nav class="tabs">{tabs}</nav><span class="view">{context}</span>'
             f'<span class="search"><i class="lens"></i>{search}</span>{extra}'
-            f'<span class="feeds"><i class="dot live"></i>37 of 45 ok<span class="sep">·</span><i class="dot fail"></i>3 failing</span><span class="gear" aria-label="Settings"></span></header>')
+            f'<span class="feeds"><i class="dot live"></i>37 of 45 ok<span class="sep">·</span><i class="dot fail"></i>3 failing</span>{rb}<span class="gear" aria-label="Settings"></span></header>')
 
 
-def board(name, t, bg, body):
-    return (f'<div class="fit" data-w="{W}" data-h="{H}"><div class="board big ui {t} smoke suite" data-board="{name}" '
-            f'style="background-image:url({bg})">{body}</div></div>')
+def board(name, t, bg, body, extra_cls=""):
+    style = f' style="background-image:url({bg})"' if bg else ""
+    return (f'<div class="fit" data-w="{W}" data-h="{H}"><div class="board big ui {t} smoke suite{" plain" if not bg else ""} {extra_cls}" data-board="{name}"{style}>{body}</div></div>')
 
 
 # ============================== MAP ==============================
@@ -162,7 +165,7 @@ def world_signals():
                  f'<td><b>{esc(g["place"].split(",")[0])}</b><small>{esc(g["place"].split(",")[-1].strip())} · {esc(g["action"])}</small></td>'
                  f'<td class="num r">{g["outlets"]}</td><td class="num r q nw">{ago(g["last"])}</td></tr>' for g in rows)
     return (f'<section class="pnl"><div class="ph"><b>World</b><span>protests and clashes, 24 h</span><span class="src">GDELT · {dt(D["ut"], "%H:%M")}</span></div>'
-            f'<table class="dt"><thead><tr><th></th><th>Place · coded as</th><th class="r">Outlets</th><th class="r">Ago</th></tr></thead><tbody>{tr}</tbody></table></section>')
+            f'<table class="dt fx"><colgroup><col style="width:22px"><col><col style="width:58px"><col style="width:42px"></colgroup><thead><tr><th></th><th>Place · coded as</th><th class="r">Outlets</th><th class="r">Ago</th></tr></thead><tbody>{tr}</tbody></table></section>')
 
 
 def watch():
@@ -185,8 +188,7 @@ def watch():
  <p class="fleet">{fleet}.</p></div>
 <div class="wrow"><div class="wh"><i class="g">{ico("as_avoid", "var(--u-fail)")}</i><b>Airspace</b><span class="src">EASA, FAA · {len(zones)} warnings · {len(a["tfrs"])} US TFRs</span></div>
  <p>Do not fly: {esc(", ".join(names[:9]))} and {len(names) - 9} more.</p></div>
-<div class="wrow"><div class="wh"><i class="g">{ico("quake_m", "var(--u-ink)")}</i><b>Earthquakes M5+</b><span class="src">USGS · last 24 h</span></div>
- <p>{"; ".join(f'<span class="num">M{q["mag"]:.1f}</span> {esc(q["place"])}' for q in q5)}.</p></div>
+
 </section>'''
 
 
@@ -195,7 +197,7 @@ def markets():
     rows = "".join(f'<tr><td>{esc(q["name"])}</td><td class="num r">{q["price"]:,.2f}</td><td class="num r {"up" if q["price"] >= q["previous_close"] else "dn"}">'
                    f'{(q["price"] / q["previous_close"] - 1) * 100:+.1f}%</td><td class="num r q">{dt(q["time"], "%-d %b")}</td></tr>' for q in m)
     rows += f'<tr><td>Bitcoin</td><td class="num r">{cr["usd"]:,}</td><td class="num r {"up" if cr["usd_24h_change"] >= 0 else "dn"}">{cr["usd_24h_change"]:+.1f}%</td><td class="num r q">{dt(cr["last_updated_at"], "%H:%M")}</td></tr>'
-    return f'<section class="pnl"><div class="ph"><b>Markets</b><span>delayed, unofficial</span><span class="src">Yahoo, CoinGecko</span></div><table class="dt mk2">{rows}</table></section>'
+    return f'<section class="pnl"><div class="ph"><b>Markets</b><span>delayed, unofficial</span><span class="src">Yahoo, CoinGecko</span></div><table class="dt mk2 fx"><colgroup><col><col style="width:80px"><col style="width:54px"><col style="width:58px"></colgroup>{rows}</table></section>'
 
 
 def tiles12():
@@ -218,20 +220,35 @@ def tiles12():
     return f'<section class="tiles t12">{"".join(cells)}<div class="more"><span>12 of 39 layers on</span><b>All layers</b></div></section>'
 
 
-def map_board(t):
-    body = (map_svg() + topbar(t, "Map", 'Theatre <b>Europe and the Middle East</b>', "Find a place, person or company",
-                               f'<span class="clock"><b class="num">03:08</b> UTC<span class="sep">·</span><b class="num">04:08</b> Munich</span>')
-            + f'<aside class="lcol">{world_signals()}{watch()}{markets()}</aside>'
-            + f'<aside class="col">{mock.card()}{mock.now_list()}{tiles12()}</aside>'
-            + views_strip_map() + f'<div class="seen"><span>Seen from</span> <b class="num">35.0° N 19.0° E · 2,676 km up</b> · looking at 49.0° N 34.0° E · 28 Nov 2026 03:08 UTC</div>'
-            + '<div class="key"><span><i class="sw" style="background:#f87171"></i>Do not fly</span><span><i class="sw" style="background:#facc15"></i>GPS interference, 27 Nov</span>'
-              '<span><i class="sw" style="background:#fb7185"></i>Occupied</span><span><i class="sw ln"></i>Cables</span></div>')
-    return board("map", t, IMG["s-map"], body)
+FULLCAM = Cam(19, 35, 0.42, 34, 49, 1500, 960, 450)
+SIDECAM = MAPCAM
 
 
-def views_strip_map():
+def map_board(t, folded=False):
+    global MAPCAM, X0, X1
+    MAPCAM, X0, X1 = (FULLCAM, 0, W) if folded else (SIDECAM, 392, 1448)
+    clock = f'<span class="clock"><b class="num">03:08</b> UTC<span class="sep">·</span><b class="num">04:08</b> Munich</span>'
+    body = map_svg() + topbar(t, "Map", 'Theatre <b>Europe and the Middle East</b>', "Find a place, person or company", clock, folded=folded)
+    if folded:
+        body += '<span class="handle l" title="Show the left panel"><i></i></span><span class="handle r" title="Show the right panel"><i></i></span>'
+    else:
+        body += f'<aside class="lcol">{world_signals()}{watch()}{markets()}</aside><aside class="col">{mock.card()}{mock.now_list()}{tiles12()}</aside>'
+    body += views_ctl(open_=folded, x=(24 if folded else 404))
+    seen_x = 28 if folded else 408
+    body += (f'<div class="seen" style="left:{seen_x}px;bottom:{178 if folded else 64}px"><span>Seen from</span> <b class="num">35.0° N 19.0° E · 2,676 km up</b> · looking at 49.0° N 34.0° E · 28 Nov 2026 03:08 UTC</div>'
+             f'<div class="key" style="left:{24 if folded else 404}px"><span><i class="sw" style="background:#f87171"></i>Do not fly</span><span><i class="sw" style="background:#facc15"></i>GPS interference, 27 Nov</span>'
+             '<span><i class="sw" style="background:#fb7185"></i>Occupied</span><span><i class="sw ln"></i>Cables</span></div>')
+    out = board("map", t, IMG["s-map-full" if folded else "s-map"], body)
+    MAPCAM, X0, X1 = SIDECAM, 392, 1448
+    return out
+
+
+def views_ctl(open_=False, x=404):
     names = ["Whole Earth", "Theatre", "Day and night", "Look down", "Over the pole", "Low orbit"]
-    return '<nav class="vstrip">' + "".join(f'<span class="vt{" on" if n == "Theatre" else ""}"><img src="{IMG["t-A-%d" % i]}" width="128" height="72" alt=""><span>{n}</span></span>' for i, n in enumerate(names)) + "</nav>"
+    btn = f'<span class="vbtn{" on" if open_ else ""}" style="left:{x}px"><i class="vic"></i>Views<b>Theatre</b><i class="chev"></i></span>'
+    if not open_: return btn
+    strip = '<nav class="vstrip" style="left:%dpx;bottom:62px">' % x + "".join(f'<span class="vt{" on" if n == "Theatre" else ""}"><img src="{IMG["t-A-%d" % i]}" width="128" height="72" alt=""><span>{n}</span></span>' for i, n in enumerate(names)) + "</nav>"
+    return strip + btn
 
 
 # ============================== CONNECTIONS ==============================
@@ -306,10 +323,114 @@ def conn_panel():
 <div class="src">GLEIF, Wikidata, OpenSanctions, Offshore Leaks · all answered · {dt(CTIME, "%-d %b %H:%M")} UTC</div></section>'''
 
 
+def mode_seg(on):
+    return f'<span class="seg"><span class="{"on" if on == "graph" else ""}">Graph</span><span class="{"on" if on == "map" else ""}">On the map</span></span>'
+
+
 def conn_board(t):
-    body = (topbar(t, "Connections", 'Who owns what <b>Rosneft</b>', "Rosneft") + f'<aside class="lcol">{conn_results()}</aside>'
+    body = (topbar(t, "Connections", 'Who owns what <b>Rosneft</b>' + mode_seg("graph"), "Rosneft") + f'<aside class="lcol">{conn_results()}</aside>'
             + f'<div class="graph">{conn_graph()}</div><aside class="col">{conn_panel()}</aside>')
-    return board("connections", t, IMG["s-suite"], body)
+    return board("connections", t, None, body)
+
+
+WDP = json.load(open(f"{HERE}/wd-places.json"))
+CCAM = Cam(58, 38, 1.0, 58, 55, 1240, 935, 600)
+
+
+def conn_places():
+    gc = WDP["gleif_cities"]; it = WDP["items"]
+    rows = [dict(name="Rosneft", lat=it["Q1141123"]["coord"]["latitude"], lon=it["Q1141123"]["coord"]["longitude"], how="headquarters, Wikidata", place="Moscow", src="self"),
+            dict(name="“RN-Capital” LLC", lat=gc["Q649"]["lat"], lon=gc["Q649"]["lon"], how="address, GLEIF", place="Moscow", src="GLEIF"),
+            dict(name="Rosneft Deutschland GmbH", lat=gc["Q64"]["lat"], lon=gc["Q64"]["lon"], how="address, GLEIF", place="Berlin", src="GLEIF"),
+            dict(name="Transalpine Ölleitung in Österreich", lat=gc["Q261697"]["lat"], lon=gc["Q261697"]["lon"], how="address, GLEIF", place="Matrei in Osttirol", src="chain")]
+    unplaced = []
+    for h in ROS["holdings"]:
+        if not h["ref"].startswith("wd:") or "patent" in (h.get("desc") or ""): continue
+        r = it.get(h["ref"][3:]) or {}
+        if r.get("coord"):
+            place = r.get("via") or h["name"]
+            if place.endswith("headquarter"): place = "Moscow"
+            rows.append(dict(name=h["name"], lat=r["coord"]["latitude"], lon=r["coord"]["longitude"], place=place,
+                             how=("headquarters, Wikidata" if r.get("src") == "P159" else "located in, Wikidata" if r.get("src") == "P131" else "the site itself, Wikidata"), src="Wikidata"))
+        else:
+            unplaced.append(h["name"])
+    return rows, unplaced
+
+
+def conn_map_svg(rows):
+    import math as m
+    o = [f'<svg class="mk" viewBox="0 0 {W} {H}" width="{W}" height="{H}" aria-hidden="true">']
+    hq = rows[0]
+    def arc(a, b, col, w=1.1, op=.75):
+        la1, lo1, la2, lo2 = map(m.radians, (a["lat"], a["lon"], b["lat"], b["lon"]))
+        dd = 2 * m.asin(m.sqrt(m.sin((la2 - la1) / 2) ** 2 + m.cos(la1) * m.cos(la2) * m.sin((lo2 - lo1) / 2) ** 2))
+        if dd < 1e-4: return ""
+        pts = []
+        for i in range(33):
+            f = i / 32; A = m.sin((1 - f) * dd) / m.sin(dd); B = m.sin(f * dd) / m.sin(dd)
+            x = A * m.cos(la1) * m.cos(lo1) + B * m.cos(la2) * m.cos(lo2); y = A * m.cos(la1) * m.sin(lo1) + B * m.cos(la2) * m.sin(lo2); z = A * m.sin(la1) + B * m.sin(la2)
+            lat, lon = m.degrees(m.atan2(z, m.hypot(x, y))), m.degrees(m.atan2(y, x))
+            px, py, v = CCAM.proj(lon, lat, .03 * m.sin(m.pi * f) * min(1, dd / .3))
+            pts.append(f"{px:.1f} {py:.1f}")
+        return f'<path d="M{"L".join(pts)}" fill="none" stroke="{col}" stroke-width="{w}" stroke-opacity="{op}"/>'
+    for r in rows[1:]:
+        if r["src"] == "chain":
+            o.append(arc(rows[2], r, SRC_COL["Wikidata"], 1.6, .95))
+        else:
+            o.append(arc(hq, r, SRC_COL["GLEIF"] if r["src"] == "GLEIF" else SRC_COL["Wikidata"], 1.6 if r["name"].startswith("Rosneft Deutschland") else 1.1, .95 if r["name"].startswith("Rosneft Deutschland") else .6))
+    groups = {}
+    for r in rows:
+        groups.setdefault((round(r["lat"], 2), round(r["lon"], 2)), []).append(r)
+    boxes, labels = [], []
+    for (lat, lon), g in sorted(groups.items(), key=lambda kv: (-any(r["src"] == "self" for r in kv[1]), -len(kv[1]))):
+        x, y, v = CCAM.proj(lon, lat)
+        if not v: continue
+        n = len(g); rad = 4 + 2.2 * m.sqrt(n)
+        boxes.append((x - rad - 3, y - rad - 3, x + rad + 3, y + rad + 3))
+        col = "#fafafa" if any(r["src"] == "self" for r in g) else (SRC_COL["GLEIF"] if all(r["src"] in ("GLEIF",) for r in g) else SRC_COL["Wikidata"])
+        o.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{rad + 2.5:.1f}" fill="#09090b" fill-opacity=".7"/><circle cx="{x:.1f}" cy="{y:.1f}" r="{rad:.1f}" fill="{col}"/>')
+        if n > 1: o.append(f'<text x="{x:.1f}" y="{y + 3.6:.1f}" text-anchor="middle" class="cn">{n}</text>')
+        if any(r["src"] == "self" for r in g):
+            o.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{rad + 9:.1f}" fill="none" stroke="#09090b" stroke-width="4" stroke-opacity=".8"/><circle cx="{x:.1f}" cy="{y:.1f}" r="{rad + 9:.1f}" fill="none" stroke="#fafafa" stroke-width="1.5"/>')
+        label = g[0]["place"] if n > 1 or g[0]["how"].startswith(("headquarters", "address", "located")) else g[0]["name"]
+        if g[0]["name"].startswith("Rosneft Deutschland"): label = "Berlin · Rosneft Deutschland"
+        labels.append((x, y + 4, rad + (9 if any(r["src"] == "self" for r in g) else 0), label))
+    placed = []
+    for x, y, rad, label in labels:
+        w = 7.1 * len(label)
+        for side, x0, yy in ((1, x + rad + 8, y), (-1, x - rad - 8 - w, y), (0, x - w / 2, y + rad + 16), (0, x - w / 2, y - rad - 10)):
+            b = (x0 - 2, yy - 13, x0 + w + 2, yy + 3)
+            if b[0] < 392 or b[2] > 1448: continue
+            hit = any(not (b[2] < c[0] or b[0] > c[2] or b[3] < c[1] or b[1] > c[3]) for c in placed + [bb for bb in boxes if not (bb[0] <= x <= bb[2] and bb[1] <= y <= bb[3])])
+            if not hit:
+                placed.append(b)
+                o.append(f'<text x="{x0:.1f}" y="{yy:.1f}" class="pl">{esc(label)}</text>')
+                break
+    o.append("</svg>")
+    return "".join(o)
+
+
+def conn_places_panel(rows, unplaced):
+    by = {}
+    for r in rows: by.setdefault(r["place"], []).append(r)
+    order = sorted(by.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    K = 5
+    li = "".join(f'<div class="rg2"><b>{esc(k)}</b><span class="num">{len(v)}</span></div>' + "".join(f'<div class="rr"><span class="rn">{esc(r["name"])}</span><small>{esc(r["how"])}</small></div>' for r in v) for k, v in order[:K])
+    rest = sum(len(v) for k, v in order[K:])
+    return (f'<section class="pnl res"><div class="ph"><b>On the map</b><span>{len(rows)} of {len(rows) + len(unplaced)} placed</span><span class="src">Wikidata, GLEIF</span></div>{li}'
+            f'<div class="rmore">{rest} more in {len(order) - K} other places</div>'
+            f'<div class="ph2">Not placed <span>no location in either register</span></div>' + "".join(f'<div class="rr off"><span class="rn">{esc(n)}</span></div>' for n in unplaced)
+            + '<p class="hint">A dot is a company’s registered address or headquarters, or the site itself for a refinery. It is not where a company operates.</p></section>')
+
+
+def conn_map_board(t):
+    rows, unplaced = conn_places()
+    body = (conn_map_svg(rows) + topbar(t, "Connections", 'Who owns what <b>Rosneft</b>' + mode_seg("map"), "Rosneft")
+            + f'<aside class="lcol">{conn_places_panel(rows, unplaced)}</aside><aside class="col">{conn_panel()}</aside>'
+            + '<div class="gtools"><span class="btn">Fit</span><span class="btn">+</span><span class="btn">−</span><span class="leg">'
+            + f'<span><i class="ln" style="background:{SRC_COL["GLEIF"]}"></i>GLEIF</span><span><i class="ln" style="background:{SRC_COL["Wikidata"]}"></i>Wikidata</span>'
+            + '<span><i class="dotw"></i>Rosneft</span><span>number = companies at one place</span></span></div>')
+    return board("connections-map", t, IMG["s-conn"], body)
 
 
 # ============================== INVESTIGATE ==============================
@@ -387,7 +508,7 @@ def inv_timeline():
 def inv_board(t):
     body = topbar(t, "Investigate", 'Case <b>Reserved test identifiers</b> · specimen', "Find in this case") + \
         f'<aside class="lcol">{inv_side()}</aside><div class="imain">{inv_main()}</div><aside class="col">{inv_timeline()}</aside>'
-    return board("investigate", t, IMG["s-suite"], body)
+    return board("investigate", t, None, body)
 
 
 # ============================== SOURCES ==============================
@@ -452,4 +573,4 @@ def src_board(t):
 <p class="small">The map keeps the last good snapshot and greys it out with its age. From this cloud server OpenSky often times out; from your network it answered before.</p>
 <div class="ph2">Keys <span>all free; files stay out of git</span></div><table class="dt"><tbody>{kr}</tbody></table>
 <div class="src">collector log, 7 days kept · times relative to 03:08 UTC</div></section></aside>''')
-    return board("sources", t, IMG["s-suite"], body)
+    return board("sources", t, None, body)

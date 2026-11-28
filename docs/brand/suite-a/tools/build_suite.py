@@ -16,11 +16,13 @@ class CamView:
 
 mock.V = CamView()
 OUT = HERE / "out"
-S.IMG = {n: B.b64(str(OUT / f"{n}.webp")) for n in ["s-map", "s-suite"] + [f"t-A-{i}" for i in range(6)]}
-PAGES = [("map", "Map", S.map_board, "Your Dense layout with a column on each side. Left: world signals, standing situations and markets. Right: the selected item, what is in view, and twelve layer tiles with each feed's state. On the map: GPS interference, airspace warnings, cables and the front line as well as the usual layers."),
-         ("connections", "Connections", S.conn_board, "A live search for Rosneft in GLEIF, Wikidata, the Offshore Leaks and the sanctions lists. PJSC Rosneft is selected; the graph shows where its chain stops, the matches in other registers, and its holdings with their sources."),
-         ("investigate", "Investigate", S.inv_board, "The specimen case on the reserved test addresses (they belong to no one): cases and identifiers on the left, the dossier in the middle, and the dated timeline on the right."),
-         ("sources", "Sources", S.src_board, "All 45 feeds as the cloud test server logged them at 03:08 UTC: state, ages, size, interval and the last 24 hours of tries. The failing OpenSky feed is selected with its last tries. Your M1 shows different states.")]
+S.IMG = {n: B.b64(str(OUT / f"{n}.webp")) for n in ["s-map", "s-map-full", "s-conn"] + [f"t-A-{i}" for i in range(6)]}
+PAGES = [("map", "Map", S.map_board, "Both side panels open; the views now sit behind one button (bottom left). Left: world signals, standing situations and markets. Right: the selected item, what is in view, and twelve layer tiles with each feed's state. On the map: GPS interference, airspace warnings, cables, the front line, protests, news, military aircraft and ships."),
+         ("map-folded", "Map, panels put away", lambda t: S.map_board(t, folded=True), "Both side panels fully retracted with the buttons in the top bar (beside the logo and beside Settings), leaving small tabs at the screen edges to bring them back. The Views button is open here, showing the six views."),
+         ("connections", "Connections, graph", S.conn_board, "No globe behind it now. A live search for Rosneft in GLEIF, Wikidata, the Offshore Leaks and the sanctions lists; PJSC Rosneft selected, with where its chain stops, its matches in other registers, and its holdings with their sources."),
+         ("connections-map", "Connections, on the map", S.conn_map_board, "The same company on the globe, because the registers say where: 22 of the 25 companies in this chain have a headquarters or registered address in Wikidata or GLEIF, or are a site with its own coordinates. Lines run from Rosneft to each holding; the chain continues from Rosneft Deutschland in Berlin to its Austrian holding. Three have no location in either register and are listed, not guessed."),
+         ("investigate", "Investigate", S.inv_board, "No globe: nothing here belongs on a map, and placing a person is something the tool never does. The specimen case on the reserved test addresses: cases and identifiers on the left, the dossier in the middle, the dated timeline on the right."),
+         ("sources", "Sources", S.src_board, "No globe. All 45 feeds as the cloud test server logged them at 03:08 UTC, with the failing OpenSky feed selected. Your M1 shows different states.")]
 figs = []
 for key, name, fn, cap in PAGES:
     figs.append(f'''<section class="pg" id="{key}"><div class="wrap"><header><h2>{name}</h2><div class="tog" role="group" aria-label="Theme of this board">
@@ -45,13 +47,13 @@ nav.jump{{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}}
 nav.jump a{{font-size:13px;padding:7px 12px;border-radius:9px;background:var(--raise);box-shadow:inset 0 0 0 .5px var(--line);text-decoration:none}}
 </style>
 <header class="top"><div class="wrap"><span class="lab">World Watch · direction A, denser · 28 Nov 2026</span><h1>Real Earth Suite</h1>
-<p>Direction A, the NASA photo with see-through Porcelain panels, carried across all four pages and packed with more information. Every number comes from real data. The map uses the server's stored feeds, newest 28 Nov 2026 03:08 UTC. Connections is a live answer from today, and Investigate uses the reserved test addresses only. Each board starts dark; switch it to light above it.</p>
-<nav class="jump"><a href="#map">Map</a><a href="#connections">Connections</a><a href="#investigate">Investigate</a><a href="#sources">Sources</a></nav></div></header>
+<p>Direction A on all four pages, second round: the logo follows the theme, both side panels retract fully, the views sit behind a button, and the globe stays only where something is placed on it. Every number comes from real data. The map uses the server's stored feeds, newest 28 Nov 2026 03:08 UTC. Connections is a live answer from today, and Investigate uses the reserved test addresses only. Each board starts dark; switch it to light above it.</p>
+<nav class="jump"><a href="#map">Map</a><a href="#map-folded">Panels put away</a><a href="#connections">Connections</a><a href="#connections-map">On the map</a><a href="#investigate">Investigate</a><a href="#sources">Sources</a></nav></div></header>
 {"".join(figs)}
 <section class="next"><div class="wrap"><span class="lab">Next</span><h2 style="margin-top:8px">What I would like to know</h2>
-<ol><li>Is this the density you meant, or should a page carry even more, for example a 24-hour timeline under the map?</li>
-<li>Do the side columns stay as they are, or should either one fold away to give the map more room?</li>
-<li>Once it is right, I draw the remaining screens in this look (each card kind, layers sheet, search, Settings, dossiers, follow mode) before building.</li></ol></div></section>
+<ol><li>When a panel is put away, should it leave the small tab at the screen edge (as drawn) or nothing at all, with only the top-bar button?</li>
+<li>Should the Connections map also light up companies already on the World Watch map, for example a ship or aircraft owned by one of them?</li>
+<li>Then I draw the remaining screens in this look (each card kind, layers sheet, search, Settings, dossiers, follow mode) before building.</li></ol></div></section>
 <footer class="end"><div class="wrap">Real Earth Suite · globes ray-cast from NASA Blue Marble Next Generation with the camera of the God's eye boards. Data: GDELT, adsb.fi, Digitraffic, DeepState, GPSJAM, EASA, FAA, TeleGeography, USNI, USGS, Yahoo, ECB, CoinGecko (store, 03:08 UTC); GLEIF, Wikidata, ICIJ Offshore Leaks, OpenSanctions (live 14:49 UTC); XposedOrNot, Hudson Rock, Gravatar, RDAP, crt.sh (12:38 UTC); the collector's fetch log. Checked in headless Chromium only. A proposal: nothing in the app has changed.</div></footer>
 <script>(function(){{
 function fit(){{document.querySelectorAll('.fit').forEach(function(f){{var w=+f.dataset.w,h=+f.dataset.h,b=f.firstElementChild,s=f.clientWidth/w;b.style.transform='scale('+s+')';f.style.height=(h*s)+'px';}});}}

@@ -19,3 +19,22 @@ a light switch above it; panels are see-through Porcelain (no blur) over the NAS
 
 Tools need the session scratchpad (`gv/cam.py`, NASA textures, `lang/` mock and glyph modules). Checked in headless Chromium
 (1440 light/dark, 400; boards at 1920 in dark and light): no overflow, no errors. Not checked in Safari.
+
+## Round two (same day, same link)
+
+Owner: World panel had no right padding; light theme must show the light logo (black globe, white footprint); Connections
+needs no globe unless companies can be placed by headquarters; both side panels fully retractable; the bottom views strip
+behind a button that expands.
+
+- Padding: dense tables use fixed columns (`.dt.fx`), so the right padding holds.
+- Logo: both flat icons in the top bar, CSS shows the one for the theme (`.ic-l` / `.ic-d`).
+- Panels: a fold button for each side in the top bar (beside the logo and beside Settings); when folded, small tabs at the
+  screen edges bring them back. Board "Map, panels put away" shows both folded with the full-width camera.
+- Views: a "Views · Theatre" button bottom-left; the strip of six pictures opens above it (shown open on the folded board).
+- Connections: graph view on a plain background; new "On the map" view (Graph | On the map switch): companies at their
+  registered place. Wikidata P159 headquarters (coordinates of the HQ item), P131 location or the item's own P625 (sites such
+  as refineries), GLEIF legal address city for LEI companies (city coordinates from Wikidata: Moscow Q649, Berlin Q64,
+  Matrei in Osttirol Q261697). 22 of 25 placed; Petro Shorouk, Восточная нефтехимическая компания and Nakhodka tank farm have
+  no location in either register and are listed as not placed. Arcs from Rosneft (Moscow) lifted slightly above the globe,
+  the chain continuing Berlin -> Matrei. Labels placed greedily without overlaps inside the free area.
+- Investigate and Sources: no globe either (nothing there belongs on a map; placing people is never done).
