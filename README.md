@@ -50,7 +50,7 @@ map from another device (for example over Tailscale), `WW_PORT`, `WW_DATA` (data
 
 ## What it fetches
 
-45 feeds, each with its own page row at `/feeds`. The intervals follow each source's published limits;
+46 feeds, each with its own page row at `/feeds`. The intervals follow each source's published limits;
 please don't shorten them.
 
 | Feed | Source | How often |
@@ -76,6 +76,7 @@ please don't shorten them.
 | US carriers | USNI News Fleet Tracker | 6 h |
 | Sanctioned ships, aircraft and companies | OpenSanctions (bulk data, no key) | weekly |
 | Offshore companies (Connections) | ICIJ Offshore Leaks database | weekly check |
+| Postal codes (Connections' map) | GeoNames (CC BY 4.0) | monthly check |
 | International Criminal Court cases | icc-cpi.int | daily |
 | Travel advice per country | US State Department, German Foreign Office | 6 h |
 | Earthquakes | USGS | 60 s |
@@ -113,12 +114,21 @@ section is skipped and says so.
 `/connections` shows who owns a company and what else its owners own, as a structure you can walk upwards
 (owner's owner's owner) and sideways. Sources: GLEIF (the official register of legal entity identifiers, with
 parents and the reasons a company gives when it declares none), Wikidata, ICIJ Offshore Leaks (Panama, Paradise,
-Pandora Papers and others) and OpenSanctions' list of sanctioned companies. Records are joined only where they
-share an identifier; a step that rests on a matching name alone is drawn dashed and says so.
+Pandora Papers and others) and OpenSanctions' list of sanctioned companies. Records are joined where they share
+an identifier, or, where Wikidata lacks the LEI that GLEIF has, where the name is the same and both registers place
+the company in the same group (the panel says so); a step that rests on a matching name alone is drawn dashed.
 Aircraft and ship cards on the map have "Who owns it (Connections)".
 
+**On the map** (switch in the top bar) places the structure's companies at their headquarters (Wikidata), else at
+the postal code or town of their GLEIF address, with the ownership lines between them. The switch **Their aircraft
+and ships now** adds their live aircraft and ships: solid line = registered owner (the free registers behind adsbdb
+and hexdb.io, looked up one a second in the background and kept two weeks) or Wikidata owner of a ship; dashed =
+flight number only (the callsign starts with the company's airline code) or Wikidata operator. Where Wikidata
+contradicts itself the link is kept and flagged. Ordinary ships' owners are in no free source.
+
 The first start downloads the Offshore Leaks database (73 MB) and imports it in the background into
-`data/icij.db` (about 500 MB, a few minutes); it checks for a new edition weekly. Only organisations can be searched;
+`data/icij.db` (about 500 MB, a few minutes); it checks for a new edition weekly. It also downloads GeoNames'
+postal codes (20 MB) into `data/postal.db` (about 100 MB, under a minute) for placing companies on the map. Only organisations can be searched;
 people appear only where a public record links them to a company, by the name the record gives, and addresses are
 not kept.
 

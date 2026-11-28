@@ -60,4 +60,45 @@ dl.facts dd { margin: 0; word-break: break-word; }
 .intro p { color: var(--text-2); line-height: 1.55; }
 .intro .ex { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; }
+/* graph or map */
+[hidden] { display: none !important; }
+.seg { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--stroke); box-shadow: var(--shadow); flex: none; }
+.seg button { border: 0; background: none; padding: 8px 14px; border-radius: 999px; color: var(--text-2); font: 500 13px/1 var(--head); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--panel-solid); }
+#mapview.mapview { position: fixed; inset: 0; z-index: 1; background: var(--bg); }   /* beats MapLibre's own .maplibregl-map { position: relative } */
+body.mapmode #graph, body.mapmode .stage-tools, body.mapmode .stage-empty { display: none; }
+body.mapmode .legend { z-index: 6; }
+body.mapmode .suite-title { background: var(--panel); border: 1px solid var(--stroke); box-shadow: var(--shadow); padding: 10px 16px; border-radius: 999px; }
+.map-tools { position: fixed; z-index: 6; left: 492px; bottom: 16px; display: flex; gap: 12px; align-items: center; padding: 6px 14px 6px 6px; border-radius: 999px; }
+.cx-switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font: 500 13px var(--head); user-select: none; margin: 10px 0 4px; }
+.map-tools .cx-switch { margin: 0; }
+.cx-switch input { appearance: none; -webkit-appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--fill-strong); position: relative; cursor: pointer; margin: 0; flex: none; transition: background .2s; }
+.cx-switch input::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-2); transition: transform .2s; }
+.cx-switch input:checked { background: var(--accent); }
+.cx-switch input:checked::after { transform: translateX(14px); background: var(--panel-solid); }
+.cx-steps { display: grid; gap: 6px; margin: 8px 0; }
+.cx-steps div { display: grid; grid-template-columns: 46px 1fr; gap: 10px; align-items: baseline; }
+.cx-steps b { font: 600 20px var(--head); text-align: right; }
+.cx-steps span { color: var(--text-2); font-size: 12px; line-height: 1.4; }
+.cx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+.cx-table th { text-align: left; font: 500 10.5px var(--head); color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; padding: 0 6px 4px; }
+.cx-table th:not(:first-child), .cx-table td:not(:first-child) { text-align: right; width: 48px; }
+.cx-table td { padding: 6px; border-top: 1px solid var(--sep); }
+.cx-table td small { display: block; color: var(--text-3); font-size: 11px; }
+.cx-table tr { cursor: pointer; } .cx-table tbody tr:hover td { background: var(--hover); }
+.cx-flag { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--warn); color: var(--warn); white-space: nowrap; }
+.cx-flags { border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: 14px; padding: 8px 12px; margin-top: 10px; }
+.cx-flags h4 { font-size: 12px; color: var(--warn); margin-bottom: 4px; }
+.cx-flags p { margin: 4px 0; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+.cx-alist { margin-top: 10px; max-height: 420px; overflow: auto; }
+.cx-place { margin-top: 8px; } .cx-place > b { font: 600 12px var(--head); color: var(--text-2); }
+.cx-back { margin-bottom: 12px; }
+.cx-link { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; padding: 6px 0; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+.cx-link i { display: block; height: 0; border-top: 2px solid var(--text); margin-top: 8px; }
+.cx-link i.dashed { border-top-style: dashed; }
+.cx-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--bg); display: inline-block; flex: none; }
+.maplibregl-ctrl-bottom-right { margin-bottom: 4px; }
+body.mapmode .maplibregl-ctrl-bottom-left { left: 492px; bottom: 64px; }
+@media (max-width: 900px) { body.mapmode .maplibregl-ctrl-bottom-left { left: 16px; } }
+@media (max-width: 900px) { .map-tools { left: 16px; } }
 @media (max-width: 900px) { #panel { width: auto; right: 16px; bottom: 45%; } .legend { display: none; } }

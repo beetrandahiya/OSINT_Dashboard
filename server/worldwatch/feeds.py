@@ -7,6 +7,7 @@ Rules every feed follows:
 - Intervals respect each source's published limits (noted per feed).
 """
 import asyncio
+import email.utils
 import calendar
 import gzip
 import html
@@ -734,6 +735,37 @@ async def offshore_leaks(feed: Feed, f: Fetcher) -> Result:
                        "the leaks themselves date from 2013-2021")
 
 
+async def postal_codes(feed: Feed, f: Fetcher) -> Result:
+    """GeoNames' postal codes of the world (CC BY 4.0, 20 MB), built into data/postal.db for Connections' map: a
+    company Wikidata gives no location for is placed at the postal code of its GLEIF address (connections/places.py).
+    Downloaded again only when GeoNames publishes a newer file."""
+    from .connections import places, store as cstore
+    head = await f.client.head(places.URL, headers={"User-Agent": config.USER_AGENT}, timeout=60, follow_redirects=True)
+    head.raise_for_status()
+    stamp = head.headers.get("Last-Modified") or head.headers.get("ETag") or ""
+    have = await asyncio.to_thread(cstore.meta_get, "postal")
+    if not (have and have.get("stamp") == stamp and places.db_path().exists()):
+        part = config.DATA / "postal.zip.part"
+        async with f.client.stream("GET", places.URL, headers={"User-Agent": config.USER_AGENT}, timeout=600, follow_redirects=True) as r:
+            r.raise_for_status()
+            with open(part, "wb") as out:
+                async for chunk in r.aiter_bytes():
+                    out.write(chunk)
+            f.wire_bytes += r.num_bytes_downloaded
+        try:
+            info = await asyncio.to_thread(_in_child, places.import_zip, str(part))
+        finally:
+            part.unlink(missing_ok=True)
+        have = {"stamp": stamp, **info}
+        await asyncio.to_thread(cstore.meta_put, "postal", have)
+    try:
+        when = email.utils.parsedate_to_datetime(have["stamp"]).timestamp()
+    except (TypeError, ValueError, KeyError):
+        when = None
+    return Result(have.get("codes", 0), {"codes": have.get("codes"), "rows": have.get("rows")}, data_time=when,
+                  note=f"{have.get('codes', 0):,} postal codes in {have.get('rows', 0):,} rows; places companies by their GLEIF address in Connections' map")
+
+
 async def sdr_receivers(feed: Feed, f: Fetcher) -> Result:
     """Public KiwiSDR shortwave receivers (0-30 MHz) that their owners list for anyone to tune, from the list
     kiwisdr.com publishes (as converted by rx.linkfanel.net for its receiver map). Listening is done in the receiver's
@@ -1391,6 +1423,8 @@ FEEDS = [
          7 * 86400, sanctioned, min_retry=3600, limit_note="two bulk files once a week (about 85 MB, read row by row); matched against live positions on request"),
     Feed("icij", "Offshore Leaks for Connections (ICIJ)", "ICIJ Offshore Leaks Database", "https://offshoreleaks.icij.org",
          7 * 86400, offshore_leaks, stale_after=None, min_retry=6 * 3600, limit_note="checks once a week whether ICIJ published a new file (73 MB); imports only then"),
+    Feed("postal", "Postal codes for Connections' map (GeoNames)", "GeoNames", "https://www.geonames.org",
+         30 * 86400, postal_codes, stale_after=None, min_retry=6 * 3600, limit_note="checks once a month whether GeoNames published a newer file (20 MB); builds the table only then"),
     Feed("sdr", "Listening stations (KiwiSDR)", "kiwisdr.com, via rx.linkfanel.net", "http://kiwisdr.com/public/",
          3600, sdr_receivers, min_retry=900, limit_note="one 0.9 MB list an hour"),
     Feed("cameras", "Public cameras", "TfL, NYC DOT, Caltrans, LTA Singapore, HK Transport Dept, Fintraffic", "https://tfl.gov.uk",

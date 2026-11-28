@@ -7,7 +7,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .. import config
-from . import icij, node, sanctioned, sources as S, store
+from . import assets, icij, node, places, sanctioned, sources as S, store
 
 NODE_TTL = 12 * 3600
 _building: dict[str, asyncio.Task] = {}
@@ -104,6 +104,48 @@ async def asset(request):
     return _ok(out)
 
 
+_REFS = re.compile(r"(lei:[0-9A-Za-z]{20}|wd:Q\d+|icij:\d+|os:[\w.\-]+)")
+_memo = {}
+
+
+def _refs(request, limit=120):
+    return [r for r in dict.fromkeys((request.query_params.get("refs") or "").split(",")) if _REFS.fullmatch(r)][:limit]
+
+
+async def get_places(request):
+    """Where each company of a structure sits (connections/places.py), for the map view."""
+    refs = _refs(request)
+    key = ("places", tuple(sorted(refs)))
+    hit = _memo.get(key)
+    if hit and time.time() - hit[0] < 600:
+        return _ok(hit[1])
+    body = await places.places(refs)
+    if not body["problems"]:
+        _memo[key] = (time.time(), body)
+    return _ok(body)
+
+
+async def get_assets(request):
+    """The live aircraft and ships of a structure's companies (connections/assets.py). The first ref is the entity the
+    page was opened on. Answers are reused for 20 s (the page asks every minute)."""
+    refs = _refs(request)
+    same = {}
+    for pair in (request.query_params.get("same") or "").split(",")[:200]:
+        a, _, b = pair.partition(">")
+        if _REFS.fullmatch(a) and _REFS.fullmatch(b):
+            same[a] = b
+    key = ("assets", tuple(refs), tuple(sorted(same.items())))
+    hit = _memo.get(key)
+    if hit and time.time() - hit[0] < 20:
+        return _ok(hit[1])
+    body = await assets.assets(refs, same)
+    if not body.get("error"):
+        _memo[key] = (time.time(), body)
+        for k in [k for k, v in _memo.items() if time.time() - v[0] > 900]:
+            _memo.pop(k, None)
+    return _ok(body, 502 if body.get("error") else 200)
+
+
 def _ship_sanctions(imo):
     from .. import web
     st = web.collector.states.get("sanctioned")
@@ -131,4 +173,6 @@ routes = [
     Route("/api/connections/holdings", more_holdings),
     Route("/api/connections/asset", asset),
     Route("/api/connections/state", state),
+    Route("/api/connections/places", get_places),
+    Route("/api/connections/assets", get_assets),
 ]

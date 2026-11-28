@@ -27,6 +27,8 @@ _gleif_times: list[float] = []   # GLEIF allows 60 requests a minute: stay at 55
 _wd_gate = asyncio.Semaphore(1)
 _wd_last = [0.0]
 _wd_cool = [0.0]          # after Wikidata refuses twice in a row, it is left alone for a minute (and the page says so)
+_qs_cool = [0.0]          # the same for Wikidata's query service (a separate limit)
+WDQS = "https://query.wikidata.org/sparql"
 
 
 def client() -> httpx.AsyncClient:
@@ -115,6 +117,7 @@ def _gleif_entity(rec):
             "country": addr.get("country"), "city": addr.get("city"), "hq_city": hq.get("city"), "hq_country": hq.get("country"),
             "jurisdiction": e.get("jurisdiction"), "legal_form": (e.get("legalForm") or {}).get("other") or (e.get("legalForm") or {}).get("id"),
             "status": e.get("status"), "category": e.get("category"), "registered_as": e.get("registeredAs"),
+            "postal": addr.get("postalCode"), "hq_postal": hq.get("postalCode"),
             "created": (e.get("creationDate") or "")[:10] or None, "lei_status": (a.get("registration") or {}).get("status"),
             "has": {k: list((v.get("links") or {}).keys()) for k, v in (rec.get("relationships") or {}).items() if k in ("direct-parent", "ultimate-parent")}}
 
@@ -123,7 +126,56 @@ async def gleif_record(lei):
     async def make():
         d = await _get_json(f"{GLEIF}/lei-records/{lei}", gate=_gleif_gate)
         return _gleif_entity(d["data"]) if d else None
-    return await cached("gleif2:rec:" + lei, WEEK, make)
+    return await cached("gleif3:rec:" + lei, WEEK, make)
+
+
+async def gleif_records(leis) -> dict:
+    """Several records at once (GLEIF takes a list of LEIs in one request), each remembered a week like gleif_record."""
+    out, need = {}, []
+    for l in dict.fromkeys(leis):
+        hit = await asyncio.to_thread(store.cache_get, "gleif3:rec:" + l, WEEK)
+        if hit is not None:
+            if hit:
+                out[l] = hit
+        else:
+            need.append(l)
+    for i in range(0, len(need), 100):
+        chunk = need[i:i + 100]
+        d = await _get_json(f"{GLEIF}/lei-records", params={"filter[lei]": ",".join(chunk), "page[size]": 100}, gate=_gleif_gate)
+        for x in (d or {}).get("data", []):
+            rec = _gleif_entity(x)
+            out[rec["lei"]] = rec
+            await asyncio.to_thread(store.cache_put, "gleif3:rec:" + rec["lei"], rec)
+    return out
+
+
+async def sparql(q: str) -> list:
+    """Rows of a query to Wikidata's query service (POST, so long VALUES lists fit). One request at a time with the
+    other Wikidata calls; after two refusals in a row the service is left alone for a minute."""
+    if time.monotonic() < _qs_cool[0]:
+        raise SourceDown("query service limiting requests; paused for a minute")
+    async with _wd_gate:
+        for attempt in range(2):
+            wait = 0.35 - (time.monotonic() - _wd_last[0])
+            if wait > 0:
+                await asyncio.sleep(wait)
+            _wd_last[0] = time.monotonic()
+            try:
+                r = await client().post(WDQS, data={"query": q}, headers={"Accept": "application/sparql-results+json"}, timeout=60)
+            except httpx.HTTPError as e:
+                raise SourceDown(type(e).__name__) from e
+            if r.status_code in (429, 502, 503, 504) and attempt == 0:      # limited, or a passing server error: once more
+                await asyncio.sleep(min(8.0, float(r.headers.get("Retry-After", 3) or 3)) + 1)
+                continue
+            if r.status_code == 429:
+                _qs_cool[0] = time.monotonic() + 60
+            if r.status_code >= 400:
+                raise SourceDown(f"HTTP {r.status_code}")
+            try:
+                return r.json()["results"]["bindings"]
+            except (ValueError, KeyError) as e:
+                raise SourceDown("not JSON") from e
+        raise SourceDown("HTTP 429 (limiting requests)")
 
 
 async def gleif_parents(lei):

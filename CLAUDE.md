@@ -2189,3 +2189,49 @@ owners) are drawn and flagged. Lesson: build an example with the same rules the 
   left out as dissolved). Browser check through the app's routes without the collector: no page errors. Wikidata throttled
   the sandbox several times; on his network it should answer faster. Not done: the "Their aircraft and ships now" switch
   itself (needs the Connections "On the map" view, which today's page does not have yet); asked him when.
+
+### 2026-11-28 night, Connections "On the map" with "Their aircraft and ships now" (built, waiting for review)
+
+His answers: **build the map view now** ("why didn't you build it already"); where **Wikidata contradicts itself, show
+the link, flagged**.
+
+Built (server `connections/places.py`, `connections/assets.py`, routes in `connections/api.py`; page
+`static/js/connections-map.js`, `connections.html/.css`, `connections.js`; feed `postal`; README):
+- **Places** (`/api/connections/places?refs=`): Wikidata headquarters (P159: the statement's coordinates, unless more than
+  50 km from the place it names: Eurowings' "Düsseldorf" carried a point near Dortmund), else P131 located in, else the
+  item's own P625; else the postal code of the GLEIF headquarters / legal address in **GeoNames' postal-code table**
+  (feed `postal`, monthly check, 20 MB zip -> `data/postal.db` 106 MB, 1.08 M codes, built in 17 s in the helper
+  process; CC BY 4.0), else the town in that table; else "not placed" with the reason. Labels use GLEIF's own town and
+  code (the table's first place name for Munich Airport's code is "Freising"). LEI -> Wikidata item and HQ coordinates
+  in one SPARQL query each, cached (`wdlei:` a week, `wdplace2:` 30 days). GLEIF records now carry postal codes
+  (`gleif3:rec:`), fetched in batches (`gleif_records`).
+- **Assets** (`/api/connections/assets?refs=<opened first>&same=wd:Q>lei:...`): per company, cached a week, from Wikidata
+  SPARQL: ICAO codes (P230), LEI, current parents/owners with names, dissolution; airline-coded subsidiaries one level
+  down (Eurowings Europe, AeroLogic); ships it owns (P127) / operates (P137) with IMO (P458), retired/dissolved left
+  out (**that query's join order is pinned with `hint:Query hint:optimizer "None"`: unpinned it timed out at 60 s**).
+  Live aircraft from `aircraft_view`, `aircraft_near`, `aircraft_military`, `aircraft_world` (newest position per
+  address); register owners from the aircraft-card cache (`acabout:`, which now also keeps the owner's airline code)
+  plus background lookups 1.1 s apart (max 400 queued) for aircraft flying a structure's code. Solid = owner code in
+  the register is a company's ICAO code (else the exact name); dashed = callsign code only, with the register's owner
+  named when outside. Ships by IMO from Digitraffic + aisstream, one entry per ship ("owned and operated"), AIS name
+  when Wikidata's label is just "IMO n". Flags: "Wikidata also names X (parent/owner)", or "Wikidata disagrees: a
+  company of this structure lists it, but its own item names only X" (never for the opened company). `same=` carries
+  the page's own joins so a GLEIF record joined to a Wikidata item by name and group is not drawn twice. SPARQL retries
+  once on 429/502/503/504; a ships failure leaves the aircraft. Answers reused 20 s (places 10 min).
+- **Page**: "Graph | On the map" in the top bar (`?view=map`). MapLibre loads only when the map opens; same base map,
+  ground and theme as the Map page (map.js `createMap`/`setGround`/`paintBase`/`paintSky`, globe). One dot per place
+  (number = companies there), labels for the opened company and its direct owners and holdings (the rest from zoom
+  4.5), ownership lines as great circles in the register's colour (dashed: ultimate parent / same name only). The
+  switch "Their aircraft and ships now" (in the panel and the bottom toolbar, remembered) adds the God's eye symbols
+  with a line to their company's place; panel: counts, owns / flies / ships per company with "flagged" chips, "Where the
+  registers disagree", the list, a card per aircraft or ship ("Why it is here"), "The map list" back button. Fit
+  frames the opened company with its direct ties within 3,000 km (far holdings and worldwide aircraft had swung the
+  globe to the Americas). Refreshes every minute (20 s while register lookups run).
+- **Lesson:** MapLibre's own `.maplibregl-map { position: relative }` beat my fixed full-window rule: the map was 0 px
+  tall. The rule is now `#mapview.mapview`.
+- Tested here (headless Chromium, dark and light, globe): Lufthansa AG opened: 309-312 aircraft; after the background
+  lookups 257 registered to group companies, 15 to outside owners (Helvetic, airBaltic...), ITA, SunExpress, Swiss
+  (Wikidata also names the Federal Office of Civil Aviation as parent) and AeroLogic (DHL) flagged; Finnlines: 4 ships in
+  Finnish waters by IMO (Finncanopus owned and operated). No page errors. **Sandbox limits:** OpenSky could not be
+  reached, so world positions came from a stored snapshot 7 h old (fresh every 20 min on his machine); no AIS key here,
+  so ships only from Digitraffic. Not tested: Safari, his GPU. The map view is globe only (no flat switch there).

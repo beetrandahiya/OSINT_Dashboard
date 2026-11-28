@@ -327,7 +327,8 @@ async def _aircraft_about(hex_: str) -> dict | None:
                 a = (r.json().get("response") or {}).get("aircraft") if r.status_code == 200 else None
                 if isinstance(a, dict):
                     body = {"maker": a.get("manufacturer"), "model": a.get("type"), "code": a.get("icao_type"), "reg": a.get("registration"),
-                            "owner": a.get("registered_owner"), "country": a.get("registered_owner_country_name"), "source": "adsbdb"}
+                            "owner": a.get("registered_owner"), "country": a.get("registered_owner_country_name"), "source": "adsbdb",
+                            "owner_code": a.get("registered_owner_operator_flag_code"), "owner_cc": a.get("registered_owner_country_iso_name")}
             if not body:
                 r = await c.get(f"https://hexdb.io/api/v1/aircraft/{hex_}")
                 if r.status_code in (200, 404):
@@ -335,7 +336,7 @@ async def _aircraft_about(hex_: str) -> dict | None:
                     a = r.json() if r.status_code == 200 else {}
                     if a.get("Type") or a.get("Manufacturer"):
                         body = {"maker": a.get("Manufacturer"), "model": a.get("Type"), "code": a.get("ICAOTypeCode"), "reg": a.get("Registration"),
-                                "owner": a.get("RegisteredOwners"), "country": None, "source": "hexdb.io"}
+                                "owner": a.get("RegisteredOwners"), "country": None, "source": "hexdb.io", "owner_code": a.get("OperatorFlagCode")}
     except (httpx.HTTPError, ValueError):
         return None
     if answered:

@@ -2,6 +2,7 @@
 // up through every owner the registers name, level by level, and shows what each owner holds besides. Every link
 // carries the source that states it. Nothing is joined on a name alone; same-name records are shown as candidates.
 import {suiteNav} from './suite.js';
+import * as CM from './connections-map.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -11,12 +12,14 @@ const GLYPH = {company: 'C', organisation: 'O', person: 'P', state: 'S', interme
 const MAX_UP = 12, MAX_FETCH = 60, SIBLINGS = 6, FOCUS_KIDS = 40, ROW = 10;
 
 $('#top').innerHTML = `<div class="suite-title">World Watch</div>${suiteNav('Connections')}
-  <div class="suite-search"><input id="q" type="search" placeholder="Search a company, LEI code or Wikidata id" autocomplete="off" spellcheck="false"></div>`;
-$('#legend').innerHTML = `<h4>Who says so</h4>
+  <div class="suite-search"><input id="q" type="search" placeholder="Search a company, LEI code or Wikidata id" autocomplete="off" spellcheck="false"></div>
+  <div class="seg" id="mode" role="group" aria-label="View"><button data-mode="graph" aria-pressed="true">Graph</button><button data-mode="map" aria-pressed="false">On the map</button></div>`;
+const GRAPH_LEGEND = `<h4>Who says so</h4>
   <div style="color:var(--src-gleif)"><i></i>GLEIF register</div><div style="color:var(--src-wd)"><i></i>Wikidata</div>
   <div style="color:var(--src-icij)"><i></i>Offshore Leaks (ICIJ)</div><div style="color:var(--src-os)"><i></i>OpenSanctions</div>
   <div><i class="dash"></i>ultimate parent (links between not reported), or same name only</div>
   <h4 style="margin-top:10px">Owner above, holding below</h4>`;
+$('#legend').innerHTML = GRAPH_LEGEND;
 
 // ---------------------------------------------------------------- state
 const nodes = new Map();      // ref -> {ref, name, kind, country, data (full node when fetched), level, stub}
@@ -120,6 +123,7 @@ async function start(ref) {
   // exceptions of the entity itself (its own owner withheld)
   first.exceptions.forEach(x => { const r = 'exc:' + first.ref + ':' + x.level; put(r, {name: x.text, kind: 'exc'}, -1); nodes.get(r).exc = x; link(r, first.ref, {label: 'above it', source: x.source}); });
   $('#walk').textContent = fetched >= MAX_FETCH ? `stopped after ${MAX_FETCH} entities` : '';
+  if (CM.isOpen()) CM.refresh(true);
   $('#stage-empty').textContent = nodes.size <= 1 && !first.owners.length && !first.holdings.length ? 'No owner or holding is recorded for this entity in the sources read.' : '';
   draw(true);
 }
@@ -346,8 +350,44 @@ function intro() {
   api('/api/connections/state').then(s => { const el = $('#state'); if (!el) return;
     el.textContent = `Offshore Leaks: ${s.icij?.ready ? 'file of ' + (s.icij.generated || '?').replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3') : 'not imported yet'} · sanctioned companies kept: ${(s.sanctions || 0).toLocaleString('en-GB')} · OpenSanctions key: ${s.opensanctions_key ? 'present' : 'none'}.`; });
 }
+// ---------------------------------------------------------------- graph or map
+let mode = 'graph';
+const mapCtx = {
+  el: $('#mapview'), api, esc,
+  structure: () => ({nodes, edges, focus, selected, alias}),
+  setPanel: h => { $('#panel').innerHTML = `<div class="fade-in">${h}</div>`; },
+  legend: h => { $('#legend').innerHTML = h; },
+  onCompany: async ref => {
+    const n = nodes.get(ref);
+    if (n && !n.stub && !n.exc) { selected = ref; await showPanel(ref); $('#panel').insertAdjacentHTML('afterbegin', CM.backButton()); return; }
+    mapCtx.setPanel(`${CM.backButton()}<div class="kind">Company</div><h2>${esc(ref)}</h2><p class="soft">Not drawn in this structure (it is one level below a company of it).</p>
+      <button class="btn primary" data-act="center" data-ref="${esc(ref)}">Open its own structure</button>`);
+  },
+};
+async function setMode(m, push = true) {
+  mode = m;
+  document.body.classList.toggle('mapmode', m === 'map');
+  for (const b of document.querySelectorAll('#mode button')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+  $('#mapview').hidden = m !== 'map'; $('#map-tools').hidden = m !== 'map';
+  if (push) { const u = new URL(location.href); if (m === 'map') u.searchParams.set('view', 'map'); else u.searchParams.delete('view'); history.replaceState(null, '', u); }
+  if (m === 'map') {
+    if (!focus) { $('#panel').innerHTML = '<p class="soft">Search a company first; its structure is then shown on the map.</p>'; }
+    try { await CM.open(mapCtx); } catch (e) { $('#panel').insertAdjacentHTML('afterbegin', `<p class="problems">The map did not load: ${esc(e.message)}</p>`); }
+    $('#cx-assets-tb').checked = CM.assetsShown();
+  } else {
+    CM.close();
+    $('#legend').innerHTML = GRAPH_LEGEND;
+    if (selected && nodes.get(selected)) showPanel(selected);
+    draw(true);
+  }
+}
+$('#mode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b && b.dataset.mode !== mode) setMode(b.dataset.mode); });
+$('#mfit').onclick = () => CM.fit();
+$('#cx-assets-tb').addEventListener('change', e => CM.setAssets(e.target.checked));
+
 function route() {
   const u = new URLSearchParams(location.search);
+  if (u.get('view') === 'map') setMode('map', false);
   if (u.get('ref')) start(u.get('ref'));
   else if (u.get('asset')) asset(u.get('asset'));
   else if (u.get('q')) { $('#q').value = u.get('q'); search(u.get('q')); }
