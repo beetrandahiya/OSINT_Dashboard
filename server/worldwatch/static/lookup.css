@@ -187,3 +187,9 @@ body.lookup:has(#detail:not([hidden])) .dossier { right: calc(340px + var(--gap)
 #graph circle.anchor { stroke: var(--text); stroke-width: 2.2; }
 #graph text.lbl { visibility: hidden; }
 #graph g:hover > text.lbl { visibility: visible; font-weight: 600; paint-order: stroke; stroke: var(--glass-solid); stroke-width: 3px; }
+
+/* the page switcher (Map / Connections / Investigate / Sources), as on the other pages */
+.lk-pages { display: flex; gap: 2px; padding: 4px; margin: 0 16px 10px; border-radius: 999px; background: var(--fill); }
+.lk-pages a { flex: 1; text-align: center; padding: 6px 8px; border-radius: 999px; color: var(--text-2); font-weight: 500; font-size: 12px; text-decoration: none; }
+.lk-pages a:hover { color: var(--text); }
+.lk-pages a[aria-current="page"] { background: var(--knob); color: var(--glass-solid); }
