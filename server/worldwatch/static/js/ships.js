@@ -1,6 +1,6 @@
 // Ships: Finland's open feed (northern Baltic, no key) plus aisstream.io worldwide once its free key is set.
 // A ship is drawn where it last reported; nothing is moved forward.
-import {ago, esc, local} from './util.js';
+import {ago, esc, local, ownerLink} from './util.js';
 import {shipFlag, flagImg} from './flags.js';
 import {eyeOn, eyeImages} from './eyeicons.js';
 // God's eye: the symbol for the kind of ship its AIS message gives; a ship that gives none gets the plain hull (cargo)
@@ -119,6 +119,7 @@ const shipsLayer = {
       <dt>Identifiers</dt><dd>MMSI ${s.mmsi}${s.imo ? ' · IMO ' + s.imo : ''}${s.callsign ? ' · ' + esc(s.callsign) : ''}</dd></dl>
       <div id="shipabout"></div>
       <a class="link" href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${s.mmsi}" target="_blank" rel="noopener">Look this ship up on MarineTraffic</a>
+      ${/^\d{7}$/.test(String(s.imo || '')) ? ownerLink('imo:' + s.imo) : ''}
       ${s.length_m ? '' : ''}<p class="source">Source: ${s.source === 'aisstream.io' ? 'aisstream.io (AIS relayed by volunteer receivers)' : "Digitraffic (Fintraffic, Finland's open maritime data, CC BY 4.0)"}, fetched ${ago(info.fetched)}. Ships broadcast these values themselves; name, type and destination are typed in by the crew and can be out of date. Drawn where it last reported.</p>`;
   },
 };

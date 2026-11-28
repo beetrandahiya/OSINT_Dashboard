@@ -5,7 +5,7 @@
 //   world     OpenSky, everything else, every 20 minutes (the free allowance)
 // The card of each aircraft says where its position came from and how old it is.
 import {eyeOn, eyeImages, aircraftSymbol, turns} from './eyeicons.js';
-import {$, ago, api, esc, local, now} from './util.js';
+import {$, ago, api, esc, local, now, ownerLink} from './util.js';
 import {prefs} from './prefs.js';
 import {addModelProvider, addPathProvider, hitModel, isOn, onReady, MODEL_ZOOM} from './models3d.js';
 import {planeFlag, flagImg} from './flags.js';
@@ -436,6 +436,7 @@ function detail(id) {
     <dl><dt>Aircraft</dt><dd id="actype" data-hex="${esc(a.hex)}" data-code="${esc(a.type || '')}" data-reg="${esc(a.reg || '')}" data-vip="${esc(v?.type || '')}">${a.type ? esc(a.type) + ' <span class="soft">(type code it broadcasts; looking it up…)</span>' : 'Looking it up…'}</dd>${(() => { const fl = planeFlag(a.hex); return fl ? `<dt>Registered in</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its transponder address block)</span></dd>` : ''; })()}${rows}<dt>Transponder address</dt><dd>${esc(a.hex.toUpperCase())}</dd></dl>
     ${flags ? `<p class="source">${flags}.</p>` : ''}
     <a class="link" href="https://globe.adsb.fi/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Follow on adsb.fi</a>
+    ${ownerLink('ac:' + a.hex)}
     <p class="source">Position: ${SOURCE[from]}, fetched ${ago(f.fetched)}. ${fresh}</p>
     <p class="source" id="tracknote"></p>`;
 }

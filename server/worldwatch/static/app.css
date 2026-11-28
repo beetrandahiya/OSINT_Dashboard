@@ -624,3 +624,11 @@ body.dense .fold-btn[aria-pressed="true"]::before { background: var(--text-2); }
 body.dense .side-head { display: none; }
 body.dense .sidebar.min { display: none; }
 body.dense .sidebar { padding-top: 12px; }
+
+/* the page switcher in the God's eye top bar (Map / Connections / Investigate / Sources), same pill as the suite pages */
+.tb-pages { display: none; }
+body.dense .tb-pages { display: flex; gap: 2px; padding: 5px; border-radius: 999px; background: var(--glass-bg); border: 1px solid var(--glass-stroke); box-shadow: var(--glass-shadow); flex: none; }
+body.dense .tb-pages a { padding: 8px 13px; border-radius: 999px; color: var(--text-2); font: 500 13px/1 var(--head); text-decoration: none; }
+body.dense .tb-pages a:hover { background: var(--hover); color: var(--text); }
+body.dense .tb-pages a[aria-current="page"] { background: var(--knob); color: var(--glass-solid); }
+body.dense .seg.wide a[href="/connections"], body.dense .seg.wide a[href="/lookup"] { display: none; }   /* in the top bar instead */

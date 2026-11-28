@@ -2,7 +2,7 @@
 // matched by IMO number / MMSI (ships) and registration / transponder address (aircraft). See sanctions.py.
 import {eyeImages, eyeSwap, addEye} from './eyeicons.js';
 import {every} from './prefs.js';
-import {ago, esc, spyPass} from './util.js';
+import {ago, esc, spyPass, ownerLink} from './util.js';
 import {flagImg, shipFlag, planeFlag} from './flags.js';
 import {fillShip, still} from './ships.js';
 import {liveAt} from './aircraft.js';
@@ -73,6 +73,7 @@ export default {
           ${fl ? `<dt>Flying the flag of</dt><dd>${flagImg(fl.cc, fl.name)} ${esc(fl.name)} <span class="soft">(from its MMSI)</span></dd>` : ''}</dl>
         <section class="pz"><h3>On these lists</h3><ul class="dos-list">${(x.lists || []).map(l => `<li>${esc(l.title)}${l.publisher || l.country ? ` <span class="soft">· ${esc([l.publisher, l.country].filter(Boolean).join(', '))}</span>` : ''}</li>`).join('')}</ul></section>
         <a class="link" href="${esc(x.url)}" target="_blank" rel="noopener">OpenSanctions entry</a>
+        ${/^\d{7}$/.test(String(x.imo || '')) ? ownerLink('imo:' + x.imo) : ''}
         ${spyPass(x.lat, x.lon)}${src}`;
     }
     const fl = planeFlag(x.hex);
@@ -82,6 +83,7 @@ export default {
       <dl><dt>Listed as</dt><dd>${esc(x.listed_as)}</dd><dt>Matched by</dt><dd>${esc(x.matched_by)}</dd>
         ${x.sanctions ? `<dt>Programme</dt><dd>${esc(x.sanctions)}</dd>` : ''}</dl>
       <section class="pz"><h3>On these lists</h3><ul class="dos-list">${(x.lists || []).map(l => `<li>${esc(l)}</li>`).join('')}</ul></section>
-      <a class="link" href="${esc(x.url)}" target="_blank" rel="noopener">OpenSanctions entry</a>${src}`;
+      <a class="link" href="${esc(x.url)}" target="_blank" rel="noopener">OpenSanctions entry</a>
+      ${/^[0-9a-f]{6}$/i.test(x.hex || '') ? ownerLink('ac:' + x.hex) : ''}${src}`;
   },
 };

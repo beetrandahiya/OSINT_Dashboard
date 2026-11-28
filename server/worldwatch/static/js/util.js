@@ -84,4 +84,6 @@ export const spyPass = (lat, lon) => `<section class="pz spypass" id="spypass" d
 
 // A button in a card that opens the country dossier (dossier_country.js listens). Give whatever the source has:
 // {cc} ISO code, {fips} GDELT's code, {icao} a flight region, {name}, or {lat, lon}.
+// Connections page: who owns an aircraft (ac:<hex>) or ship (imo:<number>); opens in a new tab so the map stays as it is
+export const ownerLink = asset => `<a class="link" href="/connections?asset=${encodeURIComponent(asset)}" target="_blank" rel="noopener">Who owns it (Connections)</a>`;
 export const countryBtn = (o, label = 'Country dossier') => `<button class="btn" data-dossier="${esc(JSON.stringify(o))}">${label}</button>`;

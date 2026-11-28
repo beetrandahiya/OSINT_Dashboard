@@ -24,6 +24,7 @@ from .collector import Collector
 from .ais import stream as ais_stream
 from .feeds import Fetcher, _readsb_aircraft, adsbfi_area
 from .lookup import api as lookup_api
+from .connections import api as connections_api
 
 STATIC = Path(__file__).parent / "static"
 collector = Collector()
@@ -1225,7 +1226,9 @@ app = Starlette(lifespan=lifespan, middleware=[Middleware(GZipMiddleware, minimu
     Route("/", page("index.html")),
     Route("/feeds", page("feeds.html")),
     Route("/lookup", page("lookup.html")),
+    Route("/connections", page("connections.html")),
     *lookup_api.routes,
+    *connections_api.routes,
     *dossier.make_routes(collector),
     Route("/api/status", status),
     Route("/api/data/{name}", data),

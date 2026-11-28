@@ -1,0 +1,63 @@
+/* Connections: a column on the left (search results, then the selected entity), the ownership structure filling the
+   rest. Owners above, the entity in the middle, what it owns below. */
+body { overflow: hidden; }
+#panel { position: fixed; left: 16px; top: 76px; bottom: 16px; width: 460px; overflow: auto; padding: 20px 22px 24px; z-index: 5; }
+#stage { position: fixed; inset: 0; }
+#graph { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#graph.drag { cursor: grabbing; }
+.stage-empty { position: absolute; left: 500px; right: 40px; top: 45%; text-align: center; color: var(--text-3); font: 500 15px/1.5 var(--head); pointer-events: none; }
+.stage-tools { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; z-index: 5; }
+.stage-tools .btn { padding: 5px 12px; }
+#walk { margin-left: 6px; font-size: 12px; }
+.legend { position: fixed; right: 16px; top: 76px; padding: 12px 14px; font-size: 11.5px; z-index: 5; max-width: 250px; }
+.legend h4 { font-size: 12px; margin-bottom: 6px; }
+.legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--text-2); }
+.legend i { width: 18px; height: 0; border-top: 2px solid currentColor; display: inline-block; }
+.legend i.dash { border-top-style: dashed; }
+
+/* graph */
+.n rect.box { fill: var(--panel-solid); stroke: var(--stroke); stroke-width: 1; }
+.n.focus rect.box { stroke: var(--accent); stroke-width: 2; }
+.n.sel rect.ring { stroke: var(--rose); stroke-width: 1.3; fill: none; }
+.n.sanc rect.box { stroke: var(--bad); stroke-width: 1.6; }
+.n.stub rect.box { fill: var(--fill); stroke-dasharray: 4 3; }
+.n.exc rect.box { fill: transparent; stroke-dasharray: 3 3; }
+.n text { fill: var(--text); font: 600 12.5px var(--head); }
+.n text.sub { fill: var(--text-2); font: 400 10.5px var(--font); }
+.n text.glyph { font: 600 11px var(--head); fill: var(--panel-solid); text-anchor: middle; }
+.n circle.k { fill: var(--text-2); }
+.n.k-person circle.k { fill: var(--src-wd); } .n.k-state circle.k { fill: var(--good); } .n.k-intermediary circle.k { fill: var(--warn); }
+.n.k-bearer circle.k { fill: var(--src-icij); } .n.k-company circle.k, .n.k-organisation circle.k { fill: var(--accent); }
+.n { cursor: pointer; }
+.n:hover rect.box { stroke: var(--text-2); }
+.e { fill: none; stroke-width: 1.4; opacity: .85; }
+.e.ult { stroke-dasharray: 5 4; }
+.e.GLEIF { stroke: var(--src-gleif); } .e.Wikidata { stroke: var(--src-wd); } .e.Offshore { stroke: var(--src-icij); } .e.OpenSanctions { stroke: var(--src-os); }
+.el { fill: var(--text-2); font: 10px var(--font); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+
+/* panel content */
+.p-head { display: flex; gap: 12px; align-items: flex-start; }
+.p-head h2 { font-size: 20px; line-height: 1.2; word-break: break-word; }
+.kind { font: 600 10.5px var(--head); text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin-bottom: 4px; }
+.sec { margin-top: 18px; }
+.sec h3 { font-size: 13px; margin-bottom: 6px; display: flex; gap: 8px; align-items: baseline; }
+.sec h3 .n-count { color: var(--text-3); font: 500 12px var(--font); }
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li { padding: 8px 10px; border-radius: 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; cursor: pointer; }
+.rows li:hover { background: var(--hover); }
+.rows li .t { font-weight: 500; word-break: break-word; }
+.rows li .m { grid-column: 1 / -1; color: var(--text-2); font-size: 12px; }
+.rows li.static { cursor: default; }
+dl.facts { display: grid; grid-template-columns: 150px 1fr; gap: 5px 12px; margin: 0; font-size: 12.5px; }
+dl.facts dt { color: var(--text-2); }
+dl.facts dd { margin: 0; word-break: break-word; }
+.flag-sanc { border: 1px solid var(--bad); border-radius: 14px; padding: 10px 12px; background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.flag-sanc b { color: var(--bad); }
+.exc { border: 1px dashed var(--stroke); border-radius: 14px; padding: 10px 12px; color: var(--text-2); }
+.problems { color: var(--warn); font-size: 12px; }
+.note { color: var(--text-3); font-size: 11.5px; margin-top: 16px; line-height: 1.5; }
+.res-group h3 { margin: 16px 0 4px; font-size: 12px; color: var(--text-2); }
+.intro p { color: var(--text-2); line-height: 1.55; }
+.intro .ex { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; }
+@media (max-width: 900px) { #panel { width: auto; right: 16px; bottom: 45%; } .legend { display: none; } }

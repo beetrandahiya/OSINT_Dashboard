@@ -670,6 +670,12 @@ async def sanctioned(feed: Feed, f: Fetcher) -> Result:
             return sanctions.parse_planes(fh)
     try:
         planes = await asyncio.to_thread(read_planes)
+        # the sanctioned companies and organisations of the same file, for Connections (data/connections.db)
+        from .connections import sanctioned as conn_sanc
+        try:
+            orgs = await asyncio.to_thread(_in_child, conn_sanc.build_from_csv, str(tmp))
+        except Exception as e:                       # Connections' list failing must not lose the ships and aircraft
+            orgs = f"not saved ({type(e).__name__})"
     finally:
         tmp.unlink(missing_ok=True)
     hexes, asked, found = {}, 0, 0
@@ -692,7 +698,40 @@ async def sanctioned(feed: Feed, f: Fetcher) -> Result:
                 found += 1
     return Result(len(vessels["imo"]) + len(planes), {"vessels": vessels, "planes": planes, "hexes": hexes}, data_time=time.time(), data_label="lists read",
                   note=f"{len(vessels['imo']):,} sanctioned or shadow-fleet ships by IMO, {len(vessels['mmsi']):,} by MMSI; {len(planes)} sanctioned aircraft, "
-                       f"{len(hexes)} of their registrations with a known transponder address; OpenSanctions (non-commercial)")
+                       f"{len(hexes)} of their registrations with a known transponder address; "
+                       f"{orgs if isinstance(orgs, str) else f'{orgs:,} sanctioned companies and organisations kept for Connections'}; OpenSanctions (non-commercial)")
+
+
+async def offshore_leaks(feed: Feed, f: Fetcher) -> Result:
+    """ICIJ Offshore Leaks bulk file for Connections (see connections/icij.py): downloaded (73 MB) and imported into
+    data/icij.db (~500 MB, about two minutes, in the helper process) only when ICIJ has published a new file."""
+    from .connections import icij, store as cstore
+    head = await f.client.head(icij.URL, headers={"User-Agent": config.USER_AGENT}, timeout=60, follow_redirects=True)
+    head.raise_for_status()
+    stamp = head.headers.get("Last-Modified") or head.headers.get("ETag") or ""
+    have = await asyncio.to_thread(cstore.meta_get, "icij")
+    if not (have and have.get("stamp") == stamp and icij.db_path().exists()):
+        part = config.DATA / "icij.zip.part"
+        async with f.client.stream("GET", icij.URL, headers={"User-Agent": config.USER_AGENT}, timeout=900, follow_redirects=True) as r:
+            r.raise_for_status()
+            with open(part, "wb") as out:
+                async for chunk in r.aiter_bytes():
+                    out.write(chunk)
+            f.wire_bytes += r.num_bytes_downloaded
+        try:
+            info = await asyncio.to_thread(_in_child, icij.import_zip, str(part))
+        finally:
+            part.unlink(missing_ok=True)
+        have = {"stamp": stamp, **info}
+        await asyncio.to_thread(cstore.meta_put, "icij", have)
+    g = have.get("generated") or ""
+    when = calendar.timegm(time.strptime(g, "%Y%m%d")) if re.fullmatch(r"\d{8}", g) else None
+    c = have.get("counts", {})
+    n = sum(v for k, v in c.items() if k.startswith("nodes"))
+    return Result(n, {"generated": g, "counts": c}, data_time=when, data_label=f"file of {g[:4]}-{g[4:6]}-{g[6:]}" if when else None,
+                  note=f"{c.get('nodes-entities.csv', 0):,} companies, {c.get('nodes-officers.csv', 0):,} officers, "
+                       f"{c.get('nodes-intermediaries.csv', 0):,} intermediaries, {c.get('relationships.csv', 0):,} links (addresses left out); "
+                       "the leaks themselves date from 2013-2021")
 
 
 async def sdr_receivers(feed: Feed, f: Fetcher) -> Result:
@@ -1350,6 +1389,8 @@ FEEDS = [
          stale_after=3600, limit_note="15 regions, one request each every 10 minutes, spaced 1.2 s (adsb.fi allows one a second)"),
     Feed("sanctioned", "Sanctioned ships and aircraft", "OpenSanctions", "https://www.opensanctions.org",
          7 * 86400, sanctioned, min_retry=3600, limit_note="two bulk files once a week (about 85 MB, read row by row); matched against live positions on request"),
+    Feed("icij", "Offshore Leaks for Connections (ICIJ)", "ICIJ Offshore Leaks Database", "https://offshoreleaks.icij.org",
+         7 * 86400, offshore_leaks, stale_after=None, min_retry=6 * 3600, limit_note="checks once a week whether ICIJ published a new file (73 MB); imports only then"),
     Feed("sdr", "Listening stations (KiwiSDR)", "kiwisdr.com, via rx.linkfanel.net", "http://kiwisdr.com/public/",
          3600, sdr_receivers, min_retry=900, limit_note="one 0.9 MB list an hour"),
     Feed("cameras", "Public cameras", "TfL, NYC DOT, Caltrans, LTA Singapore, HK Transport Dept, Fintraffic", "https://tfl.gov.uk",

@@ -12,6 +12,7 @@
 
 <header id="topbar" aria-label="World Watch">
   <div class="tb-title"><span class="tb-name">World Watch</span><span id="view-name"></span></div>
+  <nav class="tb-pages" aria-label="World Watch pages"><a href="/" aria-current="page">Map</a><a href="/connections">Connections</a><a href="/lookup">Investigate</a><a href="/feeds">Sources</a></nav>
   <div class="tb-search"></div>
   <div class="tb-right"></div>
 </header>
@@ -30,7 +31,8 @@
   <div class="seg wide" role="group" aria-label="Place">
     <button id="world" aria-pressed="true">World</button>
     <button id="home" aria-pressed="false">Munich</button>
-    <a href="/lookup">Lookup</a>
+    <a href="/connections">Connections</a>
+    <a href="/lookup">Investigate</a>
   </div>
   <div class="find" id="find"><input id="find-q" type="search" placeholder="Find a place, a person, or anything on the map" aria-label="Find a place, a person, or anything on the map" spellcheck="false" autocomplete="off"><ul class="find-list" id="find-list" hidden></ul></div>
   <div class="chips" id="chips" role="group" aria-label="Layers"></div>
