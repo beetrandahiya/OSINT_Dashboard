@@ -2012,3 +2012,18 @@ line, Morse WW, Null Island. Unverified: UN blue and ESA deep space only from se
 code; no published values found for NRO, Space Force, Bundeswehr, BND. Designer's questions for him: which one or two to
 develop; whether the app's ice-blue God's eye look should take the brand palette; plated or unplated Windows icon;
 capitals or sentence case wordmark.
+
+### 2026-11-28, globe marks (identity round two, waiting for his pick)
+
+- Owner: "make it something with a globe maybe, but make sure to keep it special and non generic".
+- Page: https://claude.ai/artifact/3KY5CpxFbBEFaB8pr3iCNS (sources `docs/brand/globe/`, notes there). Six directions, each
+  computed from a fact, each a small system (agency palette with sources, outlined wordmark, two devices, top bar, splash,
+  real-size renders): **1 Oko** (true-scale Molniya orbit with the Earth at its focus; the Soviet early-warning satellites
+  on it were called Oko, "eye"; NATO colours), **2 Unrolled** (globe west of Greenwich, Web Mercator zoom-2 tiles east of it,
+  Munich's tile lit; NGA), **3 Footprint** (Sentinel-2's horizon circle around Munich makes the globe an eye; Blueprint),
+  Above home (Munich-centred hemisphere, 45.5 % land, computed), Octant (three right angles), Lune (UTC+1 slice).
+- Dropped after the 16 px test: graticule globe, day/night globes (moon), polar clock (gauge), Munich meridian + parallel
+  (trident), Goode's interrupted map (VVVV reads as teeth). New palettes this round: EUMETSAT and DLR, from their websites'
+  CSS (not brand guides).
+- Questions put to him: which one or two to develop (real .ico / Icon Composer files, top bar in the app); is the Soviet
+  programme fine as Oko's story; should the God's eye look take the brand palette.
