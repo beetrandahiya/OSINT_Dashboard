@@ -3,7 +3,8 @@
 A personal live view of the world from free public feeds. Real data only: every feed shows its
 source, when it was fetched, and the source's own timestamp.
 
-The app is the map at `/`; a full report on every feed is at `/feeds`.
+The app is the map at `/`; beside it are Connections (`/connections`, who owns what), Investigate
+(`/lookup`, consented footprint cases) and a full report on every feed (`/feeds`).
 
 ## Run it
 
@@ -34,6 +35,7 @@ the feed report shows the missing ones as "not set up".
 | `data/cloudflare-token.txt` (`WW_CLOUDFLARE_TOKEN`) | dash.cloudflare.com: My Profile > API Tokens > custom token with Account > Radar > Read, free | internet hijacks and route leaks, Cloudflare's outage notes, cable cuts |
 | `data/windy-key.txt` (`WW_WINDY_KEY`) | api.windy.com/keys (Webcams API, free tier) | public webcams worldwide in the Cameras layer |
 | `data/brave-key.txt` (`WW_BRAVE_KEY`) | api-dashboard.search.brave.com (free monthly credit, needs a payment card) | ship photos from VesselFinder when Wikimedia has none |
+| `data/github-token.txt` (`WW_GITHUB_TOKEN`) | github.com: Settings > Developer settings > Fine-grained tokens, **no permissions at all** (public data only), free | Investigate: GitHub account and commit-email leads at 5,000 requests an hour instead of 60 |
 | `data/contact.txt` (`WW_CONTACT`) | not a key: your email or web address | aircraft photos (planespotters.net asks every client for a contact) and polite requests to Wikimedia |
 
 From the `server` folder (where you start the app):
@@ -48,7 +50,7 @@ map from another device (for example over Tailscale), `WW_PORT`, `WW_DATA` (data
 
 ## What it fetches
 
-44 feeds, each with its own page row at `/feeds`. The intervals follow each source's published limits;
+45 feeds, each with its own page row at `/feeds`. The intervals follow each source's published limits;
 please don't shorten them.
 
 | Feed | Source | How often |
@@ -72,7 +74,8 @@ please don't shorten them.
 | Front line, Ukraine | DeepState | 2 h |
 | Military bases and nuclear sites | Wikidata, OpenStreetMap, US DoD, Global Energy Monitor | weekly |
 | US carriers | USNI News Fleet Tracker | 6 h |
-| Sanctioned ships and aircraft | OpenSanctions (bulk data, no key) | weekly |
+| Sanctioned ships, aircraft and companies | OpenSanctions (bulk data, no key) | weekly |
+| Offshore companies (Connections) | ICIJ Offshore Leaks database | weekly check |
 | International Criminal Court cases | icc-cpi.int | daily |
 | Travel advice per country | US State Department, German Foreign Office | 6 h |
 | Earthquakes | USGS | 60 s |
@@ -105,10 +108,30 @@ it shows who a person is and what the record holds, never where they are now.
 The sanctions / politically-exposed-person section needs the OpenSanctions key (see above); without it that one
 section is skipped and says so.
 
-## Lookup
+## Connections
 
-`/lookup` shows what public sources reveal about your own usernames and email addresses, as a graph.
-Besides its own checks it runs the standard open-source tools unchanged, as separate programs
+`/connections` shows who owns a company and what else its owners own, as a structure you can walk upwards
+(owner's owner's owner) and sideways. Sources: GLEIF (the official register of legal entity identifiers, with
+parents and the reasons a company gives when it declares none), Wikidata, ICIJ Offshore Leaks (Panama, Paradise,
+Pandora Papers and others) and OpenSanctions' list of sanctioned companies. Records are joined only where they
+share an identifier; a step that rests on a matching name alone is drawn dashed and says so.
+Aircraft and ship cards on the map have "Who owns it (Connections)".
+
+The first start downloads the Offshore Leaks database (73 MB) and imports it in the background into
+`data/icij.db` (about 500 MB, a few minutes); it checks for a new edition weekly. Only organisations can be searched;
+people appear only where a public record links them to a company, by the name the record gives, and addresses are
+not kept.
+
+## Investigate
+
+`/lookup` (Investigate in the page switcher) works in cases. Each case needs a consent record first (who agreed,
+when, how, to what); without one nothing is scanned. Start from usernames, email addresses, a full name or a
+picture file; strong links between accounts (two-way profile links, verified emails, key proofs, the identical
+picture file) are followed by themselves, weaker ones wait for you to approve or reject them. It does no face
+search, never reads where a person is (a picture's GPS data is only reported as present), and shows breach names,
+never breach contents.
+
+Besides its own checks Investigate runs the standard open-source tools unchanged, as separate programs
 through `uvx`: Maigret, Sherlock, Holehe and theHarvester. They are downloaded on first use
 (Maigret is about 190 MB) into uv's tool cache, not into World Watch.
 It runs only when you press Scan, shows first what will be sent where, and keeps results in
