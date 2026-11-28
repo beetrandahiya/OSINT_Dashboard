@@ -1,0 +1,78 @@
+{
+ "3c6524": {
+  "status": 404,
+  "body": null
+ },
+ "3009b7": {
+  "status": 404,
+  "body": null
+ },
+ "3c6521": {
+  "status": 404,
+  "body": null
+ },
+ "4b194e": {
+  "status": 404,
+  "body": null
+ },
+ "3c65e4": {
+  "status": 404,
+  "body": null
+ },
+ "4b19ef": {
+  "status": 200,
+  "body": {
+   "ModeS": "4B19EF",
+   "Registration": "HB-JVJ",
+   "Manufacturer": "Embraer",
+   "ICAOTypeCode": "E195",
+   "Type": "EMB-195 AR",
+   "RegisteredOwners": "Helvetic Airways",
+   "OperatorFlagCode": "OAW"
+  }
+ },
+ "4d2014": {
+  "status": 200,
+  "body": {
+   "ModeS": "4D2014",
+   "Registration": "9H-EUM",
+   "Manufacturer": "Airbus",
+   "ICAOTypeCode": "A320",
+   "Type": "A320 214",
+   "RegisteredOwners": "Eurowings",
+   "OperatorFlagCode": "EWG"
+  }
+ },
+ "3c5ef0": {
+  "status": 200,
+  "body": {
+   "ModeS": "3C5EF0",
+   "Registration": "D-AGWP",
+   "Manufacturer": "Airbus",
+   "ICAOTypeCode": "A319",
+   "Type": "A319 132",
+   "RegisteredOwners": "Eurowings",
+   "OperatorFlagCode": "EWG"
+  }
+ },
+ "3c4a08": {
+  "status": 200,
+  "body": {
+   "ModeS": "3C4A08",
+   "Registration": "D-ABPH",
+   "Manufacturer": "Boeing",
+   "ICAOTypeCode": "B789",
+   "Type": "787 9",
+   "RegisteredOwners": "Lufthansa",
+   "OperatorFlagCode": "DLH"
+  }
+ },
+ "4b15a3": {
+  "status": 404,
+  "body": null
+ },
+ "4400f8": {
+  "status": 404,
+  "body": null
+ }
+}

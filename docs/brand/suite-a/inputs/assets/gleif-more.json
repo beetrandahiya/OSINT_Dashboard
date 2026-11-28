@@ -1,0 +1,128 @@
+{
+ "Eurowings GmbH": [
+  {
+   "lei": "529900U0TOF5V3UV9923",
+   "name": "Eurowings GmbH",
+   "status": "ACTIVE",
+   "city": "D\u00fcsseldorf",
+   "country": "DE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_PUBLIC"
+  }
+ ],
+ "Eurowings Europe": [],
+ "Eurowings Discover": [],
+ "Brussels Airlines": [
+  {
+   "lei": "549300VSM2RG55U2QU15",
+   "name": "BRUSSELS AIRLINES",
+   "status": "ACTIVE",
+   "city": "BRUSSELS",
+   "country": "BE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NATURAL_PERSONS"
+  }
+ ],
+ "Edelweiss Air": [
+  {
+   "lei": "5299005TDB4PJW90PI60",
+   "name": "Edelweiss Air AG",
+   "status": "ACTIVE",
+   "city": "Z\u00fcrich",
+   "country": "CH",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_CONSOLIDATING"
+  }
+ ],
+ "Helvetic Airways": [
+  {
+   "lei": "506700BIQGS4R8694V57",
+   "name": "Helvetic Airways AG",
+   "status": "ACTIVE",
+   "city": "Wilen b. Wollerau",
+   "country": "CH",
+   "parent": null,
+   "ultimate": [
+    "5299007XT2OGI1QUGF27",
+    "Patinex AG"
+   ],
+   "exception": "NO_LEI"
+  }
+ ],
+ "Air Baltic Corporation": [
+  {
+   "lei": "213800JVURXEAA48FV35",
+   "name": "Air Baltic Corporation",
+   "status": "ACTIVE",
+   "city": "M\u0101rupes novads",
+   "country": "LV",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NO_KNOWN_PERSON"
+  }
+ ],
+ "Italia Trasporto Aereo": [
+  {
+   "lei": "81560065BB5D2F47B575",
+   "name": "ITALIA TRASPORTO AEREO S.P.A.",
+   "status": "ACTIVE",
+   "city": "ROMA",
+   "country": "IT",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_CONSOLIDATING"
+  }
+ ],
+ "Alitalia": [
+  {
+   "lei": "815600DF4A51BF6EF729",
+   "name": "ALITALIA - SOCIETA' AEREA ITALIANA S.P.A.",
+   "status": "ACTIVE",
+   "city": "FIUMICINO",
+   "country": "IT",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_CONSOLIDATING"
+  },
+  {
+   "lei": "81560044BB8DD65A4F03",
+   "name": "ALITALIA - LINEE AEREE ITALIANE SOCIETA' PER AZIONI PER BREVITA' LINEE AEREE ITALIANE S.P.A.",
+   "status": "ACTIVE",
+   "city": "ROMA",
+   "country": "IT",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_CONSOLIDATING"
+  }
+ ],
+ "SN Airholding": [
+  {
+   "lei": "984500F0F9ZF47DI9C15",
+   "name": "SN AIRHOLDING",
+   "status": "ACTIVE",
+   "city": "Elsene",
+   "country": "BE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NO_LEI"
+  }
+ ],
+ "Lufthansa Cargo": [
+  {
+   "lei": "52990062TWNTBB4FZ290",
+   "name": "Lufthansa Cargo Aktiengesellschaft",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "parent": null,
+   "ultimate": [
+    "529900PH63HYJ86ASW55",
+    "Deutsche Lufthansa Aktiengesellschaft"
+   ],
+   "exception": "NON_PUBLIC"
+  }
+ ]
+}

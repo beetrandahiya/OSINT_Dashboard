@@ -45,7 +45,7 @@ Owner: "small tabs are good, the panels put away screen looks nice"; asked how e
 ships and aircraft owned by a company, with an example. Same page (version 3): a method section ("How a company's aircraft
 and ships get onto the map") and two boards, `connections-air` and `connections-sea` (`tools/suite_assets.py`, `assets.css`).
 
-Data, all fetched live 15:22-15:31 UTC (`data/assets/`; the big raw answers, adsb.fi 552 aircraft and Digitraffic 946
+Data, all fetched live 15:22-15:31 UTC (`inputs/assets/`; the big raw answers, adsb.fi 552 aircraft and Digitraffic 946
 ships, are not kept, only what was derived from them in `air.json` / `sea.json`):
 - Aircraft: adsb.fi `/v3/lat/48.35/lon/11.79/dist/250` (552). Group = Deutsche Lufthansa AG (GLEIF 529900PH63HYJ86ASW55,
   27 children) + Wikidata airlines found by ICAO code (P230) whose parent/owner leads to Lufthansa Group (Q62589018) or

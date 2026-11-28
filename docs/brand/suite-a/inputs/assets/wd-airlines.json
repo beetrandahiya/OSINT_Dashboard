@@ -1,0 +1,870 @@
+[
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q170159"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "DLH"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Regional"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "DLH"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q365"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(6.957777777 50.942222222)"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "529900PH63HYJ86ASW55"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Cologne"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q152490"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "OAW"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helvetic Airways"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q68165"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.582777777 47.448055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kloten"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q153571"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "BEL"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Brussels Airlines"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q28934"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(4.484444444 50.901388888)"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "549300VSM2RG55U2QU15"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Brussels Airport"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q153975"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "AZA"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1116000"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Alitalia"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ministry of Economy and Finance"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q19326"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(12.233333333 41.766666666)"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "815600DF4A51BF6EF729"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Fiumicino"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2021-10-14T00:00:00Z"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q156776"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SWR"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q688122"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swiss International Air Lines"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Federal Office of Civil Aviation"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q68165"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.582777777 47.448055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kloten"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q156776"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SWR"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swiss International Air Lines"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q68165"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.582777777 47.448055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kloten"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q162174"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "DLA"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Air Dolomiti"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q47614"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.85 45.35)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Villafranca di Verona"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q162189"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "CLH"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa CityLine"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q131402"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(11.786086111 48.353783333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Munich Airport"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q168836"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "EWG"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Eurowings"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1718"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(6.776666666 51.225555555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "D\u00fcsseldorf"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q265138"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "GEC"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Cargo"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1794"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.682222222 50.110555555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Frankfurt"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q300924"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "BTI"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2502537"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "AirBaltic"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Government of Latvia"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q110029686"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.058333333 56.906944444)"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "213800JVURXEAA48FV35"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "M\u0101rupe Parish"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2502537"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Government of Latvia"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q662050"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "EDW"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q156776"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Edelweiss Air"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swiss International Air Lines"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q68165"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.582777777 47.448055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kloten"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q694098"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SWR"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swissair"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q68165"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.582777777 47.448055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kloten"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2002-03-31T00:00:00Z"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q781770"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "AUA"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Austrian Airlines"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q489972"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(16.478611111 48.141111111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Schwechat"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1321722"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "GEC"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "German Cargo"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q635547"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.530138888 50.068819444)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kelsterbach"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "1993-01-01T00:00:00Z"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1549255"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "AZA"
+  },
+  "aLabel": {
+   "type": "literal",
+   "value": "Q1549255"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q19326"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(12.233333333 41.766666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Fiumicino"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2021-10-15T00:00:00Z"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q105076914"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "OCN"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Discover Airlines"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q46033"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.570455555 50.033305555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Frankfurt Airport"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q108251249"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "ITY"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3773971"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "ITA Airways"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Government of Italy"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2047643"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(12.497572142 41.906236508)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Palazzo delle Finanze"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q114345318"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "EWL"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q168836"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Eurowings Europe"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Eurowings"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q220667"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(14.48 35.920833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swieqi"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q114345346"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lhamih Limited"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q117191656"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "LHX"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa City Airlines"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q131402"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(11.786086111 48.353783333)"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "529900RF2834I0MC2L78"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Munich Airport"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  }
+ }
+]

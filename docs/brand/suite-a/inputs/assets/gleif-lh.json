@@ -1,0 +1,569 @@
+{
+ "parent": {
+  "type": "lei-records",
+  "id": "529900PH63HYJ86ASW55",
+  "attributes": {
+   "lei": "529900PH63HYJ86ASW55",
+   "entity": {
+    "legalName": {
+     "name": "Deutsche Lufthansa Aktiengesellschaft",
+     "language": "de"
+    },
+    "otherNames": [],
+    "transliteratedOtherNames": [],
+    "legalAddress": {
+     "language": "de",
+     "addressLines": [
+      "Venloer Stra\u00dfe 151 - 153"
+     ],
+     "addressNumber": null,
+     "addressNumberWithinBuilding": null,
+     "mailRouting": null,
+     "city": "K\u00f6ln",
+     "region": "DE-NW",
+     "country": "DE",
+     "postalCode": "50672"
+    },
+    "headquartersAddress": {
+     "language": "de",
+     "addressLines": [
+      "Airportring, LAC"
+     ],
+     "addressNumber": null,
+     "addressNumberWithinBuilding": null,
+     "mailRouting": null,
+     "city": "Frankfurt am Main",
+     "region": "DE-HE",
+     "country": "DE",
+     "postalCode": "60546"
+    },
+    "registeredAt": {
+     "id": "RA000280",
+     "other": null
+    },
+    "registeredAs": "HRB 2168",
+    "jurisdiction": "DE",
+    "category": "GENERAL",
+    "legalForm": {
+     "id": "6QQB",
+     "other": null
+    },
+    "associatedEntity": {
+     "lei": null,
+     "name": null
+    },
+    "status": "ACTIVE",
+    "expiration": {
+     "date": null,
+     "reason": null
+    },
+    "successorEntity": {
+     "lei": null,
+     "name": null
+    },
+    "successorEntities": [],
+    "creationDate": "1953-01-05T23:00:00Z",
+    "subCategory": null,
+    "otherAddresses": [],
+    "eventGroups": [
+     {
+      "groupType": "STANDALONE",
+      "events": [
+       {
+        "validationDocuments": "SUPPORTING_DOCUMENTS",
+        "effectiveDate": "2023-07-19T22:00:00Z",
+        "recordedDate": "2023-07-20T08:10:01Z",
+        "type": "CHANGE_HQ_ADDRESS",
+        "status": "COMPLETED"
+       }
+      ]
+     }
+    ]
+   },
+   "registration": {
+    "initialRegistrationDate": "2013-09-05T07:18:55Z",
+    "lastUpdateDate": "2026-08-03T11:07:47Z",
+    "status": "ISSUED",
+    "nextRenewalDate": "2027-09-05T07:18:55Z",
+    "managingLou": "5299000J2N45DDNE4Y28",
+    "corroborationLevel": "FULLY_CORROBORATED",
+    "validatedAt": {
+     "id": "RA000280",
+     "other": null
+    },
+    "validatedAs": "HRB 2168",
+    "otherValidationAuthorities": []
+   },
+   "bic": [
+    "LHAGDEFFXXX"
+   ],
+   "mic": null,
+   "ocid": "de/R3306_HRB2168",
+   "qcc": "QDED3CS01D",
+   "gem": null,
+   "spglobal": [
+    "410152"
+   ],
+   "conformityFlag": "CONFORMING"
+  },
+  "relationships": {
+   "managing-lou": {
+    "links": {
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/managing-lou"
+    }
+   },
+   "lei-issuer": {
+    "links": {
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/lei-issuer"
+    }
+   },
+   "field-modifications": {
+    "links": {
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/field-modifications"
+    }
+   },
+   "direct-parent": {
+    "links": {
+     "reporting-exception": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/direct-parent-reporting-exception"
+    }
+   },
+   "ultimate-parent": {
+    "links": {
+     "reporting-exception": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/ultimate-parent-reporting-exception"
+    }
+   },
+   "direct-children": {
+    "links": {
+     "relationship-records": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/direct-child-relationships",
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/direct-children"
+    }
+   },
+   "ultimate-children": {
+    "links": {
+     "relationship-records": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/ultimate-child-relationships",
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/ultimate-children"
+    }
+   },
+   "isins": {
+    "links": {
+     "related": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55/isins"
+    }
+   }
+  },
+  "links": {
+   "self": "https://api.gleif.org/api/v1/lei-records/529900PH63HYJ86ASW55"
+  }
+ },
+ "children": [
+  {
+   "rel": "direct-children",
+   "lei": "5299008LGQJ29XYBGT35",
+   "name": "Jettainer GmbH",
+   "status": "ACTIVE",
+   "city": "Raunheim",
+   "country": "DE",
+   "lcity": "Raunheim",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900AXUGQC7E2M7N91",
+   "name": "Lufthansa Systems GmbH",
+   "status": "ACTIVE",
+   "city": "Raunheim",
+   "country": "DE",
+   "lcity": "Raunheim",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900DTQJ1MSKEYNF35",
+   "name": "LUFTHANSA TECHNIK AIRMOTIVE IRELAND LEASING LIMITED",
+   "status": "ACTIVE",
+   "city": "Dublin",
+   "country": "IE",
+   "lcity": "Dublin",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "52990022VR1G64LO5689",
+   "name": "Group Engine Management GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299009T3KWOCYE8BD14",
+   "name": "LUFTHANSA MALTA AIRCRAFT-LEASING LTD",
+   "status": "ACTIVE",
+   "city": "St. Julians",
+   "country": "MT",
+   "lcity": "St. Julians",
+   "lcountry": "MT"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299001Y3VWOFN2DGL03",
+   "name": "LHAMI LEASING LIMITED",
+   "status": "ACTIVE",
+   "city": "St. Julians",
+   "country": "MT",
+   "lcity": "Dublin",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900F61J2XA3NK9979",
+   "name": "Lufthansa Aviation Training GmbH",
+   "status": "ACTIVE",
+   "city": "M\u00fcnchen-Flughafen",
+   "country": "DE",
+   "lcity": "M\u00fcnchen-Flughafen",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299004NWPDE4L4VC454",
+   "name": "LUFTHANSA MALTA CORPORATE FINANCE LIMITED",
+   "status": "ACTIVE",
+   "city": "San \u0120iljan",
+   "country": "MT",
+   "lcity": "San \u0120iljan",
+   "lcountry": "MT"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299000AF58N6DVTY088",
+   "name": "Miles & More GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299001M8IZ7PBJR1Y18",
+   "name": "Lufthansa Group Business Services GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "5299005C3ALN0FW10R56",
+   "name": "Lufthansa Aviation Training Switzerland AG",
+   "status": "ACTIVE",
+   "city": "Kloten",
+   "country": "CH",
+   "lcity": "Kloten",
+   "lcountry": "CH"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900Q3QYV322RCXV42",
+   "name": "Swiss International Air Lines AG",
+   "status": "ACTIVE",
+   "city": "Kloten",
+   "country": "CH",
+   "lcity": "Kloten",
+   "lcountry": "CH"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900U2L2B187C8DU16",
+   "name": "LUFTHANSA TECHNIK TURBINE SHANNON LIMITED",
+   "status": "ACTIVE",
+   "city": "Shannon",
+   "country": "IE",
+   "lcity": "Shannon",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "direct-children",
+   "lei": "529900P6LJ5CGTIUNN89",
+   "name": "AIR DOLOMITI S.P.A. - LINEE AEREE REGIONALI EUROPEE",
+   "status": "ACTIVE",
+   "city": "Dossobuono",
+   "country": "IT",
+   "lcity": "Dossobuono",
+   "lcountry": "IT"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900PU90NBL1F9V143",
+   "name": "Lufthansa Aviation GmbH",
+   "status": "ACTIVE",
+   "city": "M\u00fcnchen-Flughafen",
+   "country": "DE",
+   "lcity": "M\u00fcnchen-Flughafen",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299008LGQJ29XYBGT35",
+   "name": "Jettainer GmbH",
+   "status": "ACTIVE",
+   "city": "Raunheim",
+   "country": "DE",
+   "lcity": "Raunheim",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900AXUGQC7E2M7N91",
+   "name": "Lufthansa Systems GmbH",
+   "status": "ACTIVE",
+   "city": "Raunheim",
+   "country": "DE",
+   "lcity": "Raunheim",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900RF2834I0MC2L78",
+   "name": "Lufthansa City Airlines GmbH",
+   "status": "ACTIVE",
+   "city": "M\u00fcnchen-Flughafen",
+   "country": "DE",
+   "lcity": "M\u00fcnchen-Flughafen",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900DTQJ1MSKEYNF35",
+   "name": "LUFTHANSA TECHNIK AIRMOTIVE IRELAND LEASING LIMITED",
+   "status": "ACTIVE",
+   "city": "Dublin",
+   "country": "IE",
+   "lcity": "Dublin",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "52990022VR1G64LO5689",
+   "name": "Group Engine Management GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299009T3KWOCYE8BD14",
+   "name": "LUFTHANSA MALTA AIRCRAFT-LEASING LTD",
+   "status": "ACTIVE",
+   "city": "St. Julians",
+   "country": "MT",
+   "lcity": "St. Julians",
+   "lcountry": "MT"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900JZ3HPIWJWLNL56",
+   "name": "Lufthansa Leasing Austria 1. Beteiligungs GmbH",
+   "status": "ACTIVE",
+   "city": "Salzburg",
+   "country": "AT",
+   "lcity": "Salzburg",
+   "lcountry": "AT"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299001Y3VWOFN2DGL03",
+   "name": "LHAMI LEASING LIMITED",
+   "status": "ACTIVE",
+   "city": "St. Julians",
+   "country": "MT",
+   "lcity": "Dublin",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900F61J2XA3NK9979",
+   "name": "Lufthansa Aviation Training GmbH",
+   "status": "ACTIVE",
+   "city": "M\u00fcnchen-Flughafen",
+   "country": "DE",
+   "lcity": "M\u00fcnchen-Flughafen",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299004NWPDE4L4VC454",
+   "name": "LUFTHANSA MALTA CORPORATE FINANCE LIMITED",
+   "status": "ACTIVE",
+   "city": "San \u0120iljan",
+   "country": "MT",
+   "lcity": "San \u0120iljan",
+   "lcountry": "MT"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299000AF58N6DVTY088",
+   "name": "Miles & More GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299001M8IZ7PBJR1Y18",
+   "name": "Lufthansa Group Business Services GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299005C3ALN0FW10R56",
+   "name": "Lufthansa Aviation Training Switzerland AG",
+   "status": "ACTIVE",
+   "city": "Kloten",
+   "country": "CH",
+   "lcity": "Kloten",
+   "lcountry": "CH"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900Q3QYV322RCXV42",
+   "name": "Swiss International Air Lines AG",
+   "status": "ACTIVE",
+   "city": "Kloten",
+   "country": "CH",
+   "lcity": "Kloten",
+   "lcountry": "CH"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900U2L2B187C8DU16",
+   "name": "LUFTHANSA TECHNIK TURBINE SHANNON LIMITED",
+   "status": "ACTIVE",
+   "city": "Shannon",
+   "country": "IE",
+   "lcity": "Shannon",
+   "lcountry": "IE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900P6LJ5CGTIUNN89",
+   "name": "AIR DOLOMITI S.P.A. - LINEE AEREE REGIONALI EUROPEE",
+   "status": "ACTIVE",
+   "city": "Dossobuono",
+   "country": "IT",
+   "lcity": "Dossobuono",
+   "lcountry": "IT"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299000VMYT0UGXVZN87",
+   "name": "\u041b\u0423\u0424\u0422\u0425\u0410\u041d\u0417\u0410 \u0422\u0415\u0425\u041d\u0418\u041a \u0421\u041e\u0424\u0418\u042f",
+   "status": "ACTIVE",
+   "city": "Sofia",
+   "country": "BG",
+   "lcity": "Sofia",
+   "lcountry": "BG"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299005LAFRILI4X6N79",
+   "name": "Lufthansa Technik Budapest Rep\u00fcl\u0151g\u00e9p Karbantart\u00f3 \u00e9s Nagyjav\u00edt\u00f3 Korl\u00e1tolt Felel\u0151ss\u00e9g\u0171 T\u00e1rsas\u00e1g",
+   "status": "ACTIVE",
+   "city": "Budapest",
+   "country": "HU",
+   "lcity": "Budapest",
+   "lcountry": "HU"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "5299000Q61YII5IIPF54",
+   "name": "Lufthansa Technik AERO Alzey GmbH",
+   "status": "ACTIVE",
+   "city": "Alzey",
+   "country": "DE",
+   "lcity": "Alzey",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900PR1JVFLM9HSV81",
+   "name": "Lufthansa Aviation Training Germany GmbH",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900XFN4E5DO3EOC30",
+   "name": "Germanwings GmbH",
+   "status": "ACTIVE",
+   "city": "K\u00f6ln",
+   "country": "DE",
+   "lcity": "K\u00f6ln",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900TUNVSQFZ481607",
+   "name": "Lufthansa CityLine GmbH",
+   "status": "ACTIVE",
+   "city": "M\u00fcnchen-Flughafen",
+   "country": "DE",
+   "lcity": "M\u00fcnchen-Flughafen",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900H9AT7W54KGHF30",
+   "name": "LUFTHANSA TECHNIK LANDING GEAR SERVICES UK LIMITED",
+   "status": "ACTIVE",
+   "city": "Hayes",
+   "country": "GB",
+   "lcity": "Hayes",
+   "lcountry": "GB"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900W6ATZF1SBHMQ02",
+   "name": "Lufthansa Technik Aktiengesellschaft",
+   "status": "ACTIVE",
+   "city": "Hamburg",
+   "country": "DE",
+   "lcity": "Hamburg",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "52990062TWNTBB4FZ290",
+   "name": "Lufthansa Cargo Aktiengesellschaft",
+   "status": "ACTIVE",
+   "city": "Frankfurt am Main",
+   "country": "DE",
+   "lcity": "Frankfurt am Main",
+   "lcountry": "DE"
+  },
+  {
+   "rel": "ultimate-children",
+   "lei": "529900LMTI8YSE62EI88",
+   "name": "Austrian Airlines AG",
+   "status": "ACTIVE",
+   "city": "Wien-Flughafen",
+   "country": "AT",
+   "lcity": "Wien-Flughafen",
+   "lcountry": "AT"
+  }
+ ]
+}

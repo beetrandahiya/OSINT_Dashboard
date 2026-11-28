@@ -1,0 +1,108 @@
+{
+ "Finnlines": [
+  {
+   "lei": "7437006VBPTLWEHRP329",
+   "name": "Finnlines Oyj",
+   "city": "HELSINKI",
+   "country": "FI",
+   "status": "ACTIVE",
+   "parent": [
+    "815600D1C384E0A6C267",
+    "GRIMALDI GROUP S.P.A.",
+    "PALERMO"
+   ],
+   "ultimate": [
+    "815600D1C384E0A6C267",
+    "GRIMALDI GROUP S.P.A.",
+    "PALERMO"
+   ],
+   "exception": null
+  }
+ ],
+ "Tallink Grupp": [
+  {
+   "lei": "529900QRMWAKKR3L9W75",
+   "name": "Aktsiaselts Tallink Grupp",
+   "city": "Kesklinna linnaosa, Tallinn, Harju maakond",
+   "country": "EE",
+   "status": "ACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_CONSOLIDATING"
+  }
+ ],
+ "Viking Line": [
+  {
+   "lei": "743700CUWGW42AGIDN49",
+   "name": "Viking Line Abp",
+   "city": "MARIEHAMN",
+   "country": "FI",
+   "status": "ACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NO_KNOWN_PERSON"
+  }
+ ],
+ "Grimaldi Euromed": [
+  {
+   "lei": "8156004C85D7210A9B50",
+   "name": "GRIMALDI EUROMED S.P.A.",
+   "city": "PALERMO",
+   "country": "IT",
+   "status": "ACTIVE",
+   "parent": [
+    "815600D1C384E0A6C267",
+    "GRIMALDI GROUP S.P.A.",
+    "PALERMO"
+   ],
+   "ultimate": [
+    "815600D1C384E0A6C267",
+    "GRIMALDI GROUP S.P.A.",
+    "PALERMO"
+   ],
+   "exception": null
+  }
+ ],
+ "Grimaldi Group": [
+  {
+   "lei": "213800PBE1JW2E32VX49",
+   "name": "FALCON GROUP HOLDINGS LIMITED",
+   "city": "MONTE CARLO",
+   "country": "MC",
+   "status": "ACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NATURAL_PERSONS"
+  },
+  {
+   "lei": "21380019912QSTE92W94",
+   "name": "BELLINI GROUP HOLDINGS LIMITED",
+   "city": "CITY OF MONACO",
+   "country": "MC",
+   "status": "ACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NON_PUBLIC"
+  },
+  {
+   "lei": "815600293B05B4FFE774",
+   "name": "GRIMALDI GROUP 1961 S.R.L.",
+   "city": "TORINO",
+   "country": "IT",
+   "status": "ACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NATURAL_PERSONS"
+  },
+  {
+   "lei": "8156000576C16D66FA07",
+   "name": "GRIMALDI GROUP S.R.L.",
+   "city": "COMO",
+   "country": "IT",
+   "status": "INACTIVE",
+   "parent": null,
+   "ultimate": null,
+   "exception": "NATURAL_PERSONS"
+  }
+ ]
+}

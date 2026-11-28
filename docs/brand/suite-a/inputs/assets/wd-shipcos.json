@@ -1,0 +1,1488 @@
+[
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2625260"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Government of \u00c5land"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4303247"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finnish Maritime Administration"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q10553895"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "\u00c5lands Landskapsregering"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q11999206"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Saltens Dampskibsselskab"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q31273033"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "TS Laevad"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q980219"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Port of Tallinn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q121307786"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Meriaura Group"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q270993"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "\u00c5landstrafiken"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48329"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(19.94444444 60.09861111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Mariehamn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q446750"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Maersk A/S"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18224"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Maersk"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1748"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(12.568888888 55.676111111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Copenhagen"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "254900BLYIXBFFRLUJ90"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18224"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Maersk"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q833903"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Stena Line"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18332843"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Stena AB"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q25287"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(11.9675 57.7075)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Gothenburg"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q838725"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Hurtigruten"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q585"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.738888888 59.913333333)"
+  },
+  "hqLabel": {
+   "type": "literal",
+   "value": "Q585"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "254900IF4J7328MWPA75"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q912755"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ecker\u00f6 Line"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2136249"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Rederiaktiebolaget Ecker\u00f6"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48329"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(19.94444444 60.09861111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Mariehamn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1023867"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "CMA CGM"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q23482"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.376388888 43.296666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Marseille"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3438372"
+  },
+  "ownLabel": {
+   "type": "literal",
+   "value": "Q3438372"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1023867"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "CMA CGM"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3533034"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.365805555 43.315038888)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "CMA CGM Tower"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3438372"
+  },
+  "ownLabel": {
+   "type": "literal",
+   "value": "Q3438372"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1150381"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Polferries"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q110011"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(15.576111111 54.176111111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ko\u0142obrzeg"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1418246"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finnlines"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.9375 60.170833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helsinki"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "7437006VBPTLWEHRP329"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1462950"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Norwegian Society for Sea Rescue"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503983"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.6373 59.9127)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lysaker"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "549300DMAQUHGJWIWI83"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1536909"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tallink"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1770"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.745 59.437222222)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tallinn"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "529900QRMWAKKR3L9W75"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1544900"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Viking Line"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48329"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(19.94444444 60.09861111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Mariehamn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1755621"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Silja Line"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1536909"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tallink"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.9375 60.170833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helsinki"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1536909"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tallink"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2071948"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finnish Navy"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q38511"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(22.266944444 60.451666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turku"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2074607"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Peter D\u00f6hle Schiffahrts-KG"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1055"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.0 53.55)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Hamburg"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2095671"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Rautaruukki"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.9375 60.170833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helsinki"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q54075"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SSAB"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2136249"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Rederiaktiebolaget Ecker\u00f6"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48329"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(19.94444444 60.09861111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Mariehamn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2421589"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Government of Estonia"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1770"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.745 59.437222222)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tallinn"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2611680"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Swedish Maritime Administration"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q60970996"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ministry of Infrastructure"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q25724"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(16.149318388 58.579331104)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Norrk\u00f6ping"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2784010"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Torghatten Nord"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1771156"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Torghatten"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q26087"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(18.95701 69.64961)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Troms\u00f8 Municipality"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "2549007C96LEGO5C4K90"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2909200"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bergen Nordhordland Rutelag"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q488067"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.541388888 60.518055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Oster\u00f8y Municipality"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2925773"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Brittany Ferries"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q245297"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(-3.985833333 48.726666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Roscoff"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3067270"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finnish Environment Institute"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q11895159"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ministry of the Environment"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3558232"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(25.016112672 60.226869189)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Viikki Science Park"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3463109"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Wasa Line"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q125080"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(21.615277777 63.095833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Vaasa"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4346374"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Birka Cruises"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2136249"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Rederiaktiebolaget Ecker\u00f6"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1754"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(18.068611111 59.329444444)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Stockholm"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4353782"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Norwegian America Line"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q585"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.738888888 59.913333333)"
+  },
+  "hqLabel": {
+   "type": "literal",
+   "value": "Q585"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4354304"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Destination Gotland"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q54757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(18.307108945 57.628997457)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Visby"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "5493003ZKDQCRNC8FJ78"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q6515551"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Norwegian Institute of Marine Research"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18177740"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ministry of Trade, Industry and Fisheries"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q26793"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.323333333 60.3925)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bergen"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q7079772"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Ofotens og Vesteraalens Dampskibsselskab"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q59101"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(17.42777 68.43828)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Narvik"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q7975717"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Waxholmsbolaget"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1754"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(18.068611111 59.329444444)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Stockholm"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q3233188"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Region Stockholm"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q8022963"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Wilson"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q26793"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.323333333 60.3925)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bergen"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "5967007LIEEXZXHIZK23"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q11852427"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Arctia"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.9375 60.170833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helsinki"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q33"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finland"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18688696"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Alfons H\u00e5kans"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q38511"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(22.266944444 60.451666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turku"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q18689192"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finferries"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q38511"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(22.266944444 60.451666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turku"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q2366737"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Finnish Government"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q25452222"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "ESL Shipping"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q11775032"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Aspo"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1757"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.9375 60.170833333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Helsinki"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q47149956"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Wilson Ship Management"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q26793"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.323333333 60.3925)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bergen"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q50038413"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Columbia Shipmanagement"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1055"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.0 53.55)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Hamburg"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q57315440"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Anglo-Eastern Ship Management"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4034031"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Anglo-Eastern Group"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q8646"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(114.158611111 22.278333333)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Hong Kong"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q57315556"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "MSC Shipmanagement"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q869570"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Mediterranean Shipping Company"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q185632"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(33.044286 34.674997)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Limassol"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q58423678"
+  },
+  "cLabel": {
+   "type": "literal",
+   "value": "Q58423678"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q26793"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(5.323333333 60.3925)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bergen"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q60970909"
+  },
+  "cLabel": {
+   "type": "literal",
+   "value": "Q60970909"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1016947"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(11.801627301 57.599913603)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Dons\u00f6"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q102381715"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Scorpio Bulkers"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q235"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(7.42 43.731111111)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Monaco"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q109653552"
+  },
+  "cLabel": {
+   "type": "literal",
+   "value": "Q109653552"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q749"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(6.5675 53.218888888)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Groningen"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q111982838"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "TC Nord Project"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1851"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(40.5375 64.543055555)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Arkhangelsk"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q115691206"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Excelerate Energy Inc."
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q982421"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(-95.503888888 30.1775)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "The Woodlands"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q136374339"
+  },
+  "cLabel": {
+   "type": "literal",
+   "value": "Q136374339"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q16214287"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(10.72641111 59.91288)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Rusel\u00f8kkveien"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q136374390"
+  },
+  "ownLabel": {
+   "type": "literal",
+   "value": "Q136374390"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q138839524"
+  },
+  "cLabel": {
+   "type": "literal",
+   "value": "Q138839524"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q15219044"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(24.11777778 56.96555556)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Jupiter Tower"
+  }
+ },
+ {
+  "c": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q139563975"
+  },
+  "cLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kymen Saaristoliikenne"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q192155"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(26.945833333 60.466666666)"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Kotka"
+  }
+ }
+]

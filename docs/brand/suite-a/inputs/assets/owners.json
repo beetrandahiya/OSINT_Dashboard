@@ -1,0 +1,1262 @@
+{
+ "3c56f3": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C56F3",
+   "registration": "D-AEWS",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "EWG",
+   "registered_owner": "Eurowings",
+   "url_photo": "https://image.airport-data.com/aircraft/001709925.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/709/001709925.jpg"
+  }
+ },
+ "3c65d4": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65D4",
+   "registration": "D-AINT",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001544575.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/544/001544575.jpg"
+  }
+ },
+ "3c6749": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6749",
+   "registration": "D-AIZI",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001739933.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/739/001739933.jpg"
+  }
+ },
+ "3c6524": {
+  "status": 404,
+  "aircraft": null
+ },
+ "3009b7": {
+  "status": 404,
+  "aircraft": null
+ },
+ "44ce75": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 111",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "44CE75",
+   "registration": "OO-SSU",
+   "registered_owner_country_iso_name": "BE",
+   "registered_owner_country_name": "Belgium",
+   "registered_owner_operator_flag_code": "BEL",
+   "registered_owner": "Brussels Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001721876.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/721/001721876.jpg"
+  }
+ },
+ "4b161f": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4B161F",
+   "registration": "HB-IJV",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "EDW",
+   "registered_owner": "Edelweiss Air",
+   "url_photo": "https://image.airport-data.com/aircraft/001742271.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/742/001742271.jpg"
+  }
+ },
+ "4b1800": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B1800",
+   "registration": "HB-JCI",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001697651.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/697/001697651.jpg"
+  }
+ },
+ "3c6521": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4b194e": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4b17ff": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B17FF",
+   "registration": "HB-JCH",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001685236.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/685/001685236.jpg"
+  }
+ },
+ "3c6666": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 231",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6666",
+   "registration": "D-AISF",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001720300.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/720/001720300.jpg"
+  }
+ },
+ "3c6746": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6746",
+   "registration": "D-AIZF",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001648006.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/648/001648006.jpg"
+  }
+ },
+ "4b18f3": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4B18F3",
+   "registration": "HB-JLR",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001722575.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/722/001722575.jpg"
+  }
+ },
+ "3c6648": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 131",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6648",
+   "registration": "D-AIRH",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001570032.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/570/001570032.jpg"
+  }
+ },
+ "4b1620": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4B1620",
+   "registration": "HB-IJW",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "EDW",
+   "registered_owner": "Edelweiss Air",
+   "url_photo": "https://image.airport-data.com/aircraft/001725454.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/725/001725454.jpg"
+  }
+ },
+ "300557": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "300557",
+   "registration": "I-ADJQ",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001592980.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/592/001592980.jpg"
+  }
+ },
+ "4b028c": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-190 E2",
+   "icao_type": "E290",
+   "manufacturer": "Embraer",
+   "mode_s": "4B028C",
+   "registration": "HB-AZC",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "OAW",
+   "registered_owner": "Helvetic Airways",
+   "url_photo": "https://image.airport-data.com/aircraft/001931673.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/931/001931673.jpg"
+  }
+ },
+ "3c6670": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 231",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6670",
+   "registration": "D-AISP",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001731375.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/731/001731375.jpg"
+  }
+ },
+ "3c65cd": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65CD",
+   "registration": "D-AINM",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001659781.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/659/001659781.jpg"
+  }
+ },
+ "3c6446": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 112",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6446",
+   "registration": "D-AIBF",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001677947.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/677/001677947.jpg"
+  }
+ },
+ "4b161a": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4B161A",
+   "registration": "HB-IJQ",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001553627.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/553/001553627.jpg"
+  }
+ },
+ "4b1900": {
+  "status": 200,
+  "aircraft": {
+   "type": "A340 313E",
+   "icao_type": "A343",
+   "manufacturer": "Airbus",
+   "mode_s": "4B1900",
+   "registration": "HB-JME",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "EDW",
+   "registered_owner": "Edelweiss Air",
+   "url_photo": "https://image.airport-data.com/aircraft/001629201.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/629/001629201.jpg"
+  }
+ },
+ "4b17e6": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 100",
+   "icao_type": "BCS1",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B17E6",
+   "registration": "HB-JBI",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001589914.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/589/001589914.jpg"
+  }
+ },
+ "4b1802": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B1802",
+   "registration": "HB-JCK",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001749996.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/749/001749996.jpg"
+  }
+ },
+ "3c65e1": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 271NXSL",
+   "icao_type": "A21N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65E1",
+   "registration": "D-AIOA",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "4b17f8": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B17F8",
+   "registration": "HB-JCA",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001547121.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/547/001547121.jpg"
+  }
+ },
+ "300780": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "300780",
+   "registration": "I-ADJY",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001749999.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/749/001749999.jpg"
+  }
+ },
+ "3c65e4": {
+  "status": 404,
+  "aircraft": null
+ },
+ "440823": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "440823",
+   "registration": "OE-LWG",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001695741.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/695/001695741.jpg"
+  }
+ },
+ "3c654e": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320-271N",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C654E",
+   "registration": "D-AIJN",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "3c644d": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 112",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C644D",
+   "registration": "D-AIBM",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "CLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001739668.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/739/001739668.jpg"
+  }
+ },
+ "4b19ef": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4b18b8": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4B18B8",
+   "registration": "HB-JJK",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "EDW",
+   "registered_owner": "Edelweiss Air",
+   "url_photo": "https://image.airport-data.com/aircraft/001725694.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/725/001725694.jpg"
+  }
+ },
+ "300554": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "300554",
+   "registration": "I-ADJP",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001642850.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/642/001642850.jpg"
+  }
+ },
+ "4d2014": {
+  "status": 404,
+  "aircraft": null
+ },
+ "3c5ee5": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 132",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C5EE5",
+   "registration": "D-AGWE",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "EWG",
+   "registered_owner": "Eurowings",
+   "url_photo": "https://image.airport-data.com/aircraft/001695312.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/695/001695312.jpg"
+  }
+ },
+ "3c6485": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 231",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6485",
+   "registration": "D-AIDE",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001631495.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/631/001631495.jpg"
+  }
+ },
+ "502d88": {
+  "status": 200,
+  "aircraft": {
+   "type": "A220-300",
+   "icao_type": "BCS3",
+   "manufacturer": "Airbus Canada",
+   "mode_s": "502D88",
+   "registration": "YL-ABT",
+   "registered_owner_country_iso_name": "LV",
+   "registered_owner_country_name": "Latvia",
+   "registered_owner_operator_flag_code": "BTI",
+   "registered_owner": "Air Baltic",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "3c70c9": {
+  "status": 200,
+  "aircraft": {
+   "type": "777 F",
+   "icao_type": "B77L",
+   "manufacturer": "Boeing",
+   "mode_s": "3C70C9",
+   "registration": "D-ALFI",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "GEC",
+   "registered_owner": "Lufthansa Cargo Airlines",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "4b17f9": {
+  "status": 200,
+  "aircraft": {
+   "type": "C Series 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Bombardier",
+   "mode_s": "4B17F9",
+   "registration": "HB-JCB",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": "https://image.airport-data.com/aircraft/001698525.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/698/001698525.jpg"
+  }
+ },
+ "3c5ef0": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4b0292": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 E2",
+   "icao_type": "E295",
+   "manufacturer": "Embraer",
+   "mode_s": "4B0292",
+   "registration": "HB-AZI",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "OAW",
+   "registered_owner": "Helvetic Airways",
+   "url_photo": "https://image.airport-data.com/aircraft/001699467.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/699/001699467.jpg"
+  }
+ },
+ "4ca900": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 216",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4CA900",
+   "registration": "EI-EID",
+   "registered_owner_country_iso_name": "IE",
+   "registered_owner_country_name": "Ireland",
+   "registered_owner_operator_flag_code": "AZA",
+   "registered_owner": "Alitalia",
+   "url_photo": "https://image.airport-data.com/aircraft/001666099.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/666/001666099.jpg"
+  }
+ },
+ "3c648d": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 231",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "3C648D",
+   "registration": "D-AIDM",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001693397.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/693/001693397.jpg"
+  }
+ },
+ "502d0c": {
+  "status": 200,
+  "aircraft": {
+   "type": "A220 300",
+   "icao_type": "BCS3",
+   "manufacturer": "Airbus",
+   "mode_s": "502D0C",
+   "registration": "YL-AAP",
+   "registered_owner_country_iso_name": "LV",
+   "registered_owner_country_name": "Latvia",
+   "registered_owner_operator_flag_code": "BTI",
+   "registered_owner": "Air Baltic",
+   "url_photo": "https://image.airport-data.com/aircraft/001663057.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/663/001663057.jpg"
+  }
+ },
+ "3c6758": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6758",
+   "registration": "D-AIZX",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001740068.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/740/001740068.jpg"
+  }
+ },
+ "3c65d2": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65D2",
+   "registration": "D-AINR",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001712456.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/712/001712456.jpg"
+  }
+ },
+ "3003ae": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "3003AE",
+   "registration": "I-ADJN",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001588717.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/588/001588717.jpg"
+  }
+ },
+ "3c670f": {
+  "status": 200,
+  "aircraft": {
+   "type": "A350 941",
+   "icao_type": "A359",
+   "manufacturer": "Airbus",
+   "mode_s": "3C670F",
+   "registration": "D-AIXO",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001692879.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/692/001692879.jpg"
+  }
+ },
+ "3c66ea": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66EA",
+   "registration": "D-AIWJ",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001746366.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/746/001746366.jpg"
+  }
+ },
+ "4b194c": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321-271NX",
+   "icao_type": "A321",
+   "manufacturer": "Airbus",
+   "mode_s": "4B194C",
+   "registration": "HB-JPC",
+   "registered_owner_country_iso_name": "CH",
+   "registered_owner_country_name": "Switzerland",
+   "registered_owner_operator_flag_code": "SWR",
+   "registered_owner": "Swiss International Air Lines",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "3c65c4": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65C4",
+   "registration": "D-AIND",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001658291.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/658/001658291.jpg"
+  }
+ },
+ "3c6584": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 114",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6584",
+   "registration": "D-AILD",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001682237.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/682/001682237.jpg"
+  }
+ },
+ "3c66ad": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66AD",
+   "registration": "D-AIUM",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001560806.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/560/001560806.jpg"
+  }
+ },
+ "4ca758": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 216",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4CA758",
+   "registration": "EI-DSZ",
+   "registered_owner_country_iso_name": "IE",
+   "registered_owner_country_name": "Ireland",
+   "registered_owner_operator_flag_code": "ITY",
+   "registered_owner": "Italia Trasporto Aereo",
+   "url_photo": "https://image.airport-data.com/aircraft/001739611.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/739/001739611.jpg"
+  }
+ },
+ "3c65d1": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65D1",
+   "registration": "D-AINQ",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001787966.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/787/001787966.jpg"
+  }
+ },
+ "3c6708": {
+  "status": 200,
+  "aircraft": {
+   "type": "A350 941",
+   "icao_type": "A359",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6708",
+   "registration": "D-AIXH",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001660610.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/660/001660610.jpg"
+  }
+ },
+ "3c65cf": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65CF",
+   "registration": "D-AINO",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001709706.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/709/001709706.jpg"
+  }
+ },
+ "3c65cb": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 271NSL",
+   "icao_type": "A20N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C65CB",
+   "registration": "D-AINK",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001714001.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/714/001714001.jpg"
+  }
+ },
+ "3003af": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "3003AF",
+   "registration": "I-ADJO",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001646742.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/646/001646742.jpg"
+  }
+ },
+ "3c66e4": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66E4",
+   "registration": "D-AIWD",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001933710.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/933/001933710.jpg"
+  }
+ },
+ "3c48ee": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 112",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C48EE",
+   "registration": "D-ABGN",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "EWG",
+   "registered_owner": "Eurowings",
+   "url_photo": "https://image.airport-data.com/aircraft/001674101.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/674/001674101.jpg"
+  }
+ },
+ "300738": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "300738",
+   "registration": "I-ADJV",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": "https://image.airport-data.com/aircraft/001659791.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/659/001659791.jpg"
+  }
+ },
+ "3c4a08": {
+  "status": 404,
+  "aircraft": null
+ },
+ "3c66a5": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66A5",
+   "registration": "D-AIUE",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001754383.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/754/001754383.jpg"
+  }
+ },
+ "3c64a5": {
+  "status": 200,
+  "aircraft": {
+   "type": "A321 271NXSL",
+   "icao_type": "A21N",
+   "manufacturer": "Airbus",
+   "mode_s": "3C64A5",
+   "registration": "D-AIEE",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001713281.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/713/001713281.jpg"
+  }
+ },
+ "3c56ef": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C56EF",
+   "registration": "D-AEWO",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "EWG",
+   "registered_owner": "Eurowings",
+   "url_photo": "https://image.airport-data.com/aircraft/001722705.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/722/001722705.jpg"
+  }
+ },
+ "3c6759": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6759",
+   "registration": "D-AIZY",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001709704.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/709/001709704.jpg"
+  }
+ },
+ "3c658d": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 114",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C658D",
+   "registration": "D-AILM",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001742327.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/742/001742327.jpg"
+  }
+ },
+ "4b15a3": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4408de": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4408DE",
+   "registration": "OE-LBY",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001611607.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/611/001611607.jpg"
+  }
+ },
+ "44029f": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 216",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "44029F",
+   "registration": "OE-LXD",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "3c6570": {
+  "status": 200,
+  "aircraft": {
+   "type": "A330 343E",
+   "icao_type": "A333",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6570",
+   "registration": "D-AIKP",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001644269.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/644/001644269.jpg"
+  }
+ },
+ "440607": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "440607",
+   "registration": "OE-LZB",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001940184.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/940/001940184.jpg"
+  }
+ },
+ "3c66ac": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66AC",
+   "registration": "D-AIUL",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001745139.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/745/001745139.jpg"
+  }
+ },
+ "3c6450": {
+  "status": 200,
+  "aircraft": {
+   "type": "A319 112",
+   "icao_type": "A319",
+   "manufacturer": "Airbus",
+   "mode_s": "3C6450",
+   "registration": "D-AIBP",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "CLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "440826": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "440826",
+   "registration": "OE-LWJ",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001938709.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/938/001938709.jpg"
+  }
+ },
+ "3c66a7": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66A7",
+   "registration": "D-AIUG",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001760345.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/760/001760345.jpg"
+  }
+ },
+ "4402a3": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 216",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4402A3",
+   "registration": "OE-LXE",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001694267.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/694/001694267.jpg"
+  }
+ },
+ "3c66b9": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "3C66B9",
+   "registration": "D-AIUY",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "OCN",
+   "registered_owner": "Eurowings Discover",
+   "url_photo": "https://image.airport-data.com/aircraft/001713332.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/713/001713332.jpg"
+  }
+ },
+ "440609": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214SL",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "440609",
+   "registration": "OE-LZF",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001897885.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/897/001897885.jpg"
+  }
+ },
+ "4d2406": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320-214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "4D2406",
+   "registration": "9H-EUR",
+   "registered_owner_country_iso_name": "MT",
+   "registered_owner_country_name": "Malta",
+   "registered_owner_operator_flag_code": null,
+   "registered_owner": "Eurowings Europe Ltd (Malta)",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "3007ee": {
+  "status": 200,
+  "aircraft": {
+   "type": "EMB-195 LR",
+   "icao_type": "E195",
+   "manufacturer": "Embraer",
+   "mode_s": "3007EE",
+   "registration": "I-ADJZ",
+   "registered_owner_country_iso_name": "IT",
+   "registered_owner_country_name": "Italy",
+   "registered_owner_operator_flag_code": "DLA",
+   "registered_owner": "Air Dolomiti",
+   "url_photo": null,
+   "url_photo_thumbnail": null
+  }
+ },
+ "4400f8": {
+  "status": 404,
+  "aircraft": null
+ },
+ "440665": {
+  "status": 200,
+  "aircraft": {
+   "type": "A320 214",
+   "icao_type": "A320",
+   "manufacturer": "Airbus",
+   "mode_s": "440665",
+   "registration": "OE-LBI",
+   "registered_owner_country_iso_name": "AT",
+   "registered_owner_country_name": "Austria",
+   "registered_owner_operator_flag_code": "AUA",
+   "registered_owner": "Austrian Airlines",
+   "url_photo": "https://image.airport-data.com/aircraft/001731699.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/731/001731699.jpg"
+  }
+ },
+ "3c4b35": {
+  "status": 200,
+  "aircraft": {
+   "type": "747 830",
+   "icao_type": "B748",
+   "manufacturer": "Boeing",
+   "mode_s": "3C4B35",
+   "registration": "D-ABYU",
+   "registered_owner_country_iso_name": "DE",
+   "registered_owner_country_name": "Germany",
+   "registered_owner_operator_flag_code": "DLH",
+   "registered_owner": "Lufthansa",
+   "url_photo": "https://image.airport-data.com/aircraft/001669030.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/669/001669030.jpg"
+  }
+ }
+}
