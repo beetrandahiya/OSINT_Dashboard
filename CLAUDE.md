@@ -2070,3 +2070,28 @@ capitals or sentence case wordmark.
   sky-200, vertical violet-200 -> blue-100, palest (100 steps), and a flat-globe comparison. First try was too pale (white
   highlight washed the lavender out): use the 200/300 steps with a highlight of about 0.3.
 - Next once he picks: real icon files (.ico, macOS icon) and the icon + colours in the app's top bar.
+
+### 2026-11-28, Porcelain: almost-white 3D icon, dark twin, full design language (proposal, waiting for his verdict)
+
+- Owner: the soft tile looks nice but "the violet in the background is too much ... almost white ... the palest one is
+  very close", "more 3D", then "build a full design language ... like the reports". Answers: show **brand and app**
+  (he decides later whether it goes in), find **"NON AI SLOP" fonts online**, reports = **Investigate case file +
+  Connections report**, dark icon = **dark twin**.
+- Page: https://claude.ai/artifact/M9YPGR3DxF5shLZo6i1cAg , sources and notes in `docs/brand/porcelain/`.
+- **Icon** rendered by our own numpy ray caster (`tools/porcelain.py`, exact Footprint geometry): white tile with
+  Tailwind violet-100 / sky-100 whispers fading to white, matte black globe with an atmosphere on the sunlit limb, lit
+  white footprint, soft indigo-950 contact shadow, bevelled edge. A glossy first try read as a pool 8-ball: keep it
+  matte. Dark twin as picked (zinc-950 tile, white globe, footprint as its negative; reads more like an eye) plus a
+  "planet" alternative (black globe outlined by its atmosphere; fades at 16 px on dark taskbars). Flat version <= 32 px.
+- **Type** (a research agent checked 17 OFL families and their licence files): Mona Sans (headings, wordmark outlined at
+  118 % / 640), B612 (Airbus cockpit face) for text **and numbers** (its digits are equal width), B612 Mono only for codes
+  and IDs (its point and comma take a full cell: "790,803,860" read as three numbers), Redaction (court-document face)
+  for printed reports, Redaction 50 Bold for stamps. All on Google Fonts.
+- **Colour**: Tailwind v3.4.17 steps + Anduril #010101, no orange; light map white land / sky-50 sea, layers rose-600,
+  indigo-700, sky-700, violet-600; dark map zinc-900 on zinc-950.
+- **App mock-ups** (Dense layout, light + dark) from the server's stored payloads, newest 28 Nov 2026 03:08 UTC.
+  **Documents** from real answers: Connections report Rosneft Deutschland -> PJSC Rosneft (GLEIF; 8 OpenSanctions lists
+  by LEI; Rosneft declares no known controller); case file on reserved test identifiers only (test@example.com,
+  example.com), marked SPECIMEN. Nothing in the app changed.
+- Open questions for him: adopt Porcelain for the app or keep God's eye; dark twin or planet for dark mode; then real
+  icon files (.ico, macOS icon) once he picks.
