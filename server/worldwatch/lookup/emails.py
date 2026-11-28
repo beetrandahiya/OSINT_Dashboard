@@ -53,7 +53,8 @@ async def gravatar(c: httpx.AsyncClient, email: str) -> list[dict]:
     r.raise_for_status()
     e = (r.json().get("entry") or [{}])[0]
     out = [_f("Gravatar", "profile", "gravatar", f"Gravatar profile “{e.get('displayName') or e.get('preferredUsername')}”", e.get("profileUrl"),
-              username=e.get("preferredUsername"), about=e.get("aboutMe"), image=e.get("thumbnailUrl"))]   # "image": the field the dossier shows pictures from
+              username=e.get("preferredUsername"), name=e.get("displayName"), about=e.get("aboutMe"), image=e.get("thumbnailUrl"),   # "image": the field the dossier shows pictures from
+              bound="the Gravatar profile of this address (found by its hash)")]
     for a in e.get("accounts") or []:
         out.append(_f("Gravatar", "account", "gravatar:" + (a.get("shortname") or a.get("domain") or ""), f"{a.get('name') or a.get('shortname')} account linked on Gravatar", a.get("url"), username=a.get("username")))
     return out
@@ -64,14 +65,66 @@ async def pgp(c: httpx.AsyncClient, email: str) -> list[dict]:
     if r.status_code == 404:
         return []
     r.raise_for_status()
-    return [_f("OpenPGP key server", "key", "pgp", "Public encryption key published", "https://keys.openpgp.org/search?q=" + email, what="A PGP key carrying this address is on the public key server.")]
+    uids = pgp_uids(r.text)
+    return [_f("OpenPGP key server", "key", "pgp", "Public encryption key published", "https://keys.openpgp.org/search?q=" + email,
+               other_addresses=[u["email"] for u in uids if u.get("email") and u["email"].lower() != email.lower()] or None,
+               names=list(dict.fromkeys(u["name"] for u in uids if u.get("name"))) or None,
+               what="A PGP key carrying this address is on the public key server. keys.openpgp.org publishes an address on a key only after "
+                    "its owner confirmed it by email, so other addresses on the same key were confirmed by whoever holds the key.")]
+
+
+def pgp_uids(armored: str) -> list[dict]:
+    """The user IDs ("Name <address>") written in an ASCII-armoured public key. Only user ID packets are read."""
+    import base64
+    import re
+    m = re.search(r"-----BEGIN PGP PUBLIC KEY BLOCK-----(.*?)-----END PGP PUBLIC KEY BLOCK-----", armored or "", re.S)
+    if not m:
+        return []
+    lines = [ln.strip() for ln in m.group(1).strip().splitlines()]
+    body = "".join(ln for ln in lines if ln and ":" not in ln and not ln.startswith("="))
+    try:
+        data = base64.b64decode(body)
+    except ValueError:
+        return []
+    out, i = [], 0
+    while i < len(data) and len(out) < 50:
+        b = data[i]
+        if not b & 0x80:
+            break
+        if b & 0x40:                                   # new packet format
+            tag, i = b & 0x3F, i + 1
+            if i >= len(data):
+                break
+            l0 = data[i]
+            if l0 < 192:
+                n, i = l0, i + 1
+            elif l0 < 224:
+                n, i = ((l0 - 192) << 8) + data[i + 1] + 192, i + 2
+            elif l0 == 255:
+                n, i = int.from_bytes(data[i + 1:i + 5], "big"), i + 5
+            else:
+                break                                  # partial lengths do not occur in key user IDs
+        else:                                          # old packet format
+            tag, lt, i = (b >> 2) & 0x0F, b & 3, i + 1
+            size = {0: 1, 1: 2, 2: 4}.get(lt)
+            if size is None:
+                break
+            n, i = int.from_bytes(data[i:i + size], "big"), i + size
+        if tag == 13:
+            uid = data[i:i + n].decode("utf-8", "replace")
+            em = re.search(r"<([^<>@\s]+@[^<>\s]+)>", uid) or re.fullmatch(r"\s*([^<>@\s]+@[^<>\s]+)\s*", uid)
+            out.append({"email": em.group(1) if em else None, "name": re.sub(r"\s*(<[^>]*>|\([^)]*\))\s*", " ", uid).strip() or None})
+        i += n
+    return out
 
 
 async def github(c: httpx.AsyncClient, email: str) -> list[dict]:
+    from .tools import github_headers
     r = await c.get("https://api.github.com/search/commits", params={"q": f"author-email:{email}", "per_page": 30, "sort": "author-date"},
-                    headers={"Accept": "application/vnd.github+json"})
+                    headers=github_headers())
     if r.status_code in (403, 429):
-        raise RuntimeError("GitHub's limit for searches without an account is used up; try again in a minute")
+        raise RuntimeError("GitHub's limit for commit searches is used up; try again in a minute"
+                           + ("" if config.github_token() else " (a free token in data/github-token.txt raises it)"))
     r.raise_for_status()
     d = r.json()
     repos, out = {}, []

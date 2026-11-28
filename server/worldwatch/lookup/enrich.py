@@ -61,6 +61,28 @@ def _jsonld(text):
     return out
 
 
+def _links(text, base):
+    """The page's identity links, kept for the pivot engine (they stay on the server): rel="me" links (a page's
+    own statement "this other page is also me"), and links to profile pages on known sites. Other links are
+    not kept."""
+    from . import patterns
+    rel_me, profiles = [], []
+    for m in re.finditer(r'<(?:a|link)\b[^>]*>', text[:MAX_BYTES], re.I):
+        tag = m.group(0)
+        href = re.search(r'href\s*=\s*["\']([^"\']+)["\']', tag, re.I)
+        if not href:
+            continue
+        u = urljoin(base, _html.unescape(href.group(1).strip()))
+        if not u.startswith(("http://", "https://")) or len(u) > 300:
+            continue
+        rel = re.search(r'rel\s*=\s*["\']([^"\']+)["\']', tag, re.I)
+        if rel and "me" in rel.group(1).lower().split() and u not in rel_me:
+            rel_me.append(u)
+        elif tag[:2].lower() == "<a" and urlparse(u).netloc != urlparse(base).netloc and u not in profiles and patterns.match(u):
+            profiles.append(u)
+    return {"rel_me": rel_me[:30], "links": profiles[:40]}
+
+
 class Refused(Exception):
     pass
 
@@ -144,6 +166,7 @@ async def read_page(client: httpx.AsyncClient, url: str) -> dict:
     out["banner"] = img if img and img.startswith("https://") and not personal else None
     out["site"] = _meta(text, "og:site_name")
     out.update({k: v for k, v in _jsonld(text).items() if v})
+    out.update(_links(text, final))
     # Is the account there? Judge only on what is visible, and say why.
     if status in (404, 410):
         out.update(alive=False, why=f"the site answered {status} (not found)")
@@ -176,6 +199,23 @@ async def first_archived(client: httpx.AsyncClient, url: str) -> dict | None:
         ts = rows[1][0]
         return {"first": f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}", "snapshot": f"https://web.archive.org/web/{ts}/{rows[1][1]}"}
     except (httpx.HTTPError, ValueError, IndexError):
+        return await closest_archived(client, url, "19960101")       # the CDX server often does not answer; the availability API usually does
+
+
+async def closest_archived(client: httpx.AsyncClient, url: str, when: str) -> dict | None:
+    """The Internet Archive's copy of a page closest to a date (YYYYMMDD), from its availability API. Asked for
+    1996 it gives the oldest copy, asked for today the newest."""
+    try:
+        r = await client.get("https://archive.org/wayback/available", params={"url": re.sub(r"^https?://(www\.)?", "", url).rstrip("/"), "timestamp": when},
+                             headers={"User-Agent": BROWSER})
+        if r.status_code != 200:
+            return None
+        snap = (r.json().get("archived_snapshots") or {}).get("closest")
+        if not snap or not snap.get("available") or not re.fullmatch(r"\d{14}", snap.get("timestamp", "")):
+            return {"first": None}
+        ts = snap["timestamp"]
+        return {"first": f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}", "ts": ts, "snapshot": snap["url"].replace("http://", "https://", 1)}
+    except (httpx.HTTPError, ValueError):
         return None
 
 

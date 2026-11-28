@@ -176,19 +176,35 @@ def phone(number: str) -> list[dict]:
                what="Read from the public numbering plan, on this computer; nothing was sent anywhere. The carrier is the one the number block was first given to; a ported number may be elsewhere now.")]
 
 
+def github_headers() -> dict:
+    """GitHub's API headers; with a token (data/github-token.txt) the hourly limit is 5,000 requests instead of 60."""
+    h = {"User-Agent": config.USER_AGENT, "Accept": "application/vnd.github+json"}
+    if config.github_token():
+        h["Authorization"] = "Bearer " + config.github_token()
+    return h
+
+
+def github_limit_text() -> str:
+    return "GitHub's hourly limit is used up" + ("" if config.github_token() else " (60 requests an hour without a token; a free token in data/github-token.txt gives 5,000)")
+
+
 async def github_account(user: str) -> list[dict]:
     out = []
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": config.USER_AGENT, "Accept": "application/vnd.github+json"}) as c:
+    async with httpx.AsyncClient(timeout=20, headers=github_headers()) as c:
         r = await c.get(f"https://api.github.com/users/{user}")
         if r.status_code in (403, 429):
-            raise ToolProblem("GitHub's hourly limit for requests without an account is used up")
+            raise ToolProblem(github_limit_text())
         if r.status_code == 404:
             return []
         r.raise_for_status()
         u = r.json()
+        # "bound": this profile is the account that was entered or followed, not a namesake found by a sweep.
+        # A public profile email is shown by GitHub only once the account has verified it.
         out.append(_f("GitHub", "profile", "profile", f"GitHub profile {u['login']}", u["html_url"], name=u.get("name"), bio=u.get("bio"), company=u.get("company"), location=u.get("location"),
                       email=u.get("email"), website=u.get("blog"), twitter_username=u.get("twitter_username"), public_repositories=u.get("public_repos"), followers=u.get("followers"),
-                      created_at=(u.get("created_at") or "")[:10], image=u.get("avatar_url"), what="What the GitHub profile shows to everyone."))
+                      created_at=(u.get("created_at") or "")[:10], image=u.get("avatar_url"), login=u.get("login"), bound="the GitHub account itself",
+                      email_verified_by="GitHub (it shows only a verified address on a profile)" if u.get("email") else None,
+                      what="What the GitHub profile shows to everyone."))
         ev = await c.get(f"https://api.github.com/users/{user}/events/public", params={"per_page": 100})
         seen = {}
         for e in ev.json() if ev.status_code == 200 else []:
@@ -198,6 +214,7 @@ async def github_account(user: str) -> list[dict]:
                     seen.setdefault(a["email"], {"name": a.get("name"), "repo": e["repo"]["name"]})
         for mail, v in seen.items():
             out.append(_f("GitHub", "email", "commit-email:" + mail, f"Email in public commits: {mail}", f"https://github.com/{v['repo']}", author_name=v["name"], repository=v["repo"],
+                          address=mail, via_account=u.get("login"),
                           what="This address is written into recent public commits of this account, where anyone can read it."))
     return out
 

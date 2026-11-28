@@ -1,5 +1,7 @@
-/* The lookup page: same panels and tokens as the map, with a graph where the map would be. */
+/* The Investigate page (/lookup): same panels and tokens as the map (God's eye by default, Apple Maps when chosen in
+   the map's Settings), with the case views where the map would be. */
 body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
+[data-theme="eye"] body.lookup { background: light-dark(#e9eef2, #0a0e12); }
 #graph { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 #graph:active { cursor: grabbing; }
 .side-head .link { font-size: 15px; }
@@ -54,8 +56,14 @@ body.lookup { background: light-dark(#f6f4ee, #1c1c1e); overflow: hidden; }
 body.lookup { -webkit-user-select: none; user-select: none; }
 body.lookup .detail, body.lookup input, body.lookup .ids span { -webkit-user-select: text; user-select: text; }
 
-/* ---- the dossier ---- */
-.tabs { position: absolute; z-index: 3; top: var(--gap); left: calc(var(--side-w) + var(--gap) * 2); }
+/* ---- the views ---- */
+.lk-top { position: absolute; z-index: 3; top: var(--gap); left: calc(var(--side-w) + var(--gap) * 2); right: var(--gap); display: flex; align-items: center; gap: 10px; pointer-events: none; }
+.lk-top > * { pointer-events: auto; }
+.lk-top[hidden], .lk-top > [hidden] { display: none; }
+.tabs .n { color: var(--accent); font-variant-numeric: tabular-nums; }
+.lk-export { margin-left: auto; display: flex; gap: 6px; }
+body.lookup:has(#detail:not([hidden])) .lk-top { right: calc(340px + var(--gap) * 2); }   /* clear of the detail card and its close button */
+.lk-export .btn { text-decoration: none; display: inline-block; background: var(--glass-bg); border: 1px solid var(--glass-stroke); box-shadow: var(--glass-shadow); }
 .dossier { position: absolute; z-index: 2; top: calc(var(--gap) + 52px); bottom: var(--gap); left: calc(var(--side-w) + var(--gap) * 2); right: var(--gap); overflow-y: auto; padding: 26px 32px 40px; -webkit-user-select: text; user-select: text; }
 .dossier[hidden], #graph[hidden] { display: none; }
 .ds-head h1 { margin: 2px 0 10px; font: 700 26px/31px var(--font); }
@@ -101,4 +109,81 @@ body.lookup:has(#detail:not([hidden])) .dossier { right: calc(340px + var(--gap)
 .lk-legend[hidden] { display: none; }
 .note { color: var(--text-2); font-size: 13px; margin: 6px 0 0; }
 /* graph labels can run under the tab buttons: give them the panels' frosted backing so they stay readable */
-.tabs { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-shadow); }
+.tabs { background: var(--glass-bg); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); box-shadow: var(--glass-shadow); border: 1px solid var(--glass-stroke); }
+
+/* ---- cases and consent ---- */
+.cases { list-style: none; margin: 0 0 8px; padding: 0; }
+.cases li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; cursor: default; }
+.cases li:hover { background: var(--hover); }
+.cases li[aria-selected="true"] { background: var(--sel); box-shadow: inset 0 0 0 1px var(--accent); }
+.cases b { font-size: 15px; font-weight: 600; } .cases span { font-size: 12px; color: var(--text-2); }
+.cases em.bad, .consent.bad, em.bad { color: var(--bad); font-style: normal; }
+.consent { margin: 10px 0 6px; padding: 8px 10px; border-radius: 10px; background: var(--fill); font-size: 13px; line-height: 17px; }
+#case-info .btn { margin-top: 4px; }
+.boundary { border-top: 0.5px solid var(--sep); padding-top: 8px; margin-top: 12px; }
+.ids em { display: block; font-style: normal; font-size: 11px; color: var(--text-2); }
+.ids em.warn { color: var(--warn); }
+.seedpic { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; vertical-align: middle; margin-right: 8px; background: var(--fill); }
+.add input[type="file"] { flex: 1; min-width: 0; font-size: 12px; }
+.add [hidden] { display: none; }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
+.btn.ok { color: var(--good); }
+[data-theme="eye"] .btn { border-radius: 999px; }
+[data-theme="eye"] .lk-body h3 { color: var(--accent); }
+
+/* the new-case sheet */
+.lk-modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0, 0, 0, .34); }
+.lk-modal[hidden] { display: none; }
+.case-form { position: relative; width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; }
+.case-form h2 { margin: 0; font-size: 22px; }
+.case-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
+.case-form label.row { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+.case-form input:not([type="checkbox"]), .case-form select, .case-form textarea { font: 14px var(--font); color: var(--text); background: var(--fill); border: 1px solid var(--glass-stroke); border-radius: 10px; padding: 7px 10px; resize: vertical; }
+.case-form fieldset { border: 1px solid var(--sep); border-radius: 14px; padding: 8px 12px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.case-form fieldset:disabled { opacity: .45; }
+.case-form legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
+.case-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.case-form .btns { display: flex; gap: 8px; }
+
+/* ---- accounts, grouped by evidence ---- */
+.ds h2 small, .other summary small { font-weight: 500; color: var(--text-2); font-size: 14px; margin-left: 4px; }
+.band-note { margin: -4px 0 10px; }
+.lk-filter { display: inline-flex; margin-top: 4px; }
+.lk-filter small { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.lk-empty { color: var(--text-2); font-size: 15px; line-height: 21px; max-width: 620px; margin: 24px 0; }
+.accs, .leads, .olist { list-style: none; margin: 0; padding: 0; }
+.acc { display: flex; gap: 12px; align-items: flex-start; padding: 10px; border-radius: 14px; cursor: default; }
+.acc + .acc { border-top: 0.5px solid var(--sep); }
+.acc:hover { background: var(--hover); }
+.acc.sel, .olist li.sel { box-shadow: inset 0 0 0 1px var(--accent); background: var(--sel); }
+.acc > img, .acc > .ds-dot { flex: none; width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: var(--fill-strong); display: grid; place-items: center; font-weight: 600; color: var(--text-2); }
+.acc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 17px; }
+.acc-h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .acc-h b { font-size: 15px; font-weight: 600; } .acc-h a { color: var(--text); text-decoration: none; } .acc-h a:hover { color: var(--accent); }
+.acc .clip { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.acc .meta { font-size: 11px; color: var(--text-2); }
+.acc-b { flex: none; display: flex; gap: 6px; align-self: center; }
+.evs { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0; }
+.ev { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 999px; background: var(--fill); font-size: 11px; line-height: 15px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev.strong { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--text); }
+.ev[data-goto] { cursor: pointer; } .ev[data-goto]:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+.detail-ev .ev { white-space: normal; }
+.other { margin: 6px 0; } .other summary { cursor: default; font-weight: 600; font-size: 14px; padding: 4px 0; }
+.olist li { padding: 6px 8px; border-radius: 10px; font-size: 13px; cursor: default; } .olist li:hover { background: var(--hover); } .olist li b { font-weight: 500; }
+.dbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* ---- leads ---- */
+.lead { padding: 12px; border-radius: 14px; background: var(--fill); margin-bottom: 8px; }
+.lead-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 15px; } .lead-h b { font-weight: 600; overflow-wrap: anywhere; } .lead-h .soft { font-size: 12px; }
+.tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 1px 8px; border-radius: 999px; background: var(--fill-strong); color: var(--text-2); }
+.tag.strong { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--text); }
+.lead-ev { margin: 6px 0 8px; padding-left: 18px; font-size: 13px; line-height: 18px; color: var(--text-2); } .lead-ev li.strong { color: var(--text); }
+.lead-ev a { color: inherit; } .lead-ev a:hover { color: var(--accent); }
+.lead-b { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.done summary { cursor: default; font: 700 17px/24px var(--head, var(--font)); margin-bottom: 8px; }
+
+/* ---- timeline and graph ---- */
+.ds-tl li.unconf { opacity: .72; } .ds-tl li.unconf::before { background: var(--text-3); }
+.ds-tl li[data-fid] { cursor: default; } .ds-tl li[data-fid]:hover { background: var(--hover); }
+#graph circle.anchor { stroke: var(--text); stroke-width: 2.2; }
+#graph text.lbl { visibility: hidden; }
+#graph g:hover > text.lbl { visibility: visible; font-weight: 600; paint-order: stroke; stroke: var(--glass-solid); stroke-width: 3px; }
