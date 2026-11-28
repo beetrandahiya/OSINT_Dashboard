@@ -17,6 +17,10 @@
     --sep: rgba(255,255,255,.12); --accent: #0a84ff; --good: #30d158; --warn: #ff9f0a; --bad: #ff453a; --idle: #8e8e93; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
+.pages { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--card); border: 1px solid var(--sep); margin-bottom: 18px; }
+.pages a { padding: 7px 13px; border-radius: 999px; color: var(--text-2); text-decoration: none; font-weight: 500; }
+.pages a:hover { color: var(--text); }
+.pages a[aria-current="page"] { background: var(--text); color: var(--card); }
 body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 var(--font); -webkit-font-smoothing: antialiased; }
 main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
 header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -45,6 +49,7 @@ a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: un
 </head>
 <body>
 <main>
+  <nav class="pages" aria-label="World Watch pages"><a href="/">Map</a><a href="/connections">Connections</a><a href="/lookup">Investigate</a><a href="/feeds" aria-current="page">Sources</a></nav>
   <header><h1>World Watch feeds</h1><span id="clock"></span></header>
   <p class="lead">Every feed, live. "Fetched" is when this computer last got an answer. "Data time" is the timestamp the source itself puts on its data; where a source gives none, it says so. All times are UTC.</p>
   <div id="down">The World Watch server is not answering. The numbers below are frozen.</div>
