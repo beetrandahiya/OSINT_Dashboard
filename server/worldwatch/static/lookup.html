@@ -3,49 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>World Watch Lookup</title>
+<title>World Watch Investigate</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="stylesheet" href="/static/lookup.css">
 </head>
 <body class="lookup">
-<svg id="graph" aria-label="Footprint graph" hidden></svg>
-<main class="glass dossier" id="dossier" aria-label="Dossier"></main>
-<div class="seg tabs" role="group" aria-label="View"><button id="tab-dossier" aria-pressed="true">Dossier</button><button id="tab-graph" aria-pressed="false">Graph</button></div>
+<svg id="graph" aria-label="Case graph" hidden></svg>
+<main class="glass dossier" id="main" aria-label="Case"></main>
+<nav class="lk-top" aria-label="Views">
+  <div class="seg tabs" role="group" aria-label="View"><button data-tab="list">Accounts</button><button data-tab="leads">Leads <span id="n-leads" class="n"></span></button><button data-tab="timeline">Timeline</button><button data-tab="dossier">Dossier</button><button data-tab="graph">Graph</button></div>
+  <div class="lk-export"><a class="btn" id="exp-json" download>Export JSON</a><a class="btn" id="exp-html" target="_blank" rel="noopener">Case file</a></div>
+</nav>
 <p class="empty-note" id="empty" hidden></p>
 
 <aside class="glass sidebar">
-  <header class="side-head"><h1>Lookup</h1><a class="link" href="/">Map</a></header>
+  <header class="side-head"><h1>Investigate</h1><a class="link" href="/">Map</a></header>
   <div class="lk-body">
-    <h3>About you</h3>
-    <ul class="ids" id="ids"></ul>
-    <form id="add" class="add" autocomplete="off">
-      <select id="kind" aria-label="Kind"></select>
-      <input id="value" placeholder="Add one of your own" aria-label="Value" spellcheck="false">
-      <button class="btn" type="submit">Add</button>
-    </form>
-    <p class="err" id="err" hidden></p>
+    <h3>Cases</h3>
+    <ul class="cases" id="cases"></ul>
+    <button class="btn" id="new-case">New case</button>
+    <div id="case-info"></div>
 
-    <h3>Username checker</h3>
-    <p class="line" id="test"></p>
-    <button class="btn" id="run-test">Test the checker</button>
+    <div id="case-body" hidden>
+      <h3>Identifiers</h3>
+      <ul class="ids" id="ids"></ul>
+      <form id="add" class="add" autocomplete="off">
+        <select id="kind" aria-label="Kind"></select>
+        <input id="value" placeholder="Add an identifier" aria-label="Value" spellcheck="false">
+        <input id="file" type="file" accept="image/jpeg,image/png,image/gif,image/webp" aria-label="Picture file" hidden>
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <p class="err" id="err" hidden></p>
+      <p class="note" id="note" hidden></p>
 
-    <h3>Scan</h3>
-    <p class="line" id="scan-line"></p>
-    <button class="btn primary" id="plan">Scan</button> <button class="btn" id="read-pages">Read the pages</button>
-    <p class="note" id="note" hidden></p>
-    <div class="sheet" id="sheet" hidden></div>
-    <div id="progress" hidden><div class="bar"><i id="bar"></i></div><p class="line" id="step"></p></div>
-    <ul class="problems" id="problems"></ul>
+      <h3>Username checker</h3>
+      <p class="line" id="test"></p>
+      <button class="btn" id="run-test">Test the checker</button>
 
-    <h3>Stored on this computer</h3>
-    <p class="line" id="stored"></p>
-    <button class="btn danger" id="wipe">Delete everything</button>
+      <h3>Scan</h3>
+      <p class="line" id="scan-line"></p>
+      <p class="consent bad" id="gate" hidden>This case has no complete consent record, so nothing can be checked for it.</p>
+      <button class="btn primary" id="plan">Scan</button> <button class="btn" id="read-pages">Read the pages</button>
+      <div class="sheet" id="sheet" hidden></div>
+      <div id="progress" hidden><div class="bar"><i id="bar"></i></div><p class="line" id="step"></p></div>
+      <div id="followed"></div>
+      <ul class="problems" id="problems"></ul>
+
+      <h3>Stored on this computer</h3>
+      <p class="line" id="stored"></p>
+    </div>
+    <button class="btn danger" id="wipe">Delete all cases</button>
     <p class="src">Results stay in a file on this computer (data/lookup.db). This page only answers on the computer World Watch runs on, and only to its own page.</p>
+    <p class="src boundary">Public sources only. No face recognition or face search, nothing that infers where a person lives, is or goes, no breach contents or passwords, nothing past a login. Every case needs its consent record.</p>
   </div>
 </aside>
 
 <div class="right"><section class="glass detail" id="detail" hidden></section><span class="spring"></span>
-  <section class="glass lk-legend" id="legend"></section></div>
+  <section class="glass lk-legend" id="legend" hidden></section></div>
+
+<div class="lk-modal" id="case-sheet" hidden>
+  <form class="glass case-form" id="case-form" role="dialog" aria-label="New case">
+    <h2>New case</h2>
+    <p class="src">A case is one person. It starts only with a consent record: who agreed to be looked up, when, how, and to what. Without it nothing can be checked.</p>
+    <label>Name of the case<input id="cf-label" maxlength="80" required placeholder="e.g. Anna (agreed 20 Nov)"></label>
+    <label class="row"><input type="checkbox" id="cf-self"> This case is me (self-test) <small id="cf-self-note" class="soft"></small></label>
+    <fieldset id="cf-consent">
+      <legend>Consent</legend>
+      <label>Who gave consent<input id="cf-by" maxlength="120" placeholder="their full name"></label>
+      <div class="two">
+        <label>Date<input id="cf-at" type="date"></label>
+        <label>How<select id="cf-how"><option value="written">Written</option><option value="verbal">Verbal</option></select></label>
+      </div>
+      <label>Scope: what they agreed to be looked up<textarea id="cf-scope" rows="2" maxlength="400" placeholder="e.g. public accounts and web mentions of their usernames and email address"></textarea></label>
+    </fieldset>
+    <label>Note (optional)<textarea id="cf-note" rows="2" maxlength="600"></textarea></label>
+    <p class="err" id="case-err" hidden></p>
+    <div class="btns"><button class="btn primary" type="submit">Create the case</button><button class="btn" type="button" id="cf-cancel">Cancel</button></div>
+  </form>
+</div>
 
 <script type="module" src="/static/js/lookup.js"></script>
 </body>

@@ -67,3 +67,12 @@ def brave_key() -> str | None:
         return os.environ["WW_BRAVE_KEY"].strip()
     f = DATA / "brave-key.txt"
     return (f.read_text().strip() or None) if f.exists() else None
+
+
+def github_token() -> str | None:
+    """A GitHub token (no scopes needed) for the lookup page's GitHub checks: 5,000 requests an hour instead of 60.
+    data/github-token.txt or WW_GITHUB_TOKEN. Never in git."""
+    if os.environ.get("WW_GITHUB_TOKEN"):
+        return os.environ["WW_GITHUB_TOKEN"].strip()
+    f = DATA / "github-token.txt"
+    return (f.read_text().strip() or None) if f.exists() else None
