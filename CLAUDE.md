@@ -2110,3 +2110,16 @@ capitals or sentence case wordmark.
 - Next once he picks the default Earth and solid vs see-through panels: draw every panel and screen in it before building
   (each card kind, layers sheet and key, search, Settings, feeds, dossiers, follow, look down, Connections, Investigate,
   empty / dead-feed states).
+
+### 2026-11-28, direction A, denser, on all four pages (mock-ups, waiting for his notes)
+
+- Owner: "show A but with more dense information, and all the 4 panels, map, connections, investigate, sources".
+- Page **Real Earth Suite**: https://claude.ai/artifact/48Py7PMcZ4wqd848uB9S6d (sources `docs/brand/suite-a/`). Four 1920 x 1080
+  boards, dark by default with a light switch each, see-through Porcelain panels over the NASA photo Earth:
+  **Map** (columns on both sides: world signals, standing situations with a dead IODA feed and late USNI, markets; card, in-view
+  list, 12 tiles with feed states; GPS, airspace, cables, front, news, unrest, aircraft, ships on the map), **Connections** (live
+  "Rosneft" search, PJSC Rosneft with 30 holdings, chain end, sanctions by LEI, ICIJ same-name record), **Investigate** (specimen
+  case on reserved test identifiers, dossier and timeline), **Sources** (45 feeds at 03:08 UTC with 24 h tries, failing OpenSky
+  selected, keys).
+- Asked him: is this the density he meant (or add a 24 h timeline), should a side column fold away, then draw the remaining
+  screens in this look before building.
