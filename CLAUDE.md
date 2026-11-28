@@ -1980,3 +1980,35 @@ shared `static/suite.css` + `js/suite.js`):
   ownership via their API is not built (bulk has no ownership); UK Companies House needs his free key (not built).
 - Lesson: a "looks like a private person" rule on registered-owner names classed "Lufthansa" as a person. Dropped: owner
   names are searched only in registers of organisations, which hold no records about private people.
+
+### 2026-11-28 night, Investigate merged and the brand book (waiting for his review)
+
+**Investigate** (built by a sub-agent in its own worktree on my brief, reviewed and merged by me; details in
+`docs/investigate-notes.md`): `/lookup` is now case-based. Cases need a consent record (who, date, written/verbal, scope;
+the old data became case 1 "Me (self-test)"); scans without one answer 403. Seeds: username, email, full name, picture file
+(JPEG/PNG/GIF/WebP by magic bytes, 5 MB, `data/lookup-images/<sha256>`; GPS metadata only detected, coordinates never read).
+Pivot engine `lookup/pivot.py`: strong leads (two-way links / rel="me", verified profile emails, commit emails, Keybase and
+PGP proofs, identical picture file) followed up to 2 hops, 8 per round; weak leads (anything from a full name, one-way
+links, look-alike usernames) wait for approve/reject; rejected never re-proposed. Same-person evidence chips without scores;
+picture fingerprints are 64-bit dHashes computed in the browser (`investigate-hash.js`) through a guarded avatar proxy.
+New sources (`lookup/sources.py`): Bluesky, Keybase, GitLab, Codeberg, npm, Docker Hub, ORCID, OpenAlex, Brave (key), Internet
+Archive history; GitHub token via `config.github_token()` (`data/github-token.txt` / `WW_GITHUB_TOKEN`). DBLP and PyPI user
+pages dropped (bot checks). Views: accounts by evidence, leads, timeline, dossier, readable graph, JSON export, printable
+case file. I checked: all 15 `/api/lookup` routes go through `guarded`; no face search anywhere; GPS only detected; page
+renders without errors dark/light; a case without consent is refused; page switcher added. **Untested**: GitHub API leads
+live (proxy-blocked here), web.archive.org (reset; archive.org availability API used as fallback), Brave, Maigret/Sherlock/
+Holehe/theHarvester inside the new flow, Safari. Agent's open questions for him: strong leads auto-followed by default (on
+now)? Keybase account's own username as a lead? GitHub/GitLab public profile emails treated as verified?
+
+**Brand book** (designer sub-agent; reviewed, fixed to fit phone width, published privately):
+https://claude.ai/artifact/7vz14iNt1ma3EUEC31zM3v , sources in `docs/brand/` (brand-book.html, marks/, lockups/, notes.md
+with every colour's source, tools/ generators). Ten directions, each a small identity system (concept, mark + 16/24 px
+variant, wordmark in an OFL font, cited agency palette with shares, two graphic devices, taskbar/Dock tests at real sizes,
+top bar dark/light, A4 case-file cover, splash). Top 3: **Cocked Hat** (three bearings that do not meet; the navigator's
+uncertainty triangle; Palantir Blueprint colours), **W Trace** (a W as a signal burst; Anduril site colours; most legible at
+16 px), **Terminator** (the real day/night line on a 2:1 map window; ESA). Runners-up Shells (GOV.UK) and Quadkey (Munich's
+web-map tile address 1-2-0-2-3; German federal Petrol). Dropped after the 16-24 px test: racetrack, two hemispheres, date
+line, Morse WW, Null Island. Unverified: UN blue and ESA deep space only from search excerpts; NGA/Anduril from their sites'
+code; no published values found for NRO, Space Force, Bundeswehr, BND. Designer's questions for him: which one or two to
+develop; whether the app's ice-blue God's eye look should take the brand palette; plated or unplated Windows icon;
+capitals or sentence case wordmark.
