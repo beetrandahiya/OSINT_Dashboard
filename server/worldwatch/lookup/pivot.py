@@ -140,6 +140,9 @@ class Facts:
         for e in re.split(r"[,\s]+", str(d.get("email") or "")):
             if re.fullmatch(CHECK["email"], e) and "noreply" not in e:
                 mails.append((e.lower(), "verified" if d.get("email_verified_by") else "listed"))
+        for e in p.get("emails") or []:                # mailto: links on the page itself
+            if re.fullmatch(CHECK["email"], e) and "noreply" not in e and e not in {m[0] for m in mails}:
+                mails.append((e.lower(), "listed"))
         self.emails = mails
         self.names = [n for n in (d.get("fullname"), d.get("name"), d.get("full_name"), p.get("name")) if isinstance(n, str) and len(fold(n)) > 2]
         self.pics = [u for u in (d.get("image"), d.get("photo"), p.get("image")) if isinstance(u, str) and u.startswith(("http://", "https://"))]

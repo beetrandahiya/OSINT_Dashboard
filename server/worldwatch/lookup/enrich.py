@@ -66,13 +66,19 @@ def _links(text, base):
     own statement "this other page is also me"), and links to profile pages on known sites. Other links are
     not kept."""
     from . import patterns
-    rel_me, profiles = [], []
+    rel_me, profiles, mails = [], [], []
     for m in re.finditer(r'<(?:a|link)\b[^>]*>', text[:MAX_BYTES], re.I):
         tag = m.group(0)
         href = re.search(r'href\s*=\s*["\']([^"\']+)["\']', tag, re.I)
         if not href:
             continue
-        u = urljoin(base, _html.unescape(href.group(1).strip()))
+        raw = _html.unescape(href.group(1).strip())
+        if raw.lower().startswith("mailto:"):                 # an address the page itself publishes
+            addr = raw[7:].split("?")[0].strip().lower()
+            if re.fullmatch(r"[^@\s<>\"']{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}", addr) and addr not in mails and len(mails) < 5:
+                mails.append(addr)
+            continue
+        u = urljoin(base, raw)
         if not u.startswith(("http://", "https://")) or len(u) > 300:
             continue
         rel = re.search(r'rel\s*=\s*["\']([^"\']+)["\']', tag, re.I)
@@ -80,7 +86,7 @@ def _links(text, base):
             rel_me.append(u)
         elif tag[:2].lower() == "<a" and urlparse(u).netloc != urlparse(base).netloc and u not in profiles and patterns.match(u):
             profiles.append(u)
-    return {"rel_me": rel_me[:30], "links": profiles[:40]}
+    return {"rel_me": rel_me[:30], "links": profiles[:40], "emails": mails}
 
 
 class Refused(Exception):

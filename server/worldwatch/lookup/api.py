@@ -373,7 +373,8 @@ async def picture(request):
     got = images.read_upload(name)
     if not got:
         return Response(status_code=404)
-    return Response(got[0], media_type=got[1], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff",
+    # no-store: an uploaded picture that is removed (or its case deleted) must not live on in the browser's cache
+    return Response(got[0], media_type=got[1], headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
                                                         "Content-Security-Policy": "default-src 'none'; sandbox"})
 
 

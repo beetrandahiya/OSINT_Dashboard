@@ -113,7 +113,8 @@ def pgp_uids(armored: str) -> list[dict]:
         if tag == 13:
             uid = data[i:i + n].decode("utf-8", "replace")
             em = re.search(r"<([^<>@\s]+@[^<>\s]+)>", uid) or re.fullmatch(r"\s*([^<>@\s]+@[^<>\s]+)\s*", uid)
-            out.append({"email": em.group(1) if em else None, "name": re.sub(r"\s*(<[^>]*>|\([^)]*\))\s*", " ", uid).strip() or None})
+            name = re.sub(r"\s*(<[^>]*>|\([^)]*\))\s*", " ", uid).strip()
+            out.append({"email": em.group(1) if em else None, "name": name if name and "@" not in name else None})
         i += n
     return out
 

@@ -299,7 +299,7 @@ def findings(sid, with_private=False):
         body = json.loads(r.pop("page_body")) if r.get("page_body") else {}
         r["page"], r["archive"], r["history"] = body.get("page"), body.get("archive"), body.get("history")
         if r["page"] and not with_private:
-            r["page"] = {k: v for k, v in r["page"].items() if k not in ("links", "rel_me")}
+            r["page"] = {k: v for k, v in r["page"].items() if k not in ("links", "rel_me", "emails")}
     return rows
 
 
