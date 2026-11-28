@@ -450,7 +450,7 @@ async def _checks(sid, ids, want, summary, now):
             job["problems"].append(f"{label} for {ident['value']}: {e if isinstance(e, known) else type(e).__name__ + ': ' + str(e)[:120]}")
         job["done"] += 1
 
-    job["total"] += sum(len(_wants(i, want)) for i in ids)
+    job.update(done=0, total=sum(len(_wants(i, want)) for i in ids))          # each round of checks counts on its own
     for i in ids:
         v, k = i["value"], i["kind"]
         if k == "username":
