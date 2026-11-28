@@ -2056,3 +2056,17 @@ capitals or sentence case wordmark.
 - **My pick: NASA, insignia order** (white tile, NASA-blue globe, white footprint, NASA-red pupil = Munich; 10.7:1 / 4.8:1).
   Second Apple Indigo and Blue (indigo tile, blue globe, white footprint), third Telegram sky blue. Lesson: the white
   globe + coloured iris reads as a cartoon eye; a coloured globe with a white footprint reads as light on the Earth.
+
+### 2026-11-28, Footprint on a soft lavender-blue tile (owner's own direction, waiting for his pick of variant)
+
+- Owner: "you just mixed up the same bunch of colors" (the brand round looked samey to him); he likes **the Anduril version**
+  (he wrote "Android": black globe, white footprint, black pupil) but **instead of the lime, a very soft 3D gradient of very
+  light lavender and very light blue**.
+- Page: https://claude.ai/artifact/GXvTBnChnyhG7DbwdsxfUs (sources `docs/brand/globe/footprint-soft/`). Mark parts: Anduril
+  black #010101 + white. Tile: Tailwind CSS v3.4.17 palette steps (fetched from its colors.js): violet-100/200/300
+  #EDE9FE/#DDD6FE/#C4B5FD, sky-100/200 #E0F2FE/#BAE6FD, blue-100 #DBEAFE, indigo-100/200/300. 3D = soft light from above,
+  shade along the bottom, thin white rim, sheen + contact shadow on the globe (large sizes only; 16/24 px keep a plain tile).
+- Variants: **Two soft pools (my pick: lavender top-left, light blue bottom-right over indigo-100)**, diagonal violet-200 ->
+  sky-200, vertical violet-200 -> blue-100, palest (100 steps), and a flat-globe comparison. First try was too pale (white
+  highlight washed the lavender out): use the 200/300 steps with a highlight of about 0.3.
+- Next once he picks: real icon files (.ico, macOS icon) and the icon + colours in the app's top bar.
