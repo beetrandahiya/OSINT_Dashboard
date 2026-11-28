@@ -2129,3 +2129,27 @@ capitals or sentence case wordmark.
   Sources on a plain background, plus a new **Connections "On the map"** view placing companies at their registered place
   (Wikidata P159 / P131 / own P625, GLEIF address city; 22 of 25 placed for Rosneft, 3 listed as not placed). Asked him: edge
   tab or nothing when a panel is folded; should the Connections map also mark ships/aircraft owned by these companies.
+
+### 2026-11-28 afternoon, tabs approved; how a company's aircraft and ships reach the map (worked example, waiting for his notes)
+
+- Owner: **"small tabs are good, the panels put away screen looks nice"** (folded panels keep the small edge tabs).
+- He asked how exactly Connections would light up ships and aircraft owned by its companies, with an example. Same page,
+  version 3 (https://claude.ai/artifact/48Py7PMcZ4wqd848uB9S6d): a method section and two boards on live data from
+  15:22-15:31 UTC (sources and numbers in `docs/brand/suite-a/notes.md`, round 3). Nothing in the app changed.
+- **Method (proposal):** take the chain Connections already builds (GLEIF + Wikidata), collect each company's identifiers
+  (ICAO airline code, Wikidata P230; exact names; ships it owns P127 / operates P137 with their IMO numbers P458), and
+  join them with what the live feeds carry: an aircraft's callsign code and its registered owner from adsbdb / hexdb.io
+  (by transponder address, already looked up for aircraft cards, kept 14 days); a ship's IMO number from AIS. Solid line
+  = registered owner, dashed = flight number only, mismatches spelled out. Never matched on look-alike names, paint,
+  routes or airports.
+- **Example results:** Lufthansa group: 85 aircraft near Munich fly group codes, 73 registered to group companies,
+  5 Swiss flights on Helvetic / airBaltic aircraft, 7 with no owner in the free registers, ITA Airways not linked (no
+  register names Lufthansa as owner). Finnlines: 8 ships by IMO, up to Grimaldi Group S.p.A., whose chain stops at
+  "natural persons". Ordinary cargo ships' owners are not in any free source (Wikidata covers ferries, icebreakers,
+  research and navy ships).
+- **Found while doing it (open):** Wikidata lacks LEIs for Swiss, Austrian, Air Dolomiti, CityLine and Lufthansa Cargo, so
+  today's Connections would show each twice (merge is by identifier only). A safe extra join rule is needed (e.g. same
+  name and country and the same parent in both registers); not built, ask him.
+- Questions put to him: is this the kind of link he meant; should Map cards name the registered owner with "Open in
+  Connections"; should "Their aircraft and ships now" be a switch (as drawn) or always on; then draw the remaining
+  screens before building.

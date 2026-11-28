@@ -38,3 +38,31 @@ behind a button that expands.
   no location in either register and are listed as not placed. Arcs from Rosneft (Moscow) lifted slightly above the globe,
   the chain continuing Berlin -> Matrei. Labels placed greedily without overlaps inside the free area.
 - Investigate and Sources: no globe either (nothing there belongs on a map; placing people is never done).
+
+## Round 3 (28 Nov 2026 afternoon): the tabs stay; companies' aircraft and ships on the map
+
+Owner: "small tabs are good, the panels put away screen looks nice"; asked how exactly the Connections map would light up
+ships and aircraft owned by a company, with an example. Same page (version 3): a method section ("How a company's aircraft
+and ships get onto the map") and two boards, `connections-air` and `connections-sea` (`tools/suite_assets.py`, `assets.css`).
+
+Data, all fetched live 15:22-15:31 UTC (`data/assets/`; the big raw answers, adsb.fi 552 aircraft and Digitraffic 946
+ships, are not kept, only what was derived from them in `air.json` / `sea.json`):
+- Aircraft: adsb.fi `/v3/lat/48.35/lon/11.79/dist/250` (552). Group = Deutsche Lufthansa AG (GLEIF 529900PH63HYJ86ASW55,
+  27 children) + Wikidata airlines found by ICAO code (P230) whose parent/owner leads to Lufthansa Group (Q62589018) or
+  Lufthansa (Q9325, same LEI). Owner per transponder address from adsbdb (76), then hexdb.io (4). Link rules: owner's
+  airline code in the register = a chain airline's ICAO code (72), else exact normalised name (1, Eurowings Europe Ltd
+  (Malta)); otherwise callsign code + digits = flight number only (dashed). When two Wikidata items share a code (DLH:
+  Lufthansa and the Lufthansa Regional brand), the one with an LEI wins.
+- Result: 85 aircraft fly group codes (83 with a flight number, 2 bare "SWR"); 73 registered to a group company; 5 Swiss
+  flights on aircraft registered to Helvetic Airways (3) or Air Baltic (2); 7 with no owner in either register; ITA Airways
+  (2) not linked: neither GLEIF nor Wikidata names Lufthansa as owner, and EI-EID is still registered to Alitalia
+  (dissolved 14 Oct 2021 per Wikidata). None of the 80 owners was a lessor.
+- Ships: Digitraffic AIS, 659 with an IMO number, 532 found in Wikidata by P458, 84 name an owner (P127) or operator
+  (P137), 48 companies. Finnlines (8 ships; Wikidata LEI = GLEIF Finnlines Oyj) -> GRIMALDI GROUP S.P.A. (GLEIF, Palermo
+  address), which declares control by natural persons (chain stops). Three Finnlines ships last heard 9-23 h earlier.
+- Found while doing it: Wikidata lacks LEIs for Swiss, Austrian, Air Dolomiti, CityLine and Lufthansa Cargo, which GLEIF
+  has, so today's Connections would show each of them twice (merge is by identifier only). GLEIF misses Eurowings,
+  Edelweiss and Brussels Airlines as group children (their reporting exceptions: NON_PUBLIC, NON_CONSOLIDATING,
+  NATURAL_PERSONS); Wikidata fills those in.
+Globes: `tools/assets/rend.py` (cameras Cam(11.2, 42.0, 0.20, 11.2, 48.5, 1450, 920, 600) and Cam(22.5, 54.8, 0.17,
+22.5, 59.4, 1450, 920, 600)). Checked in headless Chromium (1440 dark/light, 400): no overflow, no errors.
