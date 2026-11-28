@@ -1,0 +1,580 @@
+[
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q164222"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q64"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(13.383333333 52.516666666)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "LGW"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "391200VEUMC1A0W7LP69"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2020-01-01T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Luftfahrtgesellschaft Walter"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Berlin"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q164222"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q365"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(6.957777777 50.942222222)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "LGW"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "391200VEUMC1A0W7LP69"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2020-01-01T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Luftfahrtgesellschaft Walter"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Cologne"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q164222"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1718"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(6.776666666 51.225555555)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "LGW"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "391200VEUMC1A0W7LP69"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2020-01-01T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Luftfahrtgesellschaft Walter"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "D\u00fcsseldorf"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q660191"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1735"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(11.393333333 47.268333333)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "TYR"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2015-01-01T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Tyrolean Airways"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Innsbruck"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48699983"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bilal Ek\u015fi"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q48699983"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Bilal Ek\u015fi"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1503514"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(30.76916667 36.8825)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXS"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q62589018"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa Group"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Muratpa\u015fa"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1726112"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1794"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.682222222 50.110555555)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXD"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "529900X29727TWBU4Q69"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2020-06-26T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress Deutschland"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Frankfurt"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q4548"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Turkish Airlines"
+  }
+ },
+ {
+  "a": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1726112"
+  },
+  "hq": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1794"
+  },
+  "hqc": {
+   "datatype": "http://www.opengis.net/ont/geosparql#wktLiteral",
+   "type": "literal",
+   "value": "Point(8.682222222 50.110555555)"
+  },
+  "icao": {
+   "type": "literal",
+   "value": "SXD"
+  },
+  "par": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q1137136"
+  },
+  "lei": {
+   "type": "literal",
+   "value": "529900X29727TWBU4Q69"
+  },
+  "dis": {
+   "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+   "type": "literal",
+   "value": "2020-06-26T00:00:00Z"
+  },
+  "aLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress Deutschland"
+  },
+  "parLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "SunExpress"
+  },
+  "hqLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Frankfurt"
+  },
+  "own": {
+   "type": "uri",
+   "value": "http://www.wikidata.org/entity/Q9325"
+  },
+  "ownLabel": {
+   "xml:lang": "en",
+   "type": "literal",
+   "value": "Lufthansa"
+  }
+ }
+]

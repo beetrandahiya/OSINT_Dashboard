@@ -66,3 +66,14 @@ ships, are not kept, only what was derived from them in `air.json` / `sea.json`)
   NATURAL_PERSONS); Wikidata fills those in.
 Globes: `tools/assets/rend.py` (cameras Cam(11.2, 42.0, 0.20, 11.2, 48.5, 1450, 920, 600) and Cam(22.5, 54.8, 0.17,
 22.5, 59.4, 1450, 920, 600)). Checked in headless Chromium (1440 dark/light, 400): no overflow, no errors.
+
+### Correction (same evening, version 4 of the page)
+The first aircraft board built Lufthansa's chain only from the airlines' own parent/owner statements. Under the method as
+stated (the chain Connections builds, which also reads the parents' "subsidiary" statements), Wikidata's Lufthansa item
+lists **ITA Airways** and **SunExpress** as current subsidiaries, so both belong in the chain. The board had said "neither
+GLEIF nor Wikidata names Lufthansa as an owner" of ITA: wrong. Corrected numbers: 89 aircraft fly group codes (87 with a
+flight number + 2 bare "SWR"); 81 of 89 owners found (adsbdb 77, hexdb.io 4); 75 registered to group companies; 14 dashed
+(3 Helvetic, 2 Air Baltic, 1 Alitalia, 8 not listed). Wikidata contradicts itself on ITA (its own item names the
+Government of Italy as parent; GLEIF reports no consolidating parent) and names Lufthansa and Turkish Airlines as owners
+of SunExpress: both shown, flagged. Inputs: `wd-lh-subs.json` (current, not dissolved P355 of Q9325 / Q62589018),
+`wd-airlines-extra.json`; `prep.py` uses them.

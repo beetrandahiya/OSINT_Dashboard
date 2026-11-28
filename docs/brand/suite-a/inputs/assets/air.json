@@ -917,7 +917,7 @@
    "trk": 313.15,
    "seen": 0.161,
    "op": "Q108251249",
-   "op_group": false,
+   "op_group": true,
    "owner": "Alitalia",
    "owner_country": "IE",
    "owner_q": null,
@@ -1074,6 +1074,27 @@
    "model": "Airbus A320 214SL"
   },
   {
+   "hex": "4bcdba",
+   "cs": "SXS6FA",
+   "reg": "TC-SMZ",
+   "type": "B38M",
+   "lat": 48.831528,
+   "lon": 10.780827,
+   "alt": 37000,
+   "gs": 509.9,
+   "trk": 135.72,
+   "seen": 0.135,
+   "op": "Q1137136",
+   "op_group": true,
+   "owner": null,
+   "owner_country": null,
+   "owner_q": null,
+   "owner_group": false,
+   "how": null,
+   "src": null,
+   "model": null
+  },
+  {
    "hex": "4b194c",
    "cs": "SWR5CB",
    "reg": "HB-JPC",
@@ -1169,11 +1190,11 @@
    "trk": 353.58,
    "seen": 0.041,
    "op": "Q108251249",
-   "op_group": false,
+   "op_group": true,
    "owner": "Italia Trasporto Aereo",
    "owner_country": "IE",
    "owner_q": "Q108251249",
-   "owner_group": false,
+   "owner_group": true,
    "how": "owner code ITY",
    "src": "adsbdb",
    "model": "Airbus A320 216"
@@ -1492,6 +1513,27 @@
    "how": "owner code DLH",
    "src": "adsbdb",
    "model": "Airbus A319 114"
+  },
+  {
+   "hex": "4bcde3",
+   "cs": "SXS4MM",
+   "reg": "TC-SOC",
+   "type": "B738",
+   "lat": 49.436279,
+   "lon": 13.994703,
+   "alt": 38000,
+   "gs": 410.5,
+   "trk": 305.78,
+   "seen": 0.029,
+   "op": "Q1137136",
+   "op_group": true,
+   "owner": "SunExpress",
+   "owner_country": "TR",
+   "owner_q": "Q1137136",
+   "owner_group": true,
+   "how": "owner code SXS",
+   "src": "adsbdb",
+   "model": "Boeing 737NG 800/W"
   },
   {
    "hex": "4b15a3",
@@ -1863,8 +1905,10 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": null,
-   "hqname": null
+   "hqname": null,
+   "subs": false
   },
   "Q9325": {
    "qid": "Q9325",
@@ -1877,11 +1921,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     6.957777777,
     50.942222222
    ],
-   "hqname": "Cologne"
+   "hqname": "Cologne",
+   "subs": true
   },
   "Q152490": {
    "qid": "Q152490",
@@ -1892,11 +1938,13 @@
    "lei": null,
    "group": false,
    "via": [],
+   "others": [],
    "hq": [
     8.582777777,
     47.448055555
    ],
-   "hqname": "Kloten"
+   "hqname": "Kloten",
+   "subs": false
   },
   "Q153571": {
    "qid": "Q153571",
@@ -1909,11 +1957,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     4.484444444,
     50.901388888
    ],
-   "hqname": "Brussels Airport"
+   "hqname": "Brussels Airport",
+   "subs": true
   },
   "Q156776": {
    "qid": "Q156776",
@@ -1927,11 +1977,15 @@
     "Federal Office of Civil Aviation",
     "Lufthansa Group"
    ],
+   "others": [
+    "Federal Office of Civil Aviation"
+   ],
    "hq": [
     8.582777777,
     47.448055555
    ],
-   "hqname": "Kloten"
+   "hqname": "Kloten",
+   "subs": true
   },
   "Q162174": {
    "qid": "Q162174",
@@ -1945,11 +1999,13 @@
     "Lufthansa",
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     10.85,
     45.35
    ],
-   "hqname": "Villafranca di Verona"
+   "hqname": "Villafranca di Verona",
+   "subs": true
   },
   "Q162189": {
    "qid": "Q162189",
@@ -1963,11 +2019,13 @@
     "Lufthansa",
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     11.786086111,
     48.353783333
    ],
-   "hqname": "Munich Airport"
+   "hqname": "Munich Airport",
+   "subs": true
   },
   "Q168836": {
    "qid": "Q168836",
@@ -1980,11 +2038,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     6.776666666,
     51.225555555
    ],
-   "hqname": "D\u00fcsseldorf"
+   "hqname": "D\u00fcsseldorf",
+   "subs": true
   },
   "Q265138": {
    "qid": "Q265138",
@@ -1997,11 +2057,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     8.682222222,
     50.110555555
    ],
-   "hqname": "Frankfurt"
+   "hqname": "Frankfurt",
+   "subs": true
   },
   "Q300924": {
    "qid": "Q300924",
@@ -2014,11 +2076,15 @@
    "via": [
     "Government of Latvia"
    ],
+   "others": [
+    "Government of Latvia"
+   ],
    "hq": [
     24.058333333,
     56.906944444
    ],
-   "hqname": "M\u0101rupe Parish"
+   "hqname": "M\u0101rupe Parish",
+   "subs": false
   },
   "Q662050": {
    "qid": "Q662050",
@@ -2031,11 +2097,13 @@
    "via": [
     "Swiss International Air Lines"
    ],
+   "others": [],
    "hq": [
     8.582777777,
     47.448055555
    ],
-   "hqname": "Kloten"
+   "hqname": "Kloten",
+   "subs": true
   },
   "Q781770": {
    "qid": "Q781770",
@@ -2048,11 +2116,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     16.478611111,
     48.141111111
    ],
-   "hqname": "Schwechat"
+   "hqname": "Schwechat",
+   "subs": true
   },
   "Q105076914": {
    "qid": "Q105076914",
@@ -2065,11 +2135,13 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     8.570455555,
     50.033305555
    ],
-   "hqname": "Frankfurt Airport"
+   "hqname": "Frankfurt Airport",
+   "subs": true
   },
   "Q108251249": {
    "qid": "Q108251249",
@@ -2078,15 +2150,19 @@
     "ITY"
    ],
    "lei": null,
-   "group": false,
+   "group": true,
    "via": [
+    "Government of Italy"
+   ],
+   "others": [
     "Government of Italy"
    ],
    "hq": [
     12.497572142,
     41.906236508
    ],
-   "hqname": "Palazzo delle Finanze"
+   "hqname": "Palazzo delle Finanze",
+   "subs": true
   },
   "Q114345318": {
    "qid": "Q114345318",
@@ -2100,11 +2176,15 @@
     "Eurowings",
     "Lhamih Limited"
    ],
+   "others": [
+    "Lhamih Limited"
+   ],
    "hq": [
     14.48,
     35.920833333
    ],
-   "hqname": "Swieqi"
+   "hqname": "Swieqi",
+   "subs": false
   },
   "Q117191656": {
    "qid": "Q117191656",
@@ -2117,11 +2197,38 @@
    "via": [
     "Lufthansa Group"
    ],
+   "others": [],
    "hq": [
     11.786086111,
     48.353783333
    ],
-   "hqname": "Munich Airport"
+   "hqname": "Munich Airport",
+   "subs": false
+  },
+  "Q1137136": {
+   "qid": "Q1137136",
+   "name": "SunExpress",
+   "icao": [
+    "SXS"
+   ],
+   "lei": null,
+   "group": true,
+   "via": [
+    "Bilal Ek\u015fi",
+    "Lufthansa",
+    "Lufthansa Group",
+    "Turkish Airlines"
+   ],
+   "others": [
+    "Bilal Ek\u015fi",
+    "Turkish Airlines"
+   ],
+   "hq": [
+    30.76916667,
+    36.8825
+   ],
+   "hqname": "Muratpa\u015fa",
+   "subs": true
   }
  },
  "gleif_children": 27

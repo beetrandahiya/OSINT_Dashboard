@@ -2153,3 +2153,39 @@ capitals or sentence case wordmark.
 - Questions put to him: is this the kind of link he meant; should Map cards name the registered owner with "Open in
   Connections"; should "Their aircraft and ships now" be a switch (as drawn) or always on; then draw the remaining
   screens before building.
+
+### 2026-11-28 evening, his answers on the asset links; duplicate companies fixed in Connections (built, waiting for review)
+
+His answers: the link style (solid = registered owner, dashed = flight number only, mismatches spelled out) is **good**;
+**no owner names on Map cards** ("too cluttered"); **"Their aircraft and ships now" is a switch in Connections**;
+**fix the duplicate companies** ("we don't need dumb shit").
+
+**Correction to the example board** (page version 4): Wikidata's Lufthansa item lists ITA Airways and SunExpress as current
+subsidiaries, so under the stated method both are in the chain. I had written that no register links ITA to Lufthansa:
+wrong; told him. Corrected: 89 aircraft fly group codes, 75 registered to group companies, 14 dashed. ITA (Wikidata
+contradicts itself; GLEIF reports no consolidating parent) and SunExpress (Lufthansa and Turkish Airlines both named as
+owners) are drawn and flagged. Lesson: build an example with the same rules the app will use, not a shortcut query.
+
+**Connections fixes** (`connections/joins.py` new, `node.py`, `sources.py`, `api.py` cache key `node7:`, `connections.js`):
+- **Second join rule** where Wikidata lacks the LEI that GLEIF has: same name (legal forms, case, accents, punctuation set
+  aside; or the part before a dash/bracket, another recorded name or an alias, which then needs two words or the same
+  country on both sides), countries not disagreeing, one-to-one, Wikidata item without a different LEI, and **both
+  registers place it in the same group** (GLEIF direct/ultimate children of a company; Wikidata under the item carrying
+  that LEI, or under that item's own parent, because Wikidata keeps "group" items such as Lufthansa Group beside the
+  company that carries the LEI). Used three ways: when a node opens (both directions), for one entity's own owners/holdings,
+  and to give a Wikidata holding the LEI of the GLEIF group company with the same name. The page says on the panel which
+  records were joined and why.
+- **The page** keeps an alias map (Wikidata id -> LEI) so a company seen under both refs becomes one box.
+- **Ended statements** found through Wikidata's search index (reverse P127/P749/P355/P1830) are now checked: the other
+  item's statement must have no end date (Condor was shown as a current Lufthansa holding). Companies Wikidata gives as
+  dissolved (P576) are left out and listed by name on the panel, unless GLEIF lists a company of that name in the same
+  group as ACTIVE (the airline Germanwings stopped flying; Germanwings GmbH is an active Lufthansa company): GLEIF wins.
+- **One Wikidata item with several LEIs** (Siemens' item carried Siemens AG's and Siemens plc's): different legal entities,
+  no longer merged. The LEI started from is kept, else those whose GLEIF name is the item's name; a note says so.
+- **GLEIF pacing**: at most 55 requests in any 60 s (their limit is 60/min); the extra group lookups had hit 429.
+- Tested live: Deutsche Lufthansa AG (Swiss, Air Dolomiti, Austrian, CityLine, Cargo, Technik joined; no duplicates in the
+  page's graph), Lufthansa Group, Swiss opened by LEI and by Wikidata id (same entity, panel explains), Volkswagen (7 joins,
+  all real; the false "International" join found on the first run is gone), Siemens AG (plc kept apart), Rosneft (TNK-BP
+  left out as dissolved). Browser check through the app's routes without the collector: no page errors. Wikidata throttled
+  the sandbox several times; on his network it should answer faster. Not done: the "Their aircraft and ships now" switch
+  itself (needs the Connections "On the map" view, which today's page does not have yet); asked him when.

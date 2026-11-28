@@ -34,3 +34,5 @@
 .suite .pl.cs2{font-size:11px;fill:#d4d4d8}
 .suite .pl.off{fill:#a1a1aa}
 .suite .selac{flex:0 0 auto}
+
+.suite .co td,.suite .co th{padding-top:3px;padding-bottom:3px}

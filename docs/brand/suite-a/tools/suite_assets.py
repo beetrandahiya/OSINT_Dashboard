@@ -98,7 +98,7 @@ CO = AIR["companies"]
 HQ_PLACE = {"Lufthansa": "Cologne", "Swiss International Air Lines": "Kloten", "Edelweiss Air": "Kloten", "Austrian Airlines": "Schwechat",
             "Air Dolomiti": "Villafranca", "Lufthansa CityLine": "Munich Airport", "Lufthansa City Airlines": "Munich Airport", "Eurowings": "Düsseldorf",
             "Brussels Airlines": "Brussels Airport", "Lufthansa Cargo": "Frankfurt", "Discover Airlines": "Frankfurt Airport", "Eurowings Europe": "Swieqi, Malta",
-            "Helvetic Airways": "Kloten", "AirBaltic": "Mārupe, Latvia", "ITA Airways": "Rome"}
+            "Helvetic Airways": "Kloten", "AirBaltic": "Mārupe, Latvia", "ITA Airways": "Rome", "SunExpress": "Antalya"}
 SHORT = {"Swiss International Air Lines": "Swiss", "Lufthansa City Airlines": "Lufthansa City", "Lufthansa CityLine": "CityLine", "Austrian Airlines": "Austrian",
          "Brussels Airlines": "Brussels", "Lufthansa Cargo": "Lufthansa Cargo", "Discover Airlines": "Discover", "Edelweiss Air": "Edelweiss", "Air Dolomiti": "Air Dolomiti"}
 SEL_HEX = "502d88"   # SWR868L, YL-ABT: Swiss flight number, registered to airBaltic
@@ -107,7 +107,7 @@ SEL_HEX = "502d88"   # SWR868L, YL-ABT: Swiss flight number, registered to airBa
 def air_rows():
     rows = [r for r in AIR["rows"] if r["lon"] is not None]
     linked = [r for r in rows if r["owner_group"] or r["op_group"]]
-    ita = [r for r in rows if r["op"] == "Q108251249"]
+    ita = []                 # ITA Airways is in the chain (Wikidata lists it under Lufthansa): nothing is left aside now
     return rows, linked, ita
 
 
@@ -203,6 +203,8 @@ def air_svg():
             cands.append((x, y, 9, f"{r['cs']} · ITA Airways, not linked", "cs2 off"))
         elif not r["owner_group"] and r["owner"]:
             cands.append((x, y, 9, f"{r['cs']} · owner {r['owner']}", "cs2"))
+        elif r["op"] in ("Q108251249", "Q1137136"):
+            cands.append((x, y, 9, f"{r['cs']} · " + ("ITA Airways, Wikidata disagrees" if r["op"] == "Q108251249" else "SunExpress, two owners in Wikidata"), "cs2"))
     hqc = [c for c in cands if c[4] == "hq"]; acc = [c for c in cands if c[4] != "hq"]
     marks = [b for b in blocked if b[2] - b[0] > 19]                 # headquarters dots only
     lab = {"marks": marks}
@@ -227,11 +229,11 @@ def air_left(S):
     steps = [
         ("552", f"aircraft within 250 NM of Munich", f"adsb.fi · {hm(AIR['now'])} UTC"),
         (str(nflight), f"call themselves by a group airline's code: {code_s}", "callsign = the airline's ICAO code in Wikidata"),
-        (f"{c['known']}<small>/{c['looked']}</small>", "registered owner found (these, 2 bare “SWR” callsigns, 2 ITA flights)",
+        (f"{c['known']}<small>/{c['looked']}</small>", "registered owner found (these and 2 bare “SWR” callsigns)",
          f"adsbdb {c['by_src'].get('adsbdb', 0)}, hexdb.io {c['by_src'].get('hexdb.io', 0)}, by transponder address"),
         (str(len(c["own"])), "registered to a group company: solid line",
          f"owner's airline code ({len(c['own']) - c['byname']}) or exact name ({c['byname']})"),
-        (str(len(c["out"]) + len(c["unk"])), f"group flight numbers, owner outside the group ({hel} Helvetic, {bal} Air Baltic) or not listed ({len(c['unk'])})",
+        (str(len(c["out"]) + len(c["unk"])), f"group flight numbers, owner outside the group ({hel} Helvetic, {bal} Air Baltic, {len(c['out']) - hel - bal} Alitalia) or not listed ({len(c['unk'])})",
          "dashed: linked by flight number only"),
     ]
     st = "".join(f'<div class="stp"><b class="num">{n}</b><div><span>{esc(t) if "<" not in t else t}</span><small>{esc(s)}</small></div></div>' for n, t, s in steps)
@@ -245,9 +247,9 @@ def air_left(S):
     return (f'<section class="pnl res"><div class="ph"><b>Their aircraft now</b><span>{len(c["linked"])} linked</span><span class="src">{hm(AIR["now"])} UTC</span></div>{st}</section>'
             f'<section class="pnl res"><div class="ph"><b>By company</b><span>in the chain, with aircraft in view</span></div>'
             f'<table class="dt fx co"><colgroup><col><col style="width:62px"><col style="width:62px"></colgroup><thead><tr><th>Company</th><th class="r">Owns</th><th class="r">Flies</th></tr></thead><tbody>{trs}</tbody></table>'
-            f'<div class="ph2">Not linked</div><p class="small"><b>ITA Airways</b>, {len(c["ita"])} in view: neither GLEIF nor Wikidata names Lufthansa as an owner '
-            f'(Wikidata gives the Government of Italy as parent). The register lists one of them, EI-EID, under Alitalia, which Wikidata gives as dissolved on 14 Oct 2021.</p>'
-            f'<p class="hint">The other {c["total"] - len(c["linked"]) - len(c["ita"])} aircraft in view were not looked up here. The app would check them in the background (one a second, kept 14 days) to find group aircraft flying for others.</p></section>')
+            f'<div class="ph2">Where the registers disagree</div><p class="small"><b>ITA Airways</b>: Lufthansa’s Wikidata item lists it as a subsidiary, its own item names the Italian government. '
+            f'<b>SunExpress</b>: Wikidata names Lufthansa and Turkish Airlines as owners. Both linked, flagged on their cards.</p>'
+            f'<p class="hint">The other {c["total"] - len(c["linked"])} aircraft were not looked up here; the app would, in the background.</p></section>')
 
 
 def air_right(S):
@@ -261,7 +263,7 @@ def air_right(S):
 <p class="hint" style="margin-top:8px">So the line to Swiss is dashed: it is Swiss's flight, but not Swiss's aircraft.</p>
 <div class="actions"><span class="btn ink">Follow it on the map</span><span class="btn">Open Air Baltic in Connections</span></div></section>'''
     subj = f'''<section class="pnl ent"><div class="eh"><span class="tag2">Company · Germany</span><h3>Deutsche Lufthansa AG</h3><p>LEI 529900PH63HYJ86ASW55 · Wikidata “Lufthansa” carries the same LEI</p></div>
-<div class="kv"><div><b class="num">{AIR["gleif_children"]}</b><span>companies under it in GLEIF</span></div><div><b class="num">16</b><span>airlines in Wikidata whose parent leads to it</span></div><div><b class="num">85</b><span>of its aircraft in view now</span></div></div>
+<div class="kv"><div><b class="num">{AIR["gleif_children"]}</b><span>companies under it in GLEIF</span></div><div><b class="num">{sum(1 for c in CO.values() if c["group"])}</b><span>airlines in its chain, by ICAO code</span></div><div><b class="num">{len(air_rows()[1])}</b><span>of their aircraft in view now</span></div></div>
 <div class="ph2">How an aircraft is linked <span>in this order</span></div>
 <table class="dt ft2 how"><tbody>
 <tr><th>Registered owner</th><td>the owner's airline code in the register (adsbdb, else hexdb.io) equals a chain airline's ICAO code; else its exact name</td><td class="sc">solid</td></tr>

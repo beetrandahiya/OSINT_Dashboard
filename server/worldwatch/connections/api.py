@@ -28,7 +28,7 @@ async def get_node(request):
     ref = (request.query_params.get("ref") or "").strip()
     if not re.fullmatch(r"(lei:[0-9A-Za-z]{20}|wd:Q\d+|icij:\d+|os:[\w.\-]+)", ref):
         return _ok({"error": "unknown reference"}, 400)
-    key = "node4:" + ref          # bump when the way nodes are built changes
+    key = "node7:" + ref          # bump when the way nodes are built changes
     if not request.query_params.get("fresh"):
         hit = await asyncio.to_thread(store.cache_get, key, NODE_TTL)
         if hit:

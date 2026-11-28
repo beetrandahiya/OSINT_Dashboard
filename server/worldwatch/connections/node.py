@@ -1,5 +1,6 @@
 """One entity as Connections shows it: the records of every source joined on shared identifiers (an LEI code in GLEIF
-and in Wikidata's P1278), never on names alone, plus its owners, its holdings and the people and firms around it.
+and in Wikidata's P1278), or, where Wikidata lacks the LEI, on the name together with the same group in both registers
+(joins.py), never on a name alone, plus its owners, its holdings and the people and firms around it.
 
 References ("refs") name a record in one source: lei:<LEI>, wd:<QID>, icij:<node id>. The canonical ref of a joined
 entity is its LEI if it has one, else its Wikidata id, else the record it started from.
@@ -11,6 +12,7 @@ import asyncio
 import re
 
 from . import icij as icij_mod
+from . import joins
 from . import sanctioned as sanc
 from . import sources as S
 
@@ -83,6 +85,7 @@ async def build(ref: str, holdings_limit: int = 60) -> dict:
         if q:
             qids.add(q)
     items = await _safe(problems, "Wikidata", S.wd_entities(list(qids))) or {}
+    started = set(leis)
     for it in items.values():
         for c in it["claims"].get("P1278", []):
             if c["v"]:
@@ -92,12 +95,41 @@ async def build(ref: str, holdings_limit: int = 60) -> dict:
         rec = await _safe(problems, "GLEIF", S.gleif_record(lei))
         if rec:
             gleif[lei] = rec
+    # one Wikidata item carrying several LEIs (Siemens' item held Siemens AG's and Siemens plc's) means different legal
+    # entities, not one: keep the LEI we started from, else those whose GLEIF name is the item's name
+    notes = []
+    if len(gleif) > 1:
+        wnames = {}
+        for it in items.values():
+            wnames.update(joins.variants(it.get("name"), it.get("aliases") or []))
+        keep = [l for l in gleif if l in started] or [l for l, g in gleif.items() if joins.same_name(wnames, joins.variants(g.get("legal_name") or g["name"], g.get("other_names")))]
+        if keep and len(keep) < len(gleif):
+            for l in [l for l in gleif if l not in keep]:
+                notes.append(f"Wikidata also lists LEI {l} ({gleif.pop(l)['name']}) on this item: a different legal entity in GLEIF, kept apart")
+
+    # --- join without a shared LEI (see joins.py): same name, and both registers place it in the same group
+    joined = []
+    if gleif and not items:
+        for lei, rec in list(gleif.items()):
+            q, via = await _safe(problems, "Wikidata", joins.wikidata_for_gleif(rec)) or (None, None)
+            if q:
+                more = await _safe(problems, "Wikidata", S.wd_entities([q])) or {}
+                if q in more:
+                    items[q] = more[q]; qids.add(q)
+                    joined.append({"refs": [f"lei:{lei}", f"wd:{q}"], "how": via})
+    elif items and not gleif and kind_of in ("wd", "lei"):
+        for q, it in list(items.items()):
+            rec, via = await _safe(problems, "GLEIF", joins.gleif_for_wikidata(it)) or (None, None)
+            if rec:
+                full = await _safe(problems, "GLEIF", S.gleif_record(rec["lei"])) or rec
+                gleif[rec["lei"]] = full
+                joined.append({"refs": [f"lei:{rec['lei']}", f"wd:{q}"], "how": via})
 
     canon = (f"lei:{sorted(gleif)[0]}" if gleif else f"wd:{sorted(qids)[0]}" if qids else ref)
     osrow = locals().get("osrow")
     node = {"ref": canon, "refs": sorted({f"lei:{l}" for l in gleif} | {f"wd:{q}" for q in items} | {f"icij:{i}" for i in icij_ids}),
             "facts": [], "links": [], "owners": [], "holdings": [], "holdings_total": {}, "roles": [], "exceptions": [], "related": [],
-            "problems": problems}
+            "problems": problems, "joins": joined, "notes": notes}
     names, kinds, countries = [], [], []
 
     # --- facts per source
@@ -173,50 +205,63 @@ async def build(ref: str, holdings_limit: int = 60) -> dict:
         par = await _safe(problems, "GLEIF", S.gleif_parents(lei)) or {}
         d, u = par.get("direct"), par.get("ultimate")
         if d:
-            add(owners, _edge(f"lei:{d['lei']}", d["name"], _gleif_kind(d), d.get("country"), "direct parent (consolidates its accounts)", "GLEIF"))
+            add(owners, _edge(f"lei:{d['lei']}", d["name"], _gleif_kind(d), d.get("country"), "direct parent (consolidates its accounts)", "GLEIF", other_names=d.get("other_names")))
         elif par.get("direct_exception"):
             node["exceptions"].append({"text": S.EXCEPTION_WORDS.get(par["direct_exception"], par["direct_exception"]), "code": par["direct_exception"], "source": "GLEIF", "level": "direct"})
         if u and (not d or u["lei"] != d["lei"]) and not d:
-            add(owners, _edge(f"lei:{u['lei']}", u["name"], _gleif_kind(u), u.get("country"), "ultimate parent (links in between not reported)", "GLEIF", ultimate=True))
+            add(owners, _edge(f"lei:{u['lei']}", u["name"], _gleif_kind(u), u.get("country"), "ultimate parent (links in between not reported)", "GLEIF", ultimate=True, other_names=u.get("other_names")))
         if not u and par.get("ultimate_exception") and par.get("ultimate_exception") != par.get("direct_exception"):
             node["exceptions"].append({"text": S.EXCEPTION_WORDS.get(par["ultimate_exception"], par["ultimate_exception"]), "code": par["ultimate_exception"], "source": "GLEIF", "level": "ultimate"})
         kids = await _safe(problems, "GLEIF", S.gleif_children(lei)) or {"items": [], "total": 0}
         node["holdings_total"]["GLEIF"] = kids["total"]
         for k in kids["items"]:
-            add(holdings, _edge(f"lei:{k['lei']}", k["name"], _gleif_kind(k), k.get("country"), "direct subsidiary (consolidated)", "GLEIF"))
+            add(holdings, _edge(f"lei:{k['lei']}", k["name"], _gleif_kind(k), k.get("country"), "direct subsidiary (consolidated)", "GLEIF", other_names=k.get("other_names")))
 
     # --- Wikidata owners and holdings
-    wd_owner, wd_hold = [], []          # (qid, label, share, start, end)
+    wd_owner, wd_hold = [], []          # (qid, label, share, start, (prop, target) the other item must still state, or None)
     for q, it in items.items():
         c = it["claims"]
         for p, lab in (("P127", "owned by"), ("P749", "parent organisation")):
             for cl in c.get(p, []):
                 if cl["v"] and not cl.get("end"):
-                    wd_owner.append((cl["v"], lab, cl.get("share"), cl.get("start")))
+                    wd_owner.append((cl["v"], lab, cl.get("share"), cl.get("start"), None))
         for p, lab in (("P355", "subsidiary"), ("P1830", "owner of")):
             for cl in c.get(p, []):
                 if cl["v"] and not cl.get("end"):
-                    wd_hold.append((cl["v"], lab, cl.get("share"), cl.get("start")))
+                    wd_hold.append((cl["v"], lab, cl.get("share"), cl.get("start"), None))
+        # statements on the other item, found through the search index, which also lists ended ones (checked below)
         for p, lab in (("P355", "lists it as a subsidiary"), ("P1830", "says it owns it")):
             r = await _safe(problems, "Wikidata", S.wd_reverse(p, q))
             for x in (r or {}).get("ids", []):
-                wd_owner.append((x, lab, None, None))
+                wd_owner.append((x, lab, None, None, (p, q)))
         tot = 0
         for p, lab in (("P127", "owned by it"), ("P749", "names it as parent")):
             r = await _safe(problems, "Wikidata", S.wd_reverse(p, q))
             tot += (r or {}).get("total", 0)
             for x in (r or {}).get("ids", []):
-                wd_hold.append((x, lab, None, None))
+                wd_hold.append((x, lab, None, None, (p, q)))
         node["holdings_total"]["Wikidata"] = tot + len(c.get("P355", [])) + len(c.get("P1830", []))
     want = [x[0] for x in wd_owner + wd_hold if x[0] not in items]
     more = await _safe(problems, "Wikidata", S.wd_entities(want)) or {}
-    for (qid, lab, share, start), bucket in [(x, owners) for x in wd_owner] + [(x, holdings) for x in wd_hold]:
+    gone = {}
+    for (qid, lab, share, start, must), bucket in [(x, owners) for x in wd_owner] + [(x, holdings) for x in wd_hold]:
         it = more.get(qid)
         if not it or qid in items:
             continue
+        if must:                                        # the other item's statement must still hold (no end date)
+            st = [cl for cl in it["claims"].get(must[0], []) if cl.get("v") == must[1]]
+            if not st or all(cl.get("end") for cl in st):
+                continue
+            share = next((cl.get("share") for cl in st if not cl.get("end") and cl.get("share")), None)
+            start = next((cl.get("start") for cl in st if not cl.get("end") and cl.get("start")), None)
         lei = next((str(c["v"]).upper() for c in it["claims"].get("P1278", []) if c["v"]), None)
         r = f"lei:{lei}" if lei else f"wd:{qid}"
-        add(bucket, _edge(r, it["name"] or qid, _wd_kind(it), None, lab, "Wikidata", share=share, start=_wd_time(start), desc=it.get("desc")))
+        e = _edge(r, it["name"] or qid, _wd_kind(it), joins.wd_country(it), lab, "Wikidata", share=share, start=_wd_time(start), desc=it.get("desc"),
+                  aliases=it.get("aliases"))
+        if it["claims"].get("P576"):                    # Wikidata says the company was dissolved: not a current owner or holding
+            gone[qid] = (bucket, e)                     # (unless GLEIF lists a company of that name in the group as active, below)
+            continue
+        add(bucket, e)
 
     # --- Offshore Leaks
     for i in icij_rows:
@@ -245,6 +290,17 @@ async def build(ref: str, holdings_limit: int = 60) -> dict:
     # --- sanctions lists (local copy of OpenSanctions' sanctioned companies; matched on LEI, else exact name)
     node["sanctions"] = await asyncio.to_thread(sanc.match, sorted(gleif), node["name"], node.get("country"))
 
+    # the same company as a GLEIF edge and a Wikidata edge (no shared LEI): one edge, as both registers put it under this entity
+    # the GLEIF group: its own LEI, or for a Wikidata 'group' item without one, the LEIs of the companies it lists
+    group = list(gleif) or [e["ref"][4:] for e in holdings.values() if e["ref"].startswith("lei:") and e["source"] == "Wikidata"][:joins.MAX_GROUP]
+    node["edge_joins"] = joins.merge_edges(owners) + joins.merge_edges(holdings)
+    node["edge_joins"] += await _safe(problems, "GLEIF", joins.resolve_holdings(holdings, group, f"both registers place it in the same group, under {node['name']}")) or []
+    for e in await _safe(problems, "GLEIF", joins.revive_dissolved([e for b, e in gone.values() if b is holdings], group)) or []:
+        add(holdings, e)
+        gone.pop(e["alias"][0][3:], None)
+    for e in list(owners.values()) + list(holdings.values()):
+        e.pop("other_names", None); e.pop("aliases", None)
+    node["dissolved_left_out"] = sorted(e["name"] for b, e in gone.values())
     node["owners"] = list(owners.values())
     hl = list(holdings.values())
     node["holdings_count"] = len(hl)

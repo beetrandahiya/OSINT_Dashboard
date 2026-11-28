@@ -61,13 +61,20 @@ $('#panel').addEventListener('click', e => {
 function go(ref) { history.pushState(null, '', '?ref=' + encodeURIComponent(ref)); start(ref); }
 addEventListener('popstate', route);
 
+// one company can arrive under two refs (its Wikidata id first, its LEI once the registers are joined): every alias
+// points at the canonical ref the server gave
+const alias = new Map();
+const R = ref => alias.get(ref) || ref;
 function put(ref, info, level) {
+  ref = R(ref);
   let n = nodes.get(ref);
   if (!n) { n = {ref, name: info.name || ref, kind: info.kind || 'organisation', country: info.country, level, sanc: false}; nodes.set(ref, n); }
   else if (level !== undefined && (n.level === undefined || (level < 0 && level < n.level))) n.level = level;
   return n;
 }
 function link(from, to, e) {
+  from = R(from); to = R(to);
+  if (from === to) return;
   const k = from + '|' + to;
   if (!edges.has(k)) edges.set(k, {from, to, label: e.label, source: e.source, share: e.share, ultimate: !!e.ultimate || !!e.samename});
 }
@@ -90,7 +97,7 @@ async function start(ref) {
   let frontier = [first], fetched = 1;
   for (let lvl = -1; lvl >= -MAX_UP && frontier.length && fetched < MAX_FETCH; lvl--) {
     const next = [];
-    for (const n of frontier) for (const o of n.owners) { put(o.ref, o, lvl); link(o.ref, n.ref, o); if (!nodes.get(o.ref).data && !next.some(x => x.ref === o.ref)) next.push(o); }
+    for (const n of frontier) for (const o of n.owners) { put(o.ref, o, lvl); link(o.ref, n.ref, o); if (!nodes.get(R(o.ref)).data && !next.some(x => R(x.ref) === R(o.ref))) next.push(o); }
     draw();
     $('#walk').textContent = `walking up: level ${-lvl}`;
     const got = await pool(next.slice(0, MAX_FETCH - fetched), 3, o => fetchNode(o.ref, lvl, id));
@@ -100,11 +107,11 @@ async function start(ref) {
     for (const n of frontier) {
       let shown = 0;
       for (const h of n.holdings) {
-        if (nodes.has(h.ref)) { link(n.ref, h.ref, h); continue; }
+        if (nodes.has(R(h.ref))) { link(n.ref, h.ref, h); continue; }
         if (shown++ >= SIBLINGS) break;
         put(h.ref, h, lvl + 1); link(n.ref, h.ref, h);
       }
-      const rest = n.holdings_count - shown - n.holdings.filter(h => nodes.has(h.ref)).length;
+      const rest = n.holdings_count - shown - n.holdings.filter(h => nodes.has(R(h.ref))).length;
       if (rest > 0) stub(n.ref, rest, lvl + 1);
       n.exceptions.forEach(x => { const r = 'exc:' + n.ref + ':' + x.level; put(r, {name: x.text, kind: 'exc'}, lvl - 1); nodes.get(r).exc = x; link(r, n.ref, {label: x.level === 'ultimate' ? 'above the top' : 'above it', source: x.source}); });
     }
@@ -127,14 +134,23 @@ async function fetchNode(ref, level, id) {
   const d = await api('/api/connections/node?ref=' + encodeURIComponent(ref));
   if (id !== undefined && id !== walkId) return null;
   if (d.error) return d;
+  const names = new Map([[ref, d.ref], ...(d.refs || []).map(r => [r, d.ref])]);
+  for (const e of [...(d.owners || []), ...(d.holdings || [])]) for (const a of e.alias || []) names.set(a, e.ref);
+  for (const [a, to] of names) if (a !== to) alias.set(a, to);
   const n = put(d.ref, d, level);
-  if (d.ref !== ref && nodes.has(ref) && ref !== d.ref) {               // the same entity under its canonical ref
-    for (const e of [...edges.values()]) { if (e.from === ref) e.from = d.ref; if (e.to === ref) e.to = d.ref; }
-    const old = nodes.get(ref); nodes.delete(ref); if (old.level !== undefined) n.level = Math.min(n.level ?? old.level, old.level);
-    if (focus === ref) focus = d.ref; if (selected === ref) selected = d.ref;
-  }
+  for (const [a, to] of names) if (a !== to && nodes.has(a)) merge(a, to);       // the same entity under its canonical ref
   Object.assign(n, {name: d.name, kind: d.kind, country: d.country, data: d, sanc: (d.sanctions || []).some(s => !/same name/.test(s.match))});
   return d;
+}
+
+function merge(from, to) {
+  const old = nodes.get(from), keep = put(to, old, old.level);
+  if (old.level !== undefined) keep.level = Math.min(keep.level ?? old.level, old.level);
+  nodes.delete(from);
+  const moved = [...edges.values()].map(e => ({...e, from: R(e.from === from ? to : e.from), to: R(e.to === from ? to : e.to)}));
+  edges.clear();
+  for (const e of moved) if (e.from !== e.to && !edges.has(e.from + '|' + e.to)) edges.set(e.from + '|' + e.to, e);
+  if (focus === from) focus = to; if (selected === from) selected = to;
 }
 
 async function pool(items, k, fn) {
@@ -147,7 +163,7 @@ async function pool(items, k, fn) {
 const problems = list => list?.length ? `<p class="problems">${list.map(esc).join('<br>')}</p>` : '';
 function edgeRow(e, dirWord) {
   const bits = [e.label, e.share ? `share ${(+e.share * (e.share <= 1 ? 100 : 1)).toFixed(e.share <= 1 ? 1 : 0)} %` : '', e.start ? `from ${e.start}` : '', e.end ? `until ${e.end}` : '', e.leak, e.desc].filter(Boolean);
-  const also = (e.also || []).map(a => `${a.label} (${a.source})`).join('; ');
+  const also = (e.also || []).map(a => `${a.label} (${a.source})`).join('; ') + (e.joined ? (e.also?.length ? '; ' : '') + e.joined : '');
   return `<li data-ref="${esc(e.ref)}"><span class="t">${esc(e.name)}</span><span class="src src-${SRC(e.source)}">${esc(e.source)}</span>
     <span class="m">${esc(KIND[e.kind] || e.kind || '')}${e.country ? ' · ' + esc(e.country) : ''} · ${esc(bits.join(' · '))}${also ? ' · also: ' + esc(also) : ''}</span></li>`;
 }
@@ -176,8 +192,11 @@ async function showPanel(ref) {
     ${d.related?.length ? `<div class="sec"><h3>Records ICIJ links to it <span class="n-count">${d.related.length}</span></h3><ul class="rows">${d.related.map(e => edgeRow(e)).join('')}</ul></div>` : ''}
     ${Object.entries(bySrc).map(([s, fs]) => `<div class="sec"><h3><span class="src src-${SRC(s)}">${esc(s)}</span></h3><dl class="facts">${fs.map(f => `<dt>${esc(f.label)}</dt><dd>${/^https?:/.test(f.value) ? `<a href="${esc(f.value)}" target="_blank" rel="noopener">${esc(f.value)}</a>` : esc(f.value)}</dd>`).join('')}</dl></div>`).join('')}
     <div class="sec links">${d.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>
+    ${d.joins?.length ? `<div class="sec"><h3>Joined across registers</h3>${d.joins.map(j => `<p class="soft">${j.refs.map(esc).join(' = ')}: no shared LEI; same name, and ${esc(j.how)}.</p>`).join('')}</div>` : ''}
+    ${d.dissolved_left_out?.length ? `<p class="soft">Left out, as Wikidata gives them as dissolved: ${esc(d.dissolved_left_out.join(', '))}.</p>` : ''}
+    ${(d.notes || []).map(n => `<p class="soft">${esc(n)}.</p>`).join('')}
     ${problems(d.problems)}
-    <p class="note">${d.refs.some(r => r.startsWith('icij:')) ? 'Offshore Leaks records come from leaked files dated 2013-2021; ownership may have changed since. ' : ''}Links between registers are joined only on a shared LEI code. Read ${d.cached ? 'from this server\'s copy of ' : ''}${new Date((d.built || Date.now() / 1000) * 1000).toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'})}.</p>
+    <p class="note">${d.refs.some(r => r.startsWith('icij:')) ? 'Offshore Leaks records come from leaked files dated 2013-2021; ownership may have changed since. ' : ''}Records from two registers are joined on a shared LEI code, or, where Wikidata lacks it, on the same name when both registers place the company in the same group. Ended and dissolved holdings are left out. Read ${d.cached ? 'from this server\'s copy of ' : ''}${new Date((d.built || Date.now() / 1000) * 1000).toLocaleString('en-GB', {dateStyle: 'medium', timeStyle: 'short'})}.</p>
   </div>`;
 }
 function showStub(n) {

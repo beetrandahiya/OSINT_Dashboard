@@ -9,7 +9,8 @@ for h, v in HX.items():                 # hexdb.io where adsbdb did not know the
     if b and b.get('RegisteredOwners'):
         OW[h] = {'status': 200, 'src': 'hexdb.io', 'aircraft': {'registered_owner': b['RegisteredOwners'], 'registered_owner_operator_flag_code': b.get('OperatorFlagCode'),
                  'registration': b.get('Registration'), 'manufacturer': b.get('Manufacturer'), 'type': b.get('Type'), 'registered_owner_country_iso_name': None}}
-WDA = json.load(open('wd-airlines.json')); GL = json.load(open('gleif-lh.json'))
+WDA = json.load(open('wd-airlines.json')) + json.load(open('wd-airlines-extra.json')); GL = json.load(open('gleif-lh.json'))
+SUBS = {b['c']['value'].rsplit('/', 1)[1] for b in json.load(open('wd-lh-subs.json'))}   # current, not dissolved P355 of the two Lufthansa items
 # --- companies (Wikidata airline items by ICAO designator P230), skipping dissolved ones
 items = {}
 for b in WDA:
@@ -22,7 +23,7 @@ for b in WDA:
         lo, la = map(float, re.findall(r'[-\d.]+', g(b, 'hqc'))); it['hq'] = (lo, la); it['hqname'] = g(b, 'hqLabel')
 TOP = {'Q9325', 'Q62589018'}            # Lufthansa (airline item, carries Deutsche Lufthansa AG's LEI) and Lufthansa Group
 def in_group(q, seen=()):
-    if q in TOP: return True
+    if q in TOP or q in SUBS: return True
     it = items.get(q)
     if not it or q in seen: return False
     return any(in_group(p, seen + (q,)) for p, _ in it['parents'] | it['owners'])
@@ -30,6 +31,7 @@ gleif_leis = {GL['parent']['id']} | {k['lei'] for k in GL['children']}
 for q, it in items.items():
     it['group'] = in_group(q) or (it['lei'] in gleif_leis)
     it['via'] = sorted({lab for _, lab in it['parents'] | it['owners']})
+    it['others'] = sorted({lab for p, lab in it['parents'] | it['owners'] if not in_group(p) and p not in TOP})
 by_icao = {}
 for it in items.values():
     for c in it['icao']: by_icao.setdefault(c, []).append(it)
@@ -57,7 +59,7 @@ for a in AC:
     rows.append(dict(hex=a['hex'], cs=cs, reg=a.get('r'), type=a.get('t'), lat=a.get('lat'), lon=a.get('lon'), alt=a.get('alt_baro'), gs=a.get('gs'), trk=a.get('track'),
                      seen=a.get('seen_pos'), op=op and op['qid'], op_group=bool(op and op['group']), owner=ow and ow.get('registered_owner'), owner_country=ow and ow.get('registered_owner_country_iso_name'),
                      owner_q=oc and oc['qid'], owner_group=bool(oc and oc['group']), how=how, src=(rec or {}).get('src', 'adsbdb') if ow else None, model=ow and f"{ow.get('manufacturer')} {ow.get('type')}"))
-cos = {q: dict(qid=q, name=it['name'], icao=sorted(it['icao']), lei=it['lei'], group=it['group'], via=it['via'], hq=it['hq'], hqname=it['hqname']) for q, it in items.items()}
+cos = {q: dict(qid=q, name=it['name'], icao=sorted(it['icao']), lei=it['lei'], group=it['group'], via=it['via'], others=it['others'], hq=it['hq'], hqname=it['hqname'], subs=q in SUBS) for q, it in items.items()}
 json.dump(dict(now=NOW, total=len(AC), rows=rows, companies=cos, gleif_children=len({k['lei'] for k in GL['children']})), open('air.json', 'w'), indent=1)
 from collections import Counter
 print("now", time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(NOW)), "aircraft", len(AC), "considered", len(rows))

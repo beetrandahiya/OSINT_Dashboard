@@ -1258,5 +1258,25 @@
    "url_photo": "https://image.airport-data.com/aircraft/001669030.jpg",
    "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/669/001669030.jpg"
   }
+ },
+ "4bcdba": {
+  "status": 404,
+  "aircraft": null
+ },
+ "4bcde3": {
+  "status": 200,
+  "aircraft": {
+   "type": "737NG 800/W",
+   "icao_type": "B738",
+   "manufacturer": "Boeing",
+   "mode_s": "4BCDE3",
+   "registration": "TC-SOC",
+   "registered_owner_country_iso_name": "TR",
+   "registered_owner_country_name": "Turkey",
+   "registered_owner_operator_flag_code": "SXS",
+   "registered_owner": "SunExpress",
+   "url_photo": "https://image.airport-data.com/aircraft/001652685.jpg",
+   "url_photo_thumbnail": "https://airport-data.com/images/aircraft/thumbnails/001/652/001652685.jpg"
+  }
  }
 }

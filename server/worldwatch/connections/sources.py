@@ -23,6 +23,7 @@ WD = "https://www.wikidata.org/w/api.php"
 WEEK = 7 * 86400
 _client = None
 _gleif_gate = asyncio.Semaphore(4)
+_gleif_times: list[float] = []   # GLEIF allows 60 requests a minute: stay at 55 in any 60 s
 _wd_gate = asyncio.Semaphore(1)
 _wd_last = [0.0]
 _wd_cool = [0.0]          # after Wikidata refuses twice in a row, it is left alone for a minute (and the page says so)
@@ -50,6 +51,14 @@ async def _get_json(url, params=None, gate=None, wd=False):
                 if wait > 0:
                     await asyncio.sleep(wait)
                 _wd_last[0] = time.monotonic()
+            elif gate is _gleif_gate:
+                while True:
+                    now = time.monotonic()
+                    _gleif_times[:] = [t for t in _gleif_times if now - t < 60]
+                    if len(_gleif_times) < 55:
+                        break
+                    await asyncio.sleep(60 - (now - _gleif_times[0]) + 0.05)
+                _gleif_times.append(time.monotonic())
             try:
                 r = await client().get(url, params=params)
             except httpx.HTTPError as e:
@@ -138,13 +147,14 @@ async def gleif_parents(lei):
     return await cached("gleif2:par:" + lei, WEEK, make)
 
 
-async def gleif_children(lei, page=1, size=50):
+async def gleif_children(lei, page=1, size=50, kind="direct"):
+    """kind "direct": companies naming it as direct parent; "ultimate": everything it consolidates at the top."""
     async def make():
-        d = await _get_json(f"{GLEIF}/lei-records/{lei}/direct-children", params={"page[size]": size, "page[number]": page}, gate=_gleif_gate)
+        d = await _get_json(f"{GLEIF}/lei-records/{lei}/{kind}-children", params={"page[size]": size, "page[number]": page}, gate=_gleif_gate)
         if not d:
             return {"items": [], "total": 0}
         return {"items": [_gleif_entity(x) for x in d.get("data", [])], "total": d.get("meta", {}).get("pagination", {}).get("total", 0)}
-    return await cached(f"gleif2:kids:{lei}:{page}:{size}", WEEK, make)
+    return await cached(f"gleif2:kids:{lei}:{page}:{size}" + ("" if kind == "direct" else ":" + kind), WEEK, make)
 
 
 async def gleif_search(q):
@@ -180,7 +190,9 @@ def _wd_compact(e):
     lab = e.get("labels", {})
     name = (lab.get("en") or lab.get("mul") or next(iter(lab.values()), {}) or {}).get("value")
     desc = (e.get("descriptions", {}).get("en") or {}).get("value")
-    return {"qid": e.get("id"), "name": name, "desc": desc, "claims": claims}
+    al = e.get("aliases", {})
+    aliases = [a.get("value") for k in ("en", "mul") for a in al.get(k, []) if a.get("value")][:12]
+    return {"qid": e.get("id"), "name": name, "desc": desc, "claims": claims, "aliases": aliases}
 
 
 async def wd_entities(qids):
@@ -194,7 +206,7 @@ async def wd_entities(qids):
     need = [q for q in qids if q not in have]
     for i in range(0, len(need), 50):
         chunk = need[i:i + 50]
-        d = await _get_json(WD, params={"action": "wbgetentities", "ids": "|".join(chunk), "props": "labels|descriptions|claims",
+        d = await _get_json(WD, params={"action": "wbgetentities", "ids": "|".join(chunk), "props": "labels|descriptions|claims|aliases",
                                         "languages": "en|mul|de|fr|es|ru|zh", "format": "json"}, gate=_wd_gate, wd=True)
         for q, e in ((d or {}).get("entities") or {}).items():
             if "missing" in e:
