@@ -1910,3 +1910,8 @@ Owner asked to run it on the M1 over the network ("would it be too much work ...
 - **CelesTrak blocked the home address** after repeated restarts on 2026-11-25 (satellites feed failing, "HTTPStatusError"
   for every family): the PC and the M1 share one public address, so testing on the PC counts against the M1. Don't restart
   in loops; the feed backs off by itself.
+
+### 2026-11-28, his verdict on the lighter globe
+
+- Owner on his Mac: **"There's no lag whatsoever ... it looks nice in general."** The level-of-detail, dynamic-resolution
+  and earlier stripping passes are confirmed on his real GPU/Safari. Asked what next; options put to him (see next entry).
