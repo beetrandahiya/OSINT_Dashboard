@@ -1932,3 +1932,51 @@ Owner asked to run it on the M1 over the network ("would it be too much work ...
   individuals), adsbdb gives registered owner, Companies House needs a free key (401), Wikidata 429 from here again.
   Ordinary ships' owners are not public for free (Equasis needs a login and forbids automated use): ship ownership will be
   deep only for sanctioned / Wikidata ships.
+
+### 2026-11-28 night, his answers before sleeping, and Connections built (built, waiting for his review)
+
+His answers: Offshore Leaks' 500 MB database on the M1 is fine; private individuals inside offshore chains are **shown by
+name as ICIJ shows them**, never searchable, never a starting point; "go, build both" (Connections and Investigate); the
+logo must be "a full brand design idea, not just a logo ... truly special, not generic" (designer agent briefed; options
+come as a brand book). GitHub token: only needed for Investigate (fine-grained, no permissions, `data/github-token.txt`,
+on the M1 `~/worldwatch-data/`).
+
+**Connections** (`connections/` package, `/connections` page, `static/connections.{html,css}`, `js/connections.js`,
+shared `static/suite.css` + `js/suite.js`):
+- Sources: **GLEIF** API (record, direct/ultimate parent, reporting-exception reasons in words, children paged 50),
+  **Wikidata** (P127 owned by with P1107 share, P749 parent, P355 subsidiary, P1830 owner of, both directions via
+  `haswbstatement` search; P1278 LEI joins it to GLEIF), **ICIJ Offshore Leaks** (local `data/icij.db`, 504 MB, imported in
+  97 s with 29 MB peak in the helper process; feed `icij` checks the file's Last-Modified weekly and imports only a new
+  file), **OpenSanctions** sanctioned companies (25,425 Company/Organization/LegalEntity/PublicBody rows kept in
+  `data/connections.db` by the weekly `sanctioned` feed; matched on LEI, else exact normalised name shown as "same name
+  (may be someone else)").
+- Joining: records are merged only on shared identifiers (LEI in GLEIF and Wikidata; ICIJ's own "same company as" / "same
+  id as" / "same name and registration date as"). ICIJ's "same name as" between a shareholder (officer record) and a
+  company record continues the chain as a **dashed "same name only" step**, never a merge (officer -> entity links in ICIJ
+  exist only as same-name links). Bearer shares ("THE BEARER") are their own kind.
+- Boundaries kept: ICIJ addresses not imported (no residential addresses, no registered-address links; a company's own
+  registered office text kept); only organisations are searchable (officers only when the name reads as an organisation,
+  `icij.ORG`); people appear only as links from a company.
+- Page: search (GLEIF, Wikidata, Offshore Leaks, sanctions), then the structure is walked **up** in the browser, level by
+  level (max 12 levels / 60 entities, 3 at a time), each owner's other holdings beside it (6 shown + "+N more"), the
+  entity's own holdings below (40 + more); GLEIF's declared reasons where a chain stops are drawn as dashed boxes. Edge
+  colour = source, label = how (parent, shareholder, beneficial owner, share %), only on chain links and single links.
+  Panel: owners, holdings (with per-source totals, GLEIF paging), people and firms around it (ICIJ roles), ICIJ related
+  records, facts per source, links, problems (sources that did not answer), sanctions block. Readable zoom never below
+  0.8 (centres on the chain instead). `?ref=lei:… | wd:Q… | icij:… | os:…`, `?q=`, `?asset=ac:<hex> | imo:<n>`.
+- Assets: aircraft cards (incl. sanctioned aircraft) and ship cards with an IMO get "Who owns it (Connections)" (new
+  tab). Aircraft -> adsbdb registered owner -> searched in organisation registers only; ships -> Wikidata by IMO (P458) +
+  OpenSanctions maritime list. Ordinary ships' owners are not public for free (said on the page).
+- Page switcher (Map / Connections / Investigate / Sources) in the map's God's eye top bar, on Connections and Sources;
+  the Apple-theme sidebar segment now links Connections and Investigate.
+- Wikidata answers caching per item a week, one request at a time, and after two refusals it pauses a minute and the
+  page says "Wikidata did not answer"; node results cached 12 h only when every source answered (`node4:` key; GLEIF
+  cache keys `gleif2:`).
+- Tested here: GLEIF chains (Volkswagen Financial Services Polska -> Volkswagen AG -> "declares no known person";
+  Rosneft Deutschland -> PJSC Rosneft, sanctioned on 8 lists by its LEI), Offshore Leaks chains (Pandora Papers: 17 GS SU
+  -> 17 GS Holding -> same-name step -> Gandol Investments, Triple A Trustees), bearer shares (Panama Papers ROSNEFT INC.),
+  aircraft entry (D-AIBD -> Lufthansa candidates), the Wikidata join logic with injected real Wikidata answers. **Wikidata
+  live was refused (429) from the sandbox all night: untested live; on his network it should answer.** OpenSanctions
+  ownership via their API is not built (bulk has no ownership); UK Companies House needs his free key (not built).
+- Lesson: a "looks like a private person" rule on registered-owner names classed "Lufthansa" as a person. Dropped: owner
+  names are searched only in registers of organisations, which hold no records about private people.
