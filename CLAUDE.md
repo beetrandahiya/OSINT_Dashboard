@@ -2040,3 +2040,19 @@ capitals or sentence case wordmark.
   space plate #000000; my pick), 2 Whole Earth (EPIC only, cloud footprint #B9BCBB), 3 Compass Ghost (F-15 greys: 36118
   plate, 36495 globe, 36176 footprint, 37038 pupil), Munich from orbit (olive), CORONA film (greys).
 - Questions put to him: which palette (mixing allowed); should the God's eye look take the palette or keep ice blue.
+
+### 2026-11-28, Footprint colours round two: real brand colours (waiting for his pick)
+
+- Owner on the sampled palettes: **"way too dull ... do not make up colors ... find actual design guidelines ... look at actual
+  apps and actual logos ... use those colors."** Sampled/muted palettes are out; do not offer earth/khaki/grey palettes again.
+- Guidelines read (Apple HIG app icons, fetched as JSON from developer.apple.com): "Avoid using black for your icon's
+  background", "Design a background that both stands out and emphasizes foreground content", "prefer a simple background,
+  such as a solid color or gradient". Plus WCAG 1.4.11 (3:1 for graphics). The dull round broke both (black tiles, 1.8:1).
+- Page: https://claude.ai/artifact/HsiutBWFWniVaFMELb7y9g (sources `docs/brand/globe/footprint-brand/`). Colours copied, not
+  mixed: NASA insignia #0032A0/#E4002B, Apple HIG system colours (June 2025 values: Indigo #6155F5, Blue #0088FF, Cyan
+  #00C0E8, Green #34C759), Telegram logo SVG #2AABEE/#229ED9, NATO #004990/#118ACB, Anduril #DFF140/#010101, Signal source
+  #3B45FD/#2C6BED. Also verified, not used: Google logo #4285F4 #EA4335 #FBBC05 #34A853, Spotify #1ED760, Discord #5865F2,
+  Duolingo #58CC02/#1CB0F6.
+- **My pick: NASA, insignia order** (white tile, NASA-blue globe, white footprint, NASA-red pupil = Munich; 10.7:1 / 4.8:1).
+  Second Apple Indigo and Blue (indigo tile, blue globe, white footprint), third Telegram sky blue. Lesson: the white
+  globe + coloured iris reads as a cartoon eye; a coloured globe with a white footprint reads as light on the Earth.
