@@ -1,0 +1,22 @@
+/* 1920 x 1080 boards: the Dense layout on a rendered globe. */
+.board.big{width:1920px;height:1080px;background-size:1920px 1080px;background-repeat:no-repeat}
+.fit>.board.big{position:absolute;left:0;top:0}
+.board.big .mk{position:absolute;inset:0}
+.board.big .tb{height:58px}
+.board.big .col{top:74px;right:16px;bottom:16px;width:456px}
+.board.big .vstrip{position:absolute;left:16px;bottom:16px;display:flex;gap:6px;padding:6px;border-radius:16px;background:var(--u-panel);box-shadow:var(--u-shadow)}
+.board.big .vt{display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:11px;font-size:11.5px;color:var(--u-ink3);width:136px}
+.board.big .vt img{width:128px;height:72px;border-radius:8px;display:block;box-shadow:0 0 0 .5px rgb(0 0 0 / .15)}
+.board.big .vt.on{background:var(--u-ink);color:var(--u-on)}
+.board.big .seen{bottom:136px;left:20px}
+/* map text over a dark globe stays light even when the panels are light */
+.board.big.gpal-dark .seen{color:#d4d4d8}.board.big.gpal-dark .seen b{color:#fafafa}
+/* smoked porcelain: the same parts, translucent, no blur (blur over a moving map is the costly thing in Safari) */
+.ui.smoke.d{--u-panel:rgb(12 12 14 / .78);--u-raise:rgb(255 255 255 / .05);--u-chip:rgb(255 255 255 / .07);
+  --u-shadow:0 0 0 .5px rgb(255 255 255 / .14),0 1px 0 0 rgb(255 255 255 / .07) inset,0 18px 40px -14px rgb(0 0 0 / .6)}
+.ui.smoke.l{--u-panel:rgb(255 255 255 / .9);--u-raise:rgb(255 255 255 / .55);--u-chip:rgb(9 9 11 / .06);
+  --u-shadow:0 0 0 .5px rgb(255 255 255 / .6),0 1px 0 0 rgb(255 255 255 / .9) inset,0 18px 40px -14px rgb(0 0 0 / .45)}
+.ui.smoke .tb{background:var(--u-panel);box-shadow:0 .5px 0 rgb(255 255 255 / .1)}
+.ui.smoke.l .tb{background:rgb(255 255 255 / .96)}
+.board.big .list li{padding:4px 6px}.board.big .list .grp{margin:6px 0 2px}
+.ui.porcelain-bg .tb{background:color-mix(in srgb,var(--u-panel) 88%,transparent)}

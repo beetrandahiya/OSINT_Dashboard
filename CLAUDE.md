@@ -2095,3 +2095,18 @@ capitals or sentence case wordmark.
   example.com), marked SPECIMEN. Nothing in the app changed.
 - Open questions for him: adopt Porcelain for the app or keep God's eye; dark twin or planet for dark mode; then real
   icon files (.ico, macOS icon) once he picks.
+
+### 2026-11-28, his verdict on Porcelain and the "between" directions (waiting for his pick)
+
+- Owner: **"this design looks very good"** (Porcelain), then: design the panels, layouts "and everything in the app", and
+  "we maybe need something between this and god's eye for the actual app".
+- Page **Three Earths**: https://claude.ai/artifact/DZAbTkACsj1rDknuAyZAPq (sources `docs/brand/between/`). Six 1920 x 1080
+  boards on the Dense layout with Porcelain's parts (fonts, colours, buttons, list, tiles) and real data (store, newest
+  28 Nov 03:08 UTC), theatre camera of the God's eye boards. Only the Earth, the space around it and the panel material
+  change: **A** real NASA photo in black space with see-through panels (closest to God's eye); **B Ink Earth** (my pick:
+  the icon at full size, black seas / charcoal land / pale atmosphere, porcelain-white or night space, solid panels; a
+  vector style, lighter than picture tiles); **C Silver Earth** (photo without colour; pale on white or dim on night).
+- To check before building B or C: whether MapLibre's globe leaves the space around it transparent so the page shows.
+- Next once he picks the default Earth and solid vs see-through panels: draw every panel and screen in it before building
+  (each card kind, layers sheet and key, search, Settings, feeds, dossiers, follow, look down, Connections, Investigate,
+  empty / dead-feed states).
