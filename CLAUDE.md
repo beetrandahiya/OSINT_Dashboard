@@ -1915,3 +1915,20 @@ Owner asked to run it on the M1 over the network ("would it be too much work ...
 
 - Owner on his Mac: **"There's no lag whatsoever ... it looks nice in general."** The level-of-detail, dynamic-resolution
   and earlier stripping passes are confirmed on his real GPU/Safari. Asked what next; options put to him (see next entry).
+
+### 2026-11-28, "a true OSINT system, like Palantir": his picks and the structure proposed (awaiting his go)
+
+- Owner says he fixed the Cloudflare token (in `data/` on his Mac; not checkable from here).
+- He meant **not AI models** but a Palantir-like OSINT system on public data, "people recognition and finding things in
+  people". **Boundary told to him:** no face recognition / matching faces, no "type any private person, get everything";
+  the graph covers organisations, assets and public figures; private people appear only where a public record links them
+  to a company (e.g. an Offshore Leaks officer), never searchable on their own; himself or consented subjects as before.
+- **He picked: Ownership webs, Asset links.** Detectors: no preference (I suggest order). History store: **not now**.
+  Rejected my layer list (cyber streams, spy ships, time machine, watch an area): "not interesting, generic".
+  Wants new systems as **separate pages of World Watch in the same design** so the map stays light ("not a clunky mess").
+- Probed 2026-11-28: GLEIF API keyless works (Rosneft Deutschland -> parent PJSC Rosneft; Rosneft's own parent is a
+  reporting exception "NO_KNOWN_PERSON"), ICIJ Offshore Leaks bulk CSV zip 73 MB (200) and reconcile API (200), FAA
+  aircraft registry zip 73 MB (200; holds private owners' names and home addresses: show organisations only, withhold
+  individuals), adsbdb gives registered owner, Companies House needs a free key (401), Wikidata 429 from here again.
+  Ordinary ships' owners are not public for free (Equasis needs a login and forbids automated use): ship ownership will be
+  deep only for sanctioned / Wikidata ships.
